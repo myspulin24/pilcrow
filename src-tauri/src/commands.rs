@@ -41,6 +41,29 @@ pub fn auto_update_enabled() -> bool {
     }
 }
 
+/// Který balíček si má updater z `latest.json` vzít.
+///
+/// `None` znamená „nech rozhodnout plugin“, což je správně všude kromě Windows.
+///
+/// Na Windows vydáváme MSI i NSIS a plugin sáhne po MSI. Jenže MSI se instaluje
+/// pro celý počítač a ptá se přes UAC, kdežto `setup.exe` běží jen pro
+/// přihlášeného uživatele -- a přesně tak se Reader_MJ instaluje. Kdyby se
+/// aktualizovalo tím druhým, nepřepsalo by to stávající instalaci, ale
+/// postavilo vedle ní druhou.
+#[tauri::command]
+pub fn updater_target() -> Option<String> {
+    if cfg!(target_os = "windows") {
+        // Stejné názvy architektur, jaké do manifestu píše tauri-bundler.
+        let arch = match std::env::consts::ARCH {
+            "x86" => "i686",
+            other => other,
+        };
+        Some(format!("windows-{arch}-nsis"))
+    } else {
+        None
+    }
+}
+
 #[tauri::command]
 pub fn list_notes(state: State<'_, AppState>) -> Result<Vec<NoteSummary>> {
     state.with_index(|index| index.list(SEARCH_LIMIT))
@@ -394,6 +417,7 @@ pub fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static
     tauri::generate_handler![
         vault_status,
         auto_update_enabled,
+        updater_target,
         list_notes,
         read_note,
         read_all_notes,

@@ -82,6 +82,19 @@ export class TauriUpdater implements UpdaterApi {
     }
   }
 
+  /**
+   * Který balíček z manifestu chceme. Rozhoduje Rust, protože jen on ví,
+   * na čem doopravdy běžíme. `null` = ať si vybere plugin.
+   */
+  private async preferredTarget(): Promise<string | null> {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      return (await invoke<string | null>('updater_target')) ?? null
+    } catch {
+      return null
+    }
+  }
+
   async check(): Promise<UpdateInfo | null> {
     if (!this.available) {
       throw updaterError('unavailable', 'Aktualizace fungují jen v desktopové aplikaci.')
@@ -93,7 +106,16 @@ export class TauriUpdater implements UpdaterApi {
     let update: PluginUpdate | null
     try {
       const { check } = await import('@tauri-apps/plugin-updater')
-      update = (await check()) as PluginUpdate | null
+      const target = await this.preferredTarget()
+      try {
+        update = (await check(target ? { target } : undefined)) as PluginUpdate | null
+      } catch (error) {
+        // Starší vydání nemusí mít v manifestu záznam pro vyžádaný balíček.
+        // Než aby aktualizace přestaly fungovat úplně, zkusíme to ještě
+        // jednou po pluginově.
+        if (!target) throw error
+        update = (await check()) as PluginUpdate | null
+      }
     } catch (error) {
       throw classify(error)
     }
