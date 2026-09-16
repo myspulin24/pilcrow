@@ -1,0 +1,46 @@
+[package]
+name = "reader_mj"
+version = "0.1.0"
+description = "Reader_MJ - local-first Markdown reader with a file explorer"
+authors = ["Reader_MJ contributors"]
+edition = "2021"
+rust-version = "1.77"
+license = "MIT"
+
+[workspace]
+members = ["crates/reader-mj-core"]
+
+[lib]
+name = "reader_mj_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+reader-mj-core = { path = "crates/reader-mj-core" }
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+notify = "6"
+dotenvy = "0.15"
+
+# Aktualizace z GitHub Releases. `process` je tu jen kvůli restartu aplikace
+# po nainstalování aktualizace. Desktop only -- na mobilu updater neexistuje.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+
+[features]
+# This feature is used for production builds where `devUrl` points to the
+# filesystem rather than a dev server.
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

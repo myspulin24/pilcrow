@@ -1,0 +1,51 @@
+{
+  "name": "reader_mj",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Reader_MJ - čtečka Markdownu a poznámkovník s průzkumníkem souborů, všechno u tebe v počítači. Zdrojem pravdy jsou obyčejné soubory.",
+  "license": "MIT",
+  "scripts": {
+    "start": "node scripts/bootstrap.mjs",
+    "setup": "node scripts/bootstrap.mjs --setup-only",
+    "dev": "tauri dev",
+    "dev:web": "vite",
+    "build": "tauri build",
+    "build:web": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "node scripts/test.mjs",
+    "test:unit": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml -p reader-mj-core",
+    "typecheck": "tsc --noEmit",
+    "icons": "node scripts/gen-icons.mjs",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.9.0",
+    "@tauri-apps/plugin-dialog": "^2.4.0",
+    "@tauri-apps/plugin-opener": "^2.5.0",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.11.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.9.0",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=20.10"
+  }
+}

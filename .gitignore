@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+src-tauri/target/
+src-tauri/gen/
+
+# Secrets & local config -- never commit these
+.env
+.env.local
+.env.*.local
+
+# Podpisové klíče aktualizací. Ty žijí mimo repozitář (~/.reader-mj-keys),
+# tohle je pojistka pro případ, že by někdo klíč vygeneroval sem.
+*.key
+updater.key*
+!src-tauri/nsis/*.nsh
+
+# Local user data (a vault should never live inside the repo, but be explicit)
+vault/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log
+npm-debug.log*
+
+# Test output
+coverage/

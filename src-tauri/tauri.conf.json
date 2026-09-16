@@ -1,0 +1,74 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Reader_MJ",
+  "version": "0.1.0",
+  "identifier": "com.readermj.app",
+  "build": {
+    "beforeDevCommand": "npm run dev:web",
+    "devUrl": "http://localhost:5273",
+    "beforeBuildCommand": "npm run build:web",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Reader_MJ",
+        "width": 1500,
+        "height": 900,
+        "minWidth": 760,
+        "minHeight": 420,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost https://github.com https://objects.githubusercontent.com https://api.github.com",
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "$DOCUMENT/**",
+          "$HOME/**"
+        ]
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/myspulin24/reader-mj/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgxQ0U0N0QyOUI1RkM1RUQKUldUdHhWK2Iwa2ZPZ1ZRcUtpR3lyTC9nQ3VmZDFkWld5YmZOcmo2V0xVY2lPcGcrT04yak1kT0kK",
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Productivity",
+    "shortDescription": "Čtečka Markdownu s průzkumníkem souborů",
+    "longDescription": "Reader_MJ čte a zapisuje obyčejné soubory Markdown. Otevři jeden soubor nebo celou složku a procházej ji jako rozbalovací strom, vedle místního trezoru poznámek se štítky, odkazy [[...]], zpětnými odkazy a okamžitým fulltextovým hledáním.",
+    "windows": {
+      "wix": {
+        "language": "cs-CZ"
+      },
+      "nsis": {
+        "languages": ["Czech"],
+        "displayLanguageSelector": false,
+        "customLanguageFiles": {
+          "Czech": "nsis/Czech.nsh"
+        }
+      }
+    }
+  },
+  "mainBinaryName": "Reader_MJ"
+}
