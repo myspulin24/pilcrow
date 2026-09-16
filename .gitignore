@@ -18,8 +18,9 @@ src-tauri/gen/
 updater.key*
 !src-tauri/nsis/*.nsh
 
-# Local user data (a vault should never live inside the repo, but be explicit)
-vault/
+# Local user data (a vault should never live inside the repo, but be explicit).
+# Kotva na začátku je podstatná: bez ní by pravidlo sežralo i src/vault/.
+/vault/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
