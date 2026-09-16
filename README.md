@@ -448,11 +448,12 @@ Neříká si o **žádný shell, žádná oznámení, žádnou schránku, žádn
 startu**. Viz `src-tauri/capabilities/default.json` — ten soubor je úplný seznam
 a Tauri ho vynucuje za běhu.
 
-Na síť sahá jedinou věcí: kontrolou aktualizací na `github.com`. Politika obsahu
-(`src-tauri/tauri.conf.json`) pustí ven právě tyhle adresy a nic jiného;
-`READER_MJ_AUTO_UPDATE=0` vypne i je. Vykreslený Markdown se escapuje už
-u zdroje a u každé URL se kontroluje schéma, takže poznámka obsahující
-`<script>` nebo odkaz
+Na síť sahá jedinou věcí: kontrolou aktualizací na `github.com`. Ta se navíc
+neděje ve webview, ale v Rustu — politika obsahu (`src-tauri/tauri.conf.json`)
+tak i nadále blokuje **jakékoli** vzdálené spojení ze stránky samotné.
+`READER_MJ_AUTO_UPDATE=0` vypne i tu jednu kontrolu. Vykreslený Markdown se
+escapuje už u zdroje a u každé URL se kontroluje schéma, takže poznámka
+obsahující `<script>` nebo odkaz
 `javascript:` je neškodná.
 
 **macOS:** když poprvé otevřeš trezor v `~/Documents` nebo v iCloud Drive,

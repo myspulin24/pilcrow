@@ -1587,6 +1587,9 @@ export function StoreProvider({
     dispatch({ type: 'update', patch: { phase: 'downloading', error: null } })
     try {
       await updater.install()
+      // Na Windows sem řízení nedojde: instalátor převezme otěže a proces
+      // skončí, restart obstará on sám. Na macOS a Linuxu se `install()`
+      // vrátí a restartovat musíme my -- proto tu ten řádek je.
       dispatch({ type: 'update', patch: { phase: 'ready' } })
       await updater.relaunch()
     } catch (error) {
