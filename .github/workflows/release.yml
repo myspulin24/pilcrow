@@ -53,8 +53,60 @@ jobs:
       - name: Testy
         run: npm test
 
-  build:
+  # Vydání založí jeden job předem, buildy do něj jen nahrávají.
+  #
+  # Dokud si testy pouštěla každá platforma zvlášť, dorážely ke GitHubu
+  # rozházeně v čase a na to, že si vydání zakládaly samy, se nepřišlo.
+  # Se společnou brankou `test` startují naráz -- a tři souběžné pokusy
+  # založit stejný release skončí `Error saving asset`.
+  #
+  # Zakládá se jako koncept: rozestavěné vydání tak neuvidí ani updater
+  # (dívá se na `releases/latest`, a ten koncepty přeskakuje), ani nikdo,
+  # kdo se zrovna kouká na stránku vydání.
+  create-release:
     needs: test
+    runs-on: ubuntu-22.04
+    outputs:
+      release_id: ${{ steps.create.outputs.id }}
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Založit koncept vydání
+        id: create
+        run: |
+          # Bez `pipefail`: `head -1` zavře rouru dřív, než `gh` dopíše, a to
+          # by se s ním jinak počítalo jako s chybou.
+          set -eu
+          # Hledá se i mezi koncepty, takže opakované spuštění nezaloží druhý.
+          id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
+                 --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -1 || true)
+          if [ -z "$id" ]; then
+            # Text přes soubor, ne přes `--notes "..."`: víceřádkový řetězec
+            # přímo v YAML by si do vydání odnesl i odsazení bloku.
+            cat > /tmp/notes.md <<'NOTES'
+          Stáhni si instalátor pro svůj systém níž.
+
+          Když už Reader_MJ máš, nic stahovat nemusíš: aplikace si novou verzi
+          najde sama a nabídne ji k instalaci.
+          NOTES
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft \
+              --title "Reader_MJ ${TAG#v}" --notes-file /tmp/notes.md
+            id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
+                   --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -1 || true)
+          fi
+          if [ -z "$id" ]; then
+            echo "Vydání pro $TAG se nepodařilo najít ani založit." >&2
+            exit 1
+          fi
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: [test, create-release]
     strategy:
       fail-fast: false
       matrix:
@@ -112,14 +164,25 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.event.inputs.tag || github.ref_name }}
-          releaseName: 'Reader_MJ __VERSION__'
-          releaseBody: |
-            Stáhni si instalátor pro svůj systém níž.
-
-            Když už Reader_MJ máš, nic stahovat nemusíš: aplikace si novou
-            verzi najde sama a nabídne ji k instalaci.
-          releaseDraft: false
-          prerelease: false
+          # Nahrává se do vydání, které už existuje. Jméno ani text se tu
+          # neuvádí schválně -- o obojí se postaral `create-release`, a kdyby
+          # si je tři joby přepisovaly, je to zase závod.
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          # Každý job přiloží do `latest.json` svoje platformy; tauri-action
+          # je slučuje s tím, co v něm už je.
           includeUpdaterJson: true
           args: ${{ matrix.args }}
+
+  # Koncept zveřejnit až ve chvíli, kdy jsou uvnitř všechny tři platformy.
+  # Teprve tímhle krokem se vydání stane tím, co updater vidí jako `latest`.
+  publish:
+    needs: [create-release, build]
+    runs-on: ubuntu-22.04
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Zveřejnit vydání
+        run: |
+          gh api -X PATCH \
+            "repos/$GITHUB_REPOSITORY/releases/${{ needs.create-release.outputs.release_id }}" \
+            -F draft=false -F prerelease=false
