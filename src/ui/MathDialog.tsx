@@ -1,67 +1,96 @@
 /**
  * Editor vzorců.
  *
- * Píše se do něj v LaTeXu, ale umět LaTeX není podmínka: paleta dole vkládá
- * hotové kousky a náhled nahoře se překresluje při každém znaku, takže je
- * pořád vidět, co z toho leze. Chyba se ukáže pod náhledem česky a ve chvíli,
- * kdy vznikla -- ne až po vložení do poznámky.
+ * Reader_MJ umí třináct zápisů matematiky a tohle okno je místo, kde se mezi
+ * nimi vybírá. Uvnitř je vždycky stejný postup: zvolený jazyk se převede na
+ * LaTeX (a vysází KaTeX) nebo rovnou na MathML (a vykreslí ho samo okno).
  *
- * Když je něco ve vzorci označené, značka z palety to pohltí: označíš `x`,
- * klikneš na odmocninu a máš `\sqrt{x}`.
+ * Čtyři věci, bez kterých by přepínač jazyka byl jen ozdoba:
+ *
+ *   1. **Paleta se mění podle jazyka.** Odmocnina je v LaTeXu `\sqrt{}`,
+ *      v AsciiMath `sqrt()`, v UnicodeMath `√()`. Naklikat vzorec musí jít
+ *      v každém z nich, ne jen v tom prvním.
+ *   2. **Živý náhled** bez ohledu na jazyk.
+ *   3. **„Zobrazit jako LaTeX"** ukáže, co z převodu vzešlo. U jazyků, kde je
+ *      převod jen nejlepší možný, je to rozdíl mezi „nefunguje to" a „vidím proč".
+ *   4. **Varování se neschovávají.** Co se nepodařilo přeložit, je vidět.
  */
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
-import { applySnippet, MATH_GROUPS, renderMath, t, type MathSnippet } from '@/core'
+import {
+  applySnippet,
+  CONCEPTS,
+  mathLanguage,
+  mathLanguageGroups,
+  renderMath,
+  renderMathIn,
+  t,
+  type Concept,
+  type MathLanguageId,
+} from '@/core'
 
 import { Backdrop, useEscape } from './Modal'
 
 /** Jedno tlačítko palety i s vysázeným náhledem toho, co vloží. */
 function PaletteButton({
-  snippet,
+  concept,
+  insert,
   onPick,
 }: {
-  snippet: MathSnippet
-  onPick: (snippet: MathSnippet) => void
+  concept: Concept
+  insert: string
+  onPick: (insert: string) => void
 }) {
-  const preview = useMemo(() => renderMath(snippet.preview, false), [snippet.preview])
+  // Náhled je vždy v LaTeXu -- ukazuje výsledek, ne zápis.
+  const preview = useMemo(() => renderMath(concept.preview, false), [concept.preview])
 
   return (
     <button
       type="button"
       className="math-palette__button"
-      title={`${snippet.title} — ${snippet.insert.replace(/\$[12]/g, '…')}`}
-      aria-label={snippet.title}
+      title={`${concept.title} — vloží ${insert.replace(/\$[12]/g, '…')}`}
+      aria-label={concept.title}
       onMouseDown={(event) => event.preventDefault()}
-      onClick={() => onPick(snippet)}
+      onClick={() => onPick(insert)}
     >
       {preview.html ? (
         // KaTeX vrací hotové HTML; `trust: false` z něj nedovolí udělat odkaz
         // ani nic spustitelného.
         <span dangerouslySetInnerHTML={{ __html: preview.html }} />
       ) : (
-        <span>{snippet.label}</span>
+        <span>{concept.label}</span>
       )}
     </button>
   )
 }
 
+const FIDELITY_LABEL: Record<string, string> = {
+  exact: 'sází se přesně',
+  mapped: 'spolehlivý převod',
+  partial: 'nejlepší možný převod',
+}
+
 export function MathDialog({
   initialTex = '',
+  initialLanguage = 'latex',
   initialDisplay = true,
   editing = false,
   onSubmit,
   onClose,
 }: {
   initialTex?: string
+  initialLanguage?: MathLanguageId
   initialDisplay?: boolean
   /** Upravujeme existující vzorec, nebo vkládáme nový? Mění jen popisek. */
   editing?: boolean
-  onSubmit: (tex: string, display: boolean) => void
+  onSubmit: (tex: string, display: boolean, language: MathLanguageId) => void
   onClose: () => void
 }) {
   const [tex, setTex] = useState(initialTex)
+  const [languageId, setLanguageId] = useState<MathLanguageId>(initialLanguage)
   const [display, setDisplay] = useState(initialDisplay)
+  const [showLatex, setShowLatex] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   /** Kam postavit kurzor po vložení značky z palety. */
   const pendingCaret = useRef<{ start: number; end: number } | null>(null)
@@ -74,14 +103,15 @@ export function MathDialog({
     field.setSelectionRange(field.value.length, field.value.length)
   }, [])
 
-  const rendered = useMemo(() => renderMath(tex, display), [tex, display])
+  const language = mathLanguage(languageId)
+  const rendered = useMemo(() => renderMathIn(tex, languageId, display), [tex, languageId, display])
   const trimmed = tex.trim()
 
-  const pick = (snippet: MathSnippet) => {
+  const pick = (insert: string) => {
     const field = inputRef.current
     const start = field?.selectionStart ?? tex.length
     const end = field?.selectionEnd ?? tex.length
-    const next = applySnippet(tex, start, end, snippet.insert)
+    const next = applySnippet(tex, start, end, insert)
     setTex(next.tex)
     // Kurzor se nastaví až v layout efektu níž: pole je řízené, takže jeho
     // hodnotu zapisuje React při překreslení a dřív by kurzor skončil na konci.
@@ -99,8 +129,12 @@ export function MathDialog({
 
   const submit = () => {
     if (!trimmed) return
-    onSubmit(trimmed, display)
+    onSubmit(trimmed, display, languageId)
   }
+
+  /** Pojmy, které zvolený jazyk umí zapsat. */
+  const palette = CONCEPTS.map((concept) => ({ concept, insert: language.snippets[concept.id] }))
+    .filter((entry): entry is { concept: Concept; insert: string } => Boolean(entry.insert))
 
   return (
     <Backdrop onClose={onClose}>
@@ -136,6 +170,39 @@ export function MathDialog({
           </p>
         ) : null}
 
+        {trimmed && !rendered.error && rendered.warnings.length > 0 ? (
+          <p className="math-preview__warning" role="status">
+            {rendered.warnings.join(' ')}
+          </p>
+        ) : null}
+
+        <div className="math-language">
+          <label className="modal__label" htmlFor="math-language">
+            {t.math.language}
+          </label>
+          <select
+            id="math-language"
+            className="math-language__select"
+            aria-label={t.math.language}
+            value={languageId}
+            onChange={(event) => setLanguageId(event.target.value as MathLanguageId)}
+          >
+            {mathLanguageGroups().map((group) => (
+              <optgroup key={group.name} label={group.name}>
+                {group.languages.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          <span className={`math-language__fidelity is-${language.fidelity}`}>
+            {FIDELITY_LABEL[language.fidelity]}
+          </span>
+        </div>
+        <p className="math-language__hint">{language.hint}</p>
+
         <label className="modal__label" htmlFor="math-source">
           {t.math.editorLabel}
         </label>
@@ -146,10 +213,26 @@ export function MathDialog({
           aria-label={t.math.editorLabel}
           rows={3}
           spellCheck={false}
-          placeholder={t.math.placeholder}
+          placeholder={language.sample}
           value={tex}
           onChange={(event) => setTex(event.target.value)}
         />
+
+        {/* U jazyků, které se překládají, je vidět výsledek překladu. Bez toho
+            se nedá poznat, jestli je chyba v zápisu, nebo v převodu. */}
+        {rendered.latex && languageId !== 'latex' && languageId !== 'amslatex' ? (
+          <div className="math-latex">
+            <button
+              type="button"
+              className="math-latex__toggle"
+              aria-expanded={showLatex}
+              onClick={() => setShowLatex((value) => !value)}
+            >
+              {showLatex ? t.math.hideLatex : t.math.showLatex}
+            </button>
+            {showLatex ? <pre className="math-latex__code">{rendered.latex}</pre> : null}
+          </div>
+        ) : null}
 
         <label className="math-display-toggle">
           <input
@@ -161,18 +244,22 @@ export function MathDialog({
           <span className="math-display-toggle__hint">{t.math.displayHint}</span>
         </label>
 
-        <div className="math-palette" aria-label={t.math.palette}>
-          {MATH_GROUPS.map((group) => (
-            <section className="math-palette__group" key={group.name}>
-              <h3 className="math-palette__title">{group.name}</h3>
-              <div className="math-palette__row">
-                {group.snippets.map((snippet) => (
-                  <PaletteButton key={snippet.label} snippet={snippet} onPick={pick} />
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
+        {palette.length > 0 ? (
+          <div className="math-palette" aria-label={t.math.palette}>
+            <div className="math-palette__row">
+              {palette.map(({ concept, insert }) => (
+                <PaletteButton
+                  key={concept.id}
+                  concept={concept}
+                  insert={insert}
+                  onPick={pick}
+                />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="math-help">{t.math.noPalette}</p>
+        )}
 
         <p className="math-help">{t.math.help}</p>
 

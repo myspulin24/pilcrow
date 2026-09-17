@@ -2327,3 +2327,105 @@ textarea:focus-visible,
   color: var(--text-muted);
   font-size: 12px;
 }
+
+/* --- výběr jazyka v okně vzorců ------------------------------------------ */
+
+.math-language {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.math-language .modal__label {
+  margin: 0;
+}
+
+.math-language__select {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-raised);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.math-language__select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Jak věrně se jazyk sází. Barva nese stejnou informaci jako text, nikdy
+   ji nenese sama -- proto je tam vždycky i slovo. */
+.math-language__fidelity {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.math-language__fidelity.is-exact {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+
+.math-language__fidelity.is-mapped {
+  background: var(--bg-sunken);
+  color: var(--text-muted);
+}
+
+.math-language__fidelity.is-partial {
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  color: var(--warn);
+}
+
+.math-language__hint {
+  margin: -4px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.math-preview__warning {
+  margin: 0;
+  color: var(--warn);
+  font-size: 12px;
+}
+
+/* Vzorec, který se vysázel, ale něco se v něm nepřeložilo. */
+.math--warned {
+  border-bottom: 2px dotted var(--warn);
+}
+
+.math-latex__toggle {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  text-decoration: underline;
+}
+
+.math-latex__toggle:hover {
+  color: var(--accent);
+}
+
+.math-latex__code {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border-radius: 5px;
+  background: var(--bg-sunken);
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* Vysázené MathML nemá vlastní styly od KaTeXu, tak aspoň velikost. */
+.math--block math {
+  font-size: 1.15em;
+}

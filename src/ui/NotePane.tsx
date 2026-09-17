@@ -35,6 +35,7 @@ import {
   showsPreview,
   titleFromPath,
   type FormatId,
+  type MathLanguageId,
 } from '@/core'
 import { useActions, useAppState, useStore } from '@/state/store'
 import { EmptyState } from './Feedback'
@@ -198,9 +199,11 @@ export function NotePane() {
       if (math instanceof HTMLElement) {
         event.preventDefault()
         const tex = math.dataset.tex ?? ''
-        const found = findMathSource(textareaRef.current?.value ?? '', tex)
+        const lang = (math.dataset.mathLang ?? 'latex') as MathLanguageId
+        const found = findMathSource(textareaRef.current?.value ?? '', tex, math.dataset.mathLang ?? '')
         actions.openMath({
           tex,
+          language: lang,
           display: found?.display ?? math.classList.contains('math--block'),
           ...(found ? { replace: { from: found.from, to: found.to } } : {}),
         })
@@ -243,7 +246,7 @@ export function NotePane() {
 
   /** Vložit nebo přepsat vzorec tím, co vyšlo z editoru vzorců. */
   const onMathSubmit = useCallback(
-    (tex: string, display: boolean) => {
+    (tex: string, display: boolean, language: MathLanguageId) => {
       const element = textareaRef.current
       if (!element) return
       const current = {
@@ -252,16 +255,25 @@ export function NotePane() {
         end: element.selectionEnd,
       }
 
+      // LaTeX se píše dolary, protože tomu rozumí každý editor na světě.
+      // Ostatní jazyky pojmenovaným blokem, který se jinde ukáže jako kód.
+      const fence = language === 'latex' || language === 'amslatex' ? '' : language
+      const written = fence
+        ? ['```' + fence, tex, '```'].join('\n')
+        : display
+          ? `$$\n${tex}\n$$`
+          : `$${tex}$`
+
       const replace = mathRequest?.replace
       const next = replace
-        ? replaceRange(current, replace.from, replace.to, display ? `$$\n${tex}\n$$` : `$${tex}$`)
-        : insertMath(current, tex, display)
+        ? replaceRange(current, replace.from, replace.to, written)
+        : insertMath(current, tex, display, fence)
 
       onEditorChange(next.text)
       actions.selectInEditor(next.start, next.end)
       actions.closeMath()
     },
-    [mathRequest, onEditorChange],
+    [actions, mathRequest, onEditorChange],
   )
 
   const onDrop = useCallback(
@@ -390,6 +402,7 @@ export function NotePane() {
       {mathRequest ? (
         <MathDialog
           initialTex={mathRequest.tex}
+          initialLanguage={mathRequest.language}
           initialDisplay={mathRequest.display}
           editing={mathRequest.replace !== undefined}
           onSubmit={onMathSubmit}

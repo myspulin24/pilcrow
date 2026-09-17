@@ -446,8 +446,12 @@ export const t = {
     displayHint: 'Vzorec bude vycentrovaný na vlastním řádku, ne v textu',
     insert: 'Vložit vzorec',
     save: 'Uložit změny',
-    help: 'Značky se píší jako v LaTeXu. Co nevíš, naklikej z palety dole.',
+    help: 'Co nevíš, naklikej z palety. Paleta se mění podle zvoleného jazyka.',
     cheatsheet: 'Nápověda ke značkám',
+    language: 'Jazyk',
+    showLatex: 'Zobrazit jako LaTeX',
+    hideLatex: 'Skrýt LaTeX',
+    noPalette: 'Tenhle zápis se obvykle vkládá zkopírovaný odjinud, paletu proto nemá.',
     valid: 'Vzorec je v pořádku.',
   },
 

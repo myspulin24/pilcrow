@@ -16,7 +16,8 @@
 
 import { parseLinkTarget } from './wikilinks'
 import { normalizeTag } from './tags'
-import { renderMath } from './math'
+import { renderMath, renderMathIn } from './math'
+import { mathLanguageByAlias } from './math-languages'
 import { t } from './messages'
 
 export interface RenderOptions {
@@ -496,6 +497,49 @@ export function renderMarkdown(source: string, options: RenderOptions = {}): str
 
     const fence = FENCE.exec(line)
     if (fence) {
+      // Blok pojmenovaný matematickým jazykem není kód, ale vzorec.
+      //
+      // Zápis je schválně stejný jako u bloku kódu: v jakémkoli jiném editoru
+      // se ukáže jako kód, ne jako rozsypaný text, takže soubor zůstane všude
+      // platným Markdownem.
+      const fenceLanguage = mathLanguageByAlias((fence[3] ?? '').trim())
+      if (fenceLanguage) {
+        const marker = (fence[2] ?? '').charAt(0)
+        const minLength = (fence[2] ?? '').length
+        state.index += 1
+        const body: string[] = []
+        while (state.index < state.lines.length) {
+          const candidate = state.lines[state.index] ?? ''
+          const closing = /^[ \t]{0,3}(`{3,}|~{3,})[ \t]*$/.exec(candidate)
+          if (closing && (closing[1] ?? '').charAt(0) === marker && (closing[1] ?? '').length >= minLength) {
+            state.index += 1
+            break
+          }
+          body.push(candidate)
+          state.index += 1
+        }
+        const source = body.join('\n')
+        const rendered = renderMathIn(source, fenceLanguage.id, true)
+        const trouble = rendered.error ?? rendered.warnings[0] ?? ''
+        if (rendered.html) {
+          out.push(
+            `<div class="math math--block${rendered.error ? ' math--error' : ''}` +
+              `${!rendered.error && rendered.warnings.length > 0 ? ' math--warned' : ''}"` +
+              ` data-tex="${escapeHtml(source)}" data-math-lang="${escapeHtml(fenceLanguage.id)}"` +
+              (trouble ? ` title="${escapeHtml(trouble)}"` : '') +
+              `>${rendered.html}</div>`,
+          )
+        } else {
+          // Nevysázelo se nic: ukázat zdroj, ať není poznámka prázdná, a říct proč.
+          out.push(
+            `<div class="math math--block math--error" data-math-lang="${escapeHtml(fenceLanguage.id)}"` +
+              ` data-tex="${escapeHtml(source)}"` +
+              (trouble ? ` title="${escapeHtml(trouble)}"` : '') +
+              `><pre><code>${escapeHtml(source)}</code></pre></div>`,
+          )
+        }
+        continue
+      }
       const marker = (fence[2] ?? '').charAt(0)
       const minLength = (fence[2] ?? '').length
       const language = (fence[3] ?? '').trim()

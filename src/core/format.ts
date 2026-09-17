@@ -284,7 +284,16 @@ const TABLE = ['| Sloupec | Sloupec |', '| --- | --- |', '| $1 | |'].join('\n')
  * Blokový vzorec chce kolem sebe prázdné řádky, aby ho renderer viděl jako
  * samostatný blok; vzorec v řádku se naopak vloží přesně tam, kde je kurzor.
  */
-export function insertMath(state: EditorSelection, tex: string, display: boolean): EditorSelection {
+export function insertMath(
+  state: EditorSelection,
+  tex: string,
+  display: boolean,
+  /** Název jazyka do bloku. Prázdné = LaTeX přes `$`, jak to zná celý svět. */
+  language = '',
+): EditorSelection {
+  // Jiný jazyk než LaTeX se zapisuje jako blok s názvem, aby ho jiné editory
+  // ukázaly jako kód a ne jako rozsypaný text.
+  if (language) return insertBlock(state, `\`\`\`${language}\n${tex}\n\`\`\``)
   if (display) return insertBlock(state, `$$\n${tex}\n$$`)
 
   const { text, start, end } = clamp(state)
@@ -324,10 +333,26 @@ export function replaceRange(
 export function findMathSource(
   text: string,
   tex: string,
+  /** Jazyk z `data-math-lang`, když vzorec přišel z pojmenovaného bloku. */
+  language = '',
 ): { from: number; to: number; display: boolean } | null {
   const source = text ?? ''
   const needle = (tex ?? '').trim()
   if (!needle) return null
+
+  // Pojmenovaný blok se hledá i s ohraničením, ať se přepíše celý.
+  if (language) {
+    const fence = '```'
+    const pattern = `${fence}${language}\n${needle}\n${fence}`
+    const index = source.indexOf(pattern)
+    if (index !== -1) return { from: index, to: index + pattern.length, display: true }
+    // Jazyk mohl být zapsaný jiným ze svých názvů; najít aspoň samotný obsah.
+    const loose = new RegExp(
+      `\`\`\`[a-zA-Z-]*\\n${needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n\`\`\``,
+    )
+    const match = loose.exec(source)
+    if (match) return { from: match.index, to: match.index + match[0].length, display: true }
+  }
 
   // Nejdřív blokové zápisy, protože `$$x$$` obsahuje i `$x$`.
   for (const [open, close, display] of [

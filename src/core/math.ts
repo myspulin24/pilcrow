@@ -19,6 +19,8 @@
 
 import katex from 'katex'
 
+import { mathLanguage, type MathLanguageId } from './math-languages'
+
 export interface MathResult {
   html: string
   /** Popis chyby, když se vzorec nepovedlo přečíst. `null` = v pořádku. */
@@ -77,6 +79,72 @@ export function renderMath(tex: string, display = false): MathResult {
 
   const html = katex.renderToString(source, { ...OPTIONS, displayMode: display })
   return { html, error }
+}
+
+/**
+ * Vysázet vzorec napsaný v libovolném z podporovaných jazyků.
+ *
+ * Postup je vždy stejný: jazyk se převede na LaTeX (a pak KaTeX) nebo rovnou
+ * na MathML (a to vykreslí samo okno aplikace). Varování z převodu se nesou
+ * dál, protože u některých jazyků je převod jen nejlepší možný a uživatel to
+ * musí vidět.
+ */
+export interface MathRenderResult extends MathResult {
+  /** Co z převodu vzešlo -- ukazuje se v okně pod přepínačem „zobrazit jako LaTeX". */
+  latex: string
+  /** Co se nepodařilo přeložit. */
+  warnings: string[]
+}
+
+export function renderMathIn(
+  source: string,
+  languageId: MathLanguageId,
+  display = false,
+): MathRenderResult {
+  const language = mathLanguage(languageId)
+  const text = (source ?? '').trim()
+  if (!text) return { html: '', error: null, latex: '', warnings: [] }
+
+  let conversion
+  try {
+    conversion = language.convert(text, display)
+  } catch (caught) {
+    const message = caught instanceof Error ? caught.message.split('\n')[0]! : String(caught)
+    return {
+      html: '',
+      error: `Zápis v jazyce ${language.label} se nepodařilo přečíst. ${message}`.trim(),
+      latex: '',
+      warnings: [],
+    }
+  }
+
+  // MathML jde na obrazovku rovnou; je to nejvěrnější cesta, protože se
+  // nic nepřekládá.
+  if (conversion.mathml) {
+    return {
+      html: conversion.mathml,
+      error: null,
+      latex: '',
+      warnings: conversion.warnings,
+    }
+  }
+
+  if (!conversion.latex) {
+    return {
+      html: '',
+      error: conversion.warnings[0] ?? `Z tohohle zápisu (${language.label}) se nedá nic vysázet.`,
+      latex: '',
+      warnings: conversion.warnings,
+    }
+  }
+
+  const rendered = renderMath(conversion.latex, display)
+  return {
+    html: rendered.html,
+    error: rendered.error,
+    latex: conversion.latex,
+    warnings: conversion.warnings,
+  }
 }
 
 /** Jen kontrola: `null` znamená, že je vzorec v pořádku. */

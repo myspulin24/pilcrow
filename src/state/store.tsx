@@ -61,6 +61,7 @@ import {
   type ConflictState,
   type NoteSummary,
   type ParsedNote,
+  type MathLanguageId,
   type TreeNode,
   type VaultError,
 } from '@/core'
@@ -88,6 +89,8 @@ export interface MathRequest {
   tex: string
   /** Samostatný blok, nebo vzorec v řádku? */
   display: boolean
+  /** Ve kterém z podporovaných zápisů je vzorec napsaný. */
+  language: MathLanguageId
   /** Úsek zdroje, který se má přepsat. Prázdné, když se vkládá nový. */
   replace?: { from: number; to: number }
 }
@@ -1857,7 +1860,7 @@ export function StoreProvider({
       collapseAllFolders: () => dispatch({ type: 'explorer-set-expanded', expanded: [] }),
       setTreeFilter: (filter) => dispatch({ type: 'explorer-filter', filter }),
       closeFolder: () => dispatch({ type: 'explorer-close' }),
-      openMath: (request) => dispatch({ type: 'math', math: request ?? { tex: '', display: true } }),
+      openMath: (request) => dispatch({ type: 'math', math: request ?? { tex: '', display: true, language: 'latex' } }),
       closeMath: () => dispatch({ type: 'math', math: null }),
       checkForUpdates,
       installUpdate,

@@ -359,11 +359,42 @@ $$
 - Nedopsaný vzorec se podtrhne a po najetí myší řekne česky, co mu chybí.
 
 **Editor vzorců** (`Cmd/Ctrl` `M`, nebo `∑` v liště) je pro případ, že LaTeX
-neumíš: dole je paleta značek rozdělená na základ, operátory, vztahy, řecká
-písmena a struktury, nahoře živý náhled. Co je ve vzorci označené, značka
-z palety pohltí — označíš `x`, klikneš na odmocninu a máš `\sqrt{x}`.
+neumíš: dole je paleta značek, nahoře živý náhled. Co je ve vzorci označené,
+značka z palety pohltí — označíš `x`, klikneš na odmocninu a máš `\sqrt{x}`.
 
 Na **hotový vzorec v náhledu se dá kliknout** a otevře se zpátky k úpravě.
+
+### Třináct zápisů matematiky
+
+V editoru vzorců se dá **přepnout jazyk** a paleta se mění spolu s ním:
+odmocnina je v LaTeXu `\sqrt{}`, v AsciiMath `sqrt()`, v UnicodeMath `√()`,
+v eqn `sqrt`.
+
+| Skupina | Jazyky | Jak se sází |
+| --- | --- | --- |
+| TeX a spol. | LaTeX, AMS-LaTeX, plain TeX, texvc | **přesně** — sází engine, kterému ta syntax patří |
+| | ConTeXt | nejlepší možný — jeho prostředí umí jen LuaTeX |
+| Značkovací | MathML (Presentation) | **přesně** — vykresluje samo okno aplikace, bez překladu |
+| | MathML (Content), OMML (Word) | nejlepší možný — převádí se struktura |
+| Lineární | AsciiMath, UnicodeMath | spolehlivý převod přes knihovnu |
+| | eqn/neqn, Typst | nejlepší možný — vlastní překladač |
+| Výpočetní | MathJSON | spolehlivý převod |
+| | Wolfram Language | nejlepší možný — sází, nepočítá |
+
+LaTeX se píše dolary (`$ ... $`), ostatní jazyky **blokem s názvem**, jako se
+píše blok kódu. V jakémkoli jiném editoru se tak ukáže jako kód a ne jako
+rozsypaný text, takže soubor zůstane všude platným Markdownem.
+
+Jádro celé stavby je **jeden sázeč a třináct dveří**: každý jazyk se převede na
+LaTeX (a vysází KaTeX) nebo rovnou na MathML (a vykreslí ho okno aplikace).
+V souboru se ale ukládá **tvůj původní zápis, ne převod** — poznámka tak
+zůstane pravdivá a převod se dá kdykoli vylepšit, aniž by se sáhlo na tvá data.
+
+U jazyků, kde je převod jen nejlepší možný, platí jedno pravidlo: **co se
+nerozpozná, řekne se nahlas.** Neznámá funkce se vysází svým jménem a pod
+náhledem se objeví varování. Nikdy se nevysází něco jiného s tím, že je to
+v pořádku. Přepínač „zobrazit jako LaTeX" ukáže, co z převodu vzešlo — u těch
+nepřesných je to rozdíl mezi „nefunguje to" a „vidím proč".
 
 Poznámka se vzorcem je pořád obyčejný Markdown: `$$...$$` je zápis, kterému
 rozumí Obsidian, Typora, Pandoc i GitHub.
