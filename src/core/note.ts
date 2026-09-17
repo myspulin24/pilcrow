@@ -38,6 +38,11 @@ export function buildExcerpt(body: string, limit = 180): string {
     .replace(/```[\s\S]*?(?:```|$)/g, ' ')
     .replace(/~~~[\s\S]*?(?:~~~|$)/g, ' ')
     .replace(/`([^`]*)`/g, '$1')
+    // Vzorce ještě před odstraněním zdůraznění, jinak by se z `c_{min}`
+    // stalo `c{min}`. Samostatný vzorec se v jednořádkovém úryvku stejně
+    // přečíst nedá, tak z něj zbude značka; ten v řádku bývá krátký.
+    .replace(/\$\$[\s\S]*?\$\$/g, ' ⟨vzorec⟩ ')
+    .replace(/(^|[^\d\\$])\$(?!\s)((?:[^$\n\\]|\\.)+?)(?<!\s)\$(?!\d)/g, '$1$2')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
     .replace(/\[\[([^\]|]*)(?:\|([^\]]*))?\]\]/g, (_full, target: string, alias: string) => alias || target)
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')

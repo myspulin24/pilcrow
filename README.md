@@ -290,6 +290,8 @@ Ke všemu se dostaneš přes `Cmd`/`Ctrl` + `K`, kde jsou u příkazů i zkratky
 | `Cmd/Ctrl` `D` | Dnešní denní poznámka |
 | `Cmd/Ctrl` `F` | Kurzor do hledání |
 | `Cmd/Ctrl` `L` nebo `[[` | Vložit odkaz na poznámku |
+| `Cmd/Ctrl` `B` / `I` | Tučně / kurzíva *(v editoru)* |
+| `Cmd/Ctrl` `M` | Editor vzorců |
 | `F2` | Přejmenovat poznámku *(přepíše všechny odkazy sem)* |
 | `Cmd/Ctrl` `Shift` `M` | Přesunout poznámku do složky |
 | `Cmd/Ctrl` `Shift` `P` | Připnout / odepnout |
@@ -319,6 +321,53 @@ Klikni na segment, přetáhni přes něj, nebo použij `←` / `→`, když je z
 `Cmd/Ctrl` `E` přepíná dokola. Jezdec mezi polohami animuje a respektuje
 `prefers-reduced-motion`.
 
+### Lišta formátování
+
+Nad editorem je lišta jako ve Wordu, protože **Markdown se kvůli psaní
+poznámek učit nemusíš**. Klikneš na tučné a text je tučný; že se tomu v souboru
+říká `**takhle**`, je vidět, jen když se někdo podívá do zdroje.
+
+U každého tlačítka se po najetí myší ukáže **náhled** — co přesně vloží a jak
+to bude vypadat vysázené. Náhled kreslí ten samý renderer jako celou poznámku,
+takže nemůže slíbit něco jiného, než se pak stane.
+
+Tlačítka **přepínají**: druhé kliknutí na tučné ho zase sundá. Bez výběru se
+vloží ukázkový text a rovnou se označí, takže ho psaní přepíše. Předpony řádků
+(nadpisy, seznamy, citace) platí na všechny vybrané řádky naráz a mezi úrovněmi
+nadpisu se přepíná, místo aby se hromadily.
+
+`Cmd/Ctrl` `B` a `Cmd/Ctrl` `I` fungují v editoru na tučné a kurzívu. Mimo
+editor si `Cmd/Ctrl` `B` ponechává původní význam (sbalit sekci Soubory).
+
+### Vzorce
+
+Reader_MJ sází matematiku přes [KaTeX](https://katex.org), celou místně —
+žádné volání ven, písma jsou zabalená v aplikaci.
+
+```markdown
+Platí $c_{min} \leq c \leq c_{max}$ a odtud:
+
+$$
+c_{right} = \frac{3^k}{2^n}\left(c_{min} + B_{přímý}\right)
+$$
+```
+
+- `$ ... $` je vzorec v řádku, `$$ ... $$` samostatný vycentrovaný blok.
+- **České znaky v indexech fungují** — `B_{přímý}` se vysází, jak má.
+- `5$ a 10$` zůstane cenou, ne vzorcem. `\$` je dolar natvrdo. Vzorec uvnitř
+  `` `kódu` `` se nesází.
+- Nedopsaný vzorec se podtrhne a po najetí myší řekne česky, co mu chybí.
+
+**Editor vzorců** (`Cmd/Ctrl` `M`, nebo `∑` v liště) je pro případ, že LaTeX
+neumíš: dole je paleta značek rozdělená na základ, operátory, vztahy, řecká
+písmena a struktury, nahoře živý náhled. Co je ve vzorci označené, značka
+z palety pohltí — označíš `x`, klikneš na odmocninu a máš `\sqrt{x}`.
+
+Na **hotový vzorec v náhledu se dá kliknout** a otevře se zpátky k úpravě.
+
+Poznámka se vzorcem je pořád obyčejný Markdown: `$$...$$` je zápis, kterému
+rozumí Obsidian, Typora, Pandoc i GitHub.
+
 ### Co z Markdownu umí
 
 Nadpisy, tučné/kurzíva/přeškrtnuté/`==zvýrazněné==`, seznamy úkolů, zanořené
@@ -337,6 +386,7 @@ schránky) a zkopíruje se do `attachments/` a odkáže se relativní cestou.
 │                   frontmatter · štítky · odkazy [[...]] · renderer        │
 │                   Markdownu · bezpečné názvy souborů · dotazy hledání     │
 │                   · diff · SHA-256 · tvar stromu souborů · skupiny        │
+│                   · lišta formátování · vzorce (KaTeX)                    │
 │                   · trojpolohový režim zobrazení                          │
 │                                                                           │
 │  src/vault/       VaultApi — jedno rozhraní, dvě implementace:            │
@@ -566,10 +616,10 @@ nahlásí všechno, co je rozbité:
    a odkazů `[[...]]`, renderer Markdownu a jeho escapování, bezpečné názvy
    souborů, rozbor vyhledávacích dotazů, diff, SHA-256, zplošťování stromu
    souborů, rozbalování a sbalování, filtrování, operace nad skupinami,
-   přechody mezi režimy zobrazení a celý český katalog textů včetně tvarů
-   množného čísla
+   přechody mezi režimy zobrazení, přepínání značek v liště formátování,
+   sázení vzorců a celý český katalog textů včetně tvarů množného čísla
 4. **End-to-end** — `vitest run --config vitest.e2e.config.ts`: průchod
-   poznámkami, strom souborů, skupiny a aktualizace
+   poznámkami, strom souborů, skupiny, aktualizace, lišta a vzorce
 
 Jednotlivé fáze: `npm test -- rust`, `npm test -- unit`, `npm test -- e2e`.
 
@@ -600,7 +650,14 @@ server tvrdí cokoli; bez sítě mlčí a aplikace jede dál; ruční kontrola h
 okno. Ověření podpisu dělá plugin Tauri a v testu ho zastoupit nejde — to je
 místo, kde je jedinou pojistkou soukromý klíč mimo repozitář.
 
-Souborový systém pod všemi čtyřmi pokrývá sada v Rustu.
+`editor` projde psaní: tlačítko v liště označený text obalí a druhé kliknutí
+ho zase odtučňuje, bez výběru vloží ukázku a označí ji, z několika řádků udělá
+seznam; náhled u tlačítka ukazuje zdroj i výsledek; vzorec ze zadání se vysází
+i s diakritikou v indexu, cena v dolarech ne; editor vzorců naklikne odmocninu
+kolem označeného textu, rozbitý vzorec pojmenuje česky a hotový vzorec se dá
+kliknutím otevřít zpátky k úpravě.
+
+Souborový systém pod všemi pěti pokrývá sada v Rustu.
 
 Obě implementace SHA-256 (TypeScript pro editor, Rust pro souborovou vrstvu)
 se testují proti stejným zveřejněným vektorům, protože detekce konfliktů

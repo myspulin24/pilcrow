@@ -16,6 +16,7 @@
 
 import { parseLinkTarget } from './wikilinks'
 import { normalizeTag } from './tags'
+import { renderMath } from './math'
 import { t } from './messages'
 
 export interface RenderOptions {
@@ -82,13 +83,54 @@ export function renderInline(source: string, options: RenderOptions = {}): strin
   let text = source.replace(/[\u0000\u0001]/g, '')
 
   // Backslash escapes are stashed first so they survive every later pass.
-  text = text.replace(/\\([\\`*_{}[\]()#+\-.!|~>])/g, (_full, char: string) =>
+  // `$` is in the list so `\$5` stays a price and does not open a formula.
+  text = text.replace(/\\([\\`*_{}[\]()#+\-.!|~>$])/g, (_full, char: string) =>
     stash(context, escapeHtml(char)),
   )
 
   // Inline code.
   text = text.replace(/(`+)([^\n]*?)\1/g, (_full, _ticks: string, code: string) =>
     stash(context, `<code>${escapeHtml(code.replace(/^ (.*) $/, '$1'))}</code>`),
+  )
+
+  // Display math written inside a line: $$...$$
+  text = text.replace(/\$\$([^\n]+?)\$\$/g, (full, tex: string) => {
+    const { html, error } = renderMath(tex, true)
+    if (!html) return full
+    return stash(
+      context,
+      `<span class="math math--display${error ? ' math--error' : ''}"` +
+        ` data-tex="${escapeHtml(tex)}"` +
+        (error ? ` title="${escapeHtml(error)}"` : '') +
+        `>${html}</span>`,
+    )
+  })
+
+  // Inline math: $...$
+  //
+  // Straight after code and before everything else, because a formula is full
+  // of characters the later passes would eat -- `c_{min}` would come out as
+  // italics and `\frac` would lose its backslash.
+  //
+  // The delimiters have to be tight (`$x$`, never `$ x $`) and the opening `$`
+  // must not follow a digit. Without those two rules "stálo to 5$ a 10$ navíc"
+  // turns into a formula.
+  text = text.replace(
+    /(^|[^\d\\$])\$(?!\s)((?:[^$\n\\]|\\.)+?)(?<!\s)\$(?!\d)/g,
+    (full, lead: string, tex: string) => {
+      const { html, error } = renderMath(tex, false)
+      if (!html) return full
+      return (
+        lead +
+        stash(
+          context,
+          `<span class="math math--inline${error ? ' math--error' : ''}"` +
+            ` data-tex="${escapeHtml(tex)}"` +
+            (error ? ` title="${escapeHtml(error)}"` : '') +
+            `>${html}</span>`,
+        )
+      )
+    },
   )
 
   // Images: ![alt](src "title")
@@ -380,6 +422,53 @@ export function renderMarkdown(source: string, options: RenderOptions = {}): str
 
     if (!line.trim()) {
       state.index += 1
+      continue
+    }
+
+    // A formula on its own: a line that opens with `$$`.
+    //
+    // Handled before fences and headings so the lines in between are taken as
+    // LaTeX and never run through the Markdown passes -- `\frac{a}{b}` must
+    // reach KaTeX exactly as it was typed.
+    const mathOpen = /^[ \t]{0,3}\$\$(.*)$/.exec(line)
+    if (mathOpen) {
+      const rest = mathOpen[1] ?? ''
+      const closingOnSameLine = /^(.*?)\$\$[ \t]*$/.exec(rest)
+      let tex: string
+      if (closingOnSameLine && rest.trim() !== '') {
+        // `$$ ... $$` na jednom řádku.
+        tex = closingOnSameLine[1] ?? ''
+        state.index += 1
+      } else {
+        const body: string[] = []
+        if (rest.trim()) body.push(rest)
+        state.index += 1
+        let closed = false
+        while (state.index < state.lines.length) {
+          const candidate = state.lines[state.index] ?? ''
+          const closing = /^(.*?)\$\$[ \t]*$/.exec(candidate)
+          if (closing) {
+            if ((closing[1] ?? '').trim()) body.push(closing[1] ?? '')
+            state.index += 1
+            closed = true
+            break
+          }
+          body.push(candidate)
+          state.index += 1
+        }
+        void closed
+        tex = body.join('\n')
+      }
+
+      const { html, error } = renderMath(tex, true)
+      if (html) {
+        out.push(
+          `<div class="math math--block${error ? ' math--error' : ''}"` +
+            ` data-tex="${escapeHtml(tex)}"` +
+            (error ? ` title="${escapeHtml(error)}"` : '') +
+            `>${html}</div>`,
+        )
+      }
       continue
     }
 

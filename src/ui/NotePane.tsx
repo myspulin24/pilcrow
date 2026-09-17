@@ -26,14 +26,21 @@ import {
   resolveLink,
   serializeNoteFile,
   applyBodyEdit,
+  applyFormat,
+  findMathSource,
+  insertMath,
+  replaceRange,
   showsEditor,
   t,
   showsPreview,
   titleFromPath,
+  type FormatId,
 } from '@/core'
 import { useActions, useAppState, useStore } from '@/state/store'
 import { EmptyState } from './Feedback'
 import { ViewSwitch } from './ViewSwitch'
+import { Toolbar } from './Toolbar'
+import { MathDialog } from './MathDialog'
 import { Backlinks } from './Backlinks'
 
 function NoteHeader({ path, external }: { path: string; external: boolean }) {
@@ -99,6 +106,8 @@ export function NotePane() {
   const { vault } = useStore()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [dropActive, setDropActive] = useState(false)
+  // Editor vzorců bydlí ve storu, aby ho uměla otevřít i paleta příkazů.
+  const mathRequest = state.math
 
   const editor = state.editor
 
@@ -181,6 +190,20 @@ export function NotePane() {
       if (tag instanceof HTMLElement) {
         event.preventDefault()
         actions.setActiveTag(tag.dataset.tag ?? null)
+        return
+      }
+      // Kliknutím na vysázený vzorec se otevře tam, kde vznikl. Zdroj si nese
+      // sám v `data-tex`, zbytek je jeho dohledání v textu.
+      const math = target.closest('[data-tex]')
+      if (math instanceof HTMLElement) {
+        event.preventDefault()
+        const tex = math.dataset.tex ?? ''
+        const found = findMathSource(textareaRef.current?.value ?? '', tex)
+        actions.openMath({
+          tex,
+          display: found?.display ?? math.classList.contains('math--block'),
+          ...(found ? { replace: { from: found.from, to: found.to } } : {}),
+        })
       }
     },
     [actions],
@@ -196,6 +219,57 @@ export function NotePane() {
     [actions],
   )
 
+  /**
+   * Provést to, na co se kliklo v liště.
+   *
+   * Textarea je zdroj pravdy o výběru, `applyFormat` je celá logika a výběr se
+   * po zápisu vrací zpátky -- jinak by kurzor po každém tlačítku skočil na
+   * konec a psalo by se s tím nesnesitelně.
+   */
+  const onFormat = useCallback(
+    (id: FormatId) => {
+      const element = textareaRef.current
+      if (!element) return
+      const next = applyFormat(id, {
+        text: element.value,
+        start: element.selectionStart,
+        end: element.selectionEnd,
+      })
+      onEditorChange(next.text)
+      requestAnimationFrame(() => {
+        element.focus()
+        element.setSelectionRange(next.start, next.end)
+      })
+    },
+    [onEditorChange],
+  )
+
+  /** Vložit nebo přepsat vzorec tím, co vyšlo z editoru vzorců. */
+  const onMathSubmit = useCallback(
+    (tex: string, display: boolean) => {
+      const element = textareaRef.current
+      if (!element) return
+      const current = {
+        text: element.value,
+        start: element.selectionStart,
+        end: element.selectionEnd,
+      }
+
+      const replace = mathRequest?.replace
+      const next = replace
+        ? replaceRange(current, replace.from, replace.to, display ? `$$\n${tex}\n$$` : `$${tex}$`)
+        : insertMath(current, tex, display)
+
+      onEditorChange(next.text)
+      requestAnimationFrame(() => {
+        element.focus()
+        element.setSelectionRange(next.start, next.end)
+      })
+      actions.closeMath()
+    },
+    [mathRequest, onEditorChange],
+  )
+
   const onDrop = useCallback(
     (event: React.DragEvent<HTMLTextAreaElement>) => {
       event.preventDefault()
@@ -209,6 +283,32 @@ export function NotePane() {
   const onKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
       const element = event.currentTarget
+      const mod = event.metaKey || event.ctrlKey
+
+      /**
+       * Zkratky, které patří editoru.
+       *
+       * `Ctrl + B` je celosvětově tučné písmo, jenže v Reader_MJ dosud sbalovalo
+       * sekci Soubory. Uvnitř editoru vyhrává formátování, mimo něj zůstává
+       * původní význam -- proto se tu událost zastaví a nepustí se dál k oknu.
+       */
+      if (mod && !event.shiftKey && !event.altKey) {
+        const key = event.key.toLowerCase()
+        const format: Record<string, FormatId> = { b: 'bold', i: 'italic' }
+        if (format[key]) {
+          event.preventDefault()
+          event.stopPropagation()
+          onFormat(format[key]!)
+          return
+        }
+        if (key === 'm') {
+          event.preventDefault()
+          event.stopPropagation()
+          actions.openMath()
+          return
+        }
+      }
+
       // `[[` opens the link picker, the way Bear and Obsidian both behave.
       if (event.key === '[' && element.value.slice(element.selectionStart - 1, element.selectionStart) === '[') {
         event.preventDefault()
@@ -223,7 +323,7 @@ export function NotePane() {
         requestAnimationFrame(() => element.setSelectionRange(start + 2, start + 2))
       }
     },
-    [actions, onEditorChange],
+    [actions, onEditorChange, onFormat],
   )
 
   if (!editor || !live) {
@@ -248,6 +348,10 @@ export function NotePane() {
       <div className={`note-pane__body note-pane__body--${state.viewMode}`}>
         {showsEditor(state.viewMode) ? (
         <div className={`editor ${dropActive ? 'is-drop-target' : ''}`}>
+          <Toolbar
+            onFormat={onFormat}
+            onOpenMath={() => actions.openMath()}
+          />
           <textarea
             ref={textareaRef}
             data-editor-textarea
@@ -288,6 +392,16 @@ export function NotePane() {
         ) : null}
       </div>
       {isExternal ? null : <Backlinks />}
+
+      {mathRequest ? (
+        <MathDialog
+          initialTex={mathRequest.tex}
+          initialDisplay={mathRequest.display}
+          editing={mathRequest.replace !== undefined}
+          onSubmit={onMathSubmit}
+          onClose={() => actions.closeMath()}
+        />
+      ) : null}
     </section>
   )
 }

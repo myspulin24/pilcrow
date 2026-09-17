@@ -118,6 +118,17 @@ export function buildCommands({ state, actions, prompt, confirm }: CommandContex
       run: () => actions.setPalette(true, 'link'),
     },
     {
+      id: 'note.math',
+      title: t.toolbar.mathEditor,
+      group: t.palette.groups.note,
+      hint: t.math.help,
+      // Ctrl + M chytá i textarea; v paletě je hlavně kvůli tomu, aby se na
+      // editor vzorců dalo přijít, i když o něm člověk neví.
+      shortcut: { key: 'm', mod: true },
+      enabled: hasNote,
+      run: () => actions.openMath(),
+    },
+    {
       id: 'note.pin',
       title: pinned ? t.note.unpin : t.note.pin,
       group: t.palette.groups.note,

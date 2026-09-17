@@ -82,6 +82,15 @@ import {
   type UpdaterApi,
 } from '@/updater'
 
+export interface MathRequest {
+  /** Zápis vzorce, se kterým se editor otevře. */
+  tex: string
+  /** Samostatný blok, nebo vzorec v řádku? */
+  display: boolean
+  /** Úsek zdroje, který se má přepsat. Prázdné, když se vkládá nový. */
+  replace?: { from: number; to: number }
+}
+
 export type Phase = 'starting' | 'ready' | 'failed'
 
 /**
@@ -244,6 +253,8 @@ export interface AppState {
   /** True while the OS is dragging files over the window. */
   dropActive: boolean
   explorer: ExplorerState
+  /** Otevřený editor vzorců. Je ve storu, aby ho uměla otevřít i paleta příkazů. */
+  math: MathRequest | null
   update: UpdateState
   busy: string | null
   toasts: Toast[]
@@ -275,6 +286,7 @@ const initialState: AppState = {
   filesSectionOpen: true,
   dropActive: false,
   explorer: emptyExplorer,
+  math: null,
   update: initialUpdate,
   busy: null,
   toasts: [],
@@ -323,6 +335,7 @@ type Action =
   | { type: 'menu'; menu: MenuRequest | null }
   | { type: 'prompt'; prompt: PromptRequest | null }
   | { type: 'confirm'; confirm: ConfirmRequest | null }
+  | { type: 'math'; math: MathRequest | null }
   | { type: 'update'; patch: Partial<UpdateState> }
   | { type: 'busy'; label: string | null }
   | { type: 'toast'; toast: Toast }
@@ -454,6 +467,8 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, explorer: { ...state.explorer, expanded: action.expanded } }
     case 'explorer-filter':
       return { ...state, explorer: { ...state.explorer, filter: action.filter } }
+    case 'math':
+      return { ...state, math: action.math }
     case 'update':
       return { ...state, update: { ...state.update, ...action.patch } }
     case 'busy':
@@ -538,6 +553,10 @@ export interface Actions {
   collapseAllFolders(): void
   setTreeFilter(filter: string): void
   closeFolder(): void
+  /** Otevřít editor vzorců. Bez argumentu se vkládá nový vzorec. */
+  openMath(request?: MathRequest): void
+  closeMath(): void
+
   // --- aktualizace ----------------------------------------------------------
   /** Podívat se na GitHub. `manual` rozhoduje, jestli se hlásí i „nic nového“. */
   checkForUpdates(manual?: boolean): Promise<void>
@@ -1807,6 +1826,8 @@ export function StoreProvider({
       collapseAllFolders: () => dispatch({ type: 'explorer-set-expanded', expanded: [] }),
       setTreeFilter: (filter) => dispatch({ type: 'explorer-filter', filter }),
       closeFolder: () => dispatch({ type: 'explorer-close' }),
+      openMath: (request) => dispatch({ type: 'math', math: request ?? { tex: '', display: true } }),
+      closeMath: () => dispatch({ type: 'math', math: null }),
       checkForUpdates,
       installUpdate,
       restartForUpdate,
