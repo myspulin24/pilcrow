@@ -94,10 +94,16 @@ jobs:
           Když už Reader_MJ máš, nic stahovat nemusíš: aplikace si novou verzi
           najde sama a nabídne ji k instalaci.
           NOTES
-            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft \
-              --title "Reader_MJ ${TAG#v}" --notes-file /tmp/notes.md
-            id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
-                   --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -1 || true)
+            # Zakládá se přes API, ne přes `gh release create`, kvůli jediné
+            # věci: odpověď rovnou obsahuje `id`. Ptát se na seznam vydání hned
+            # po založení je závod -- GitHub ho má konzistentní se zpožděním
+            # a první pokus o v0.3.0 na tom spadl.
+            id=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" \
+                   -f "tag_name=$TAG" \
+                   -f "name=Reader_MJ ${TAG#v}" \
+                   -F "body=@/tmp/notes.md" \
+                   -F draft=true -F prerelease=false \
+                   --jq .id)
           fi
           if [ -z "$id" ]; then
             echo "Vydání pro $TAG se nepodařilo najít ani založit." >&2
