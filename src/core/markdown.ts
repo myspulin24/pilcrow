@@ -82,55 +82,77 @@ export function renderInline(source: string, options: RenderOptions = {}): strin
   // Strip the placeholder sentinels so user text can never forge one.
   let text = source.replace(/[\u0000\u0001]/g, '')
 
-  // Backslash escapes are stashed first so they survive every later pass.
-  // `$` is in the list so `\$5` stays a price and does not open a formula.
-  text = text.replace(/\\([\\`*_{}[\]()#+\-.!|~>$])/g, (_full, char: string) =>
-    stash(context, escapeHtml(char)),
+  // Code and formulas come out of the text before anything else, in one
+  // left-to-right pass.
+  //
+  // Both are verbatim: what is inside them must reach `<code>` or KaTeX
+  // exactly as it was typed. Running them as separate passes, or after the
+  // backslash-escape pass, quietly corrupts them:
+  //
+  //   - `\{` and `\}` are Markdown escapes *and* LaTeX set braces. With
+  //     escapes first, `$c\in\{1,2\}$` reached KaTeX as placeholder sentinels
+  //     instead of braces.
+  //   - A single scan keeps document order, so the `$` in `` `$x$` `` stays
+  //     code and a backtick inside `$...$` stays part of the formula.
+  //
+  // Escaped delimiters still work: `` \` `` is not code because the opening
+  // backtick is preceded by a backslash, and `\$5` is not a formula because
+  // the opening `$` may not follow one.
+  const VERBATIM = new RegExp(
+    [
+      // 1: lead, 2: ticks, 3: code
+      String.raw`(^|[^\\])(\x60+)([^\n]*?)\2`,
+      // 4: display formula written inside a line
+      String.raw`\$\$([^\n]+?)\$\$`,
+      // 5: lead, 6: inline formula
+      String.raw`(^|[^\d\\$])\$(?!\s)((?:[^$\n\\]|\\.)+?)(?<!\s)\$(?!\d)`,
+    ].join('|'),
+    'g',
   )
 
-  // Inline code.
-  text = text.replace(/(`+)([^\n]*?)\1/g, (_full, _ticks: string, code: string) =>
-    stash(context, `<code>${escapeHtml(code.replace(/^ (.*) $/, '$1'))}</code>`),
-  )
-
-  // Display math written inside a line: $$...$$
-  text = text.replace(/\$\$([^\n]+?)\$\$/g, (full, tex: string) => {
-    const { html, error } = renderMath(tex, true)
-    if (!html) return full
+  const mathSpan = (tex: string, display: boolean): string | null => {
+    const { html, error } = renderMath(tex, display)
+    if (!html) return null
     return stash(
       context,
-      `<span class="math math--display${error ? ' math--error' : ''}"` +
+      `<span class="math math--${display ? 'display' : 'inline'}${error ? ' math--error' : ''}"` +
         ` data-tex="${escapeHtml(tex)}"` +
         (error ? ` title="${escapeHtml(error)}"` : '') +
         `>${html}</span>`,
     )
-  })
+  }
 
-  // Inline math: $...$
-  //
-  // Straight after code and before everything else, because a formula is full
-  // of characters the later passes would eat -- `c_{min}` would come out as
-  // italics and `\frac` would lose its backslash.
-  //
-  // The delimiters have to be tight (`$x$`, never `$ x $`) and the opening `$`
-  // must not follow a digit. Without those two rules "stálo to 5$ a 10$ navíc"
-  // turns into a formula.
   text = text.replace(
-    /(^|[^\d\\$])\$(?!\s)((?:[^$\n\\]|\\.)+?)(?<!\s)\$(?!\d)/g,
-    (full, lead: string, tex: string) => {
-      const { html, error } = renderMath(tex, false)
-      if (!html) return full
-      return (
-        lead +
-        stash(
-          context,
-          `<span class="math math--inline${error ? ' math--error' : ''}"` +
-            ` data-tex="${escapeHtml(tex)}"` +
-            (error ? ` title="${escapeHtml(error)}"` : '') +
-            `>${html}</span>`,
+    VERBATIM,
+    (
+      full: string,
+      codeLead: string | undefined,
+      _ticks: string | undefined,
+      code: string | undefined,
+      displayTex: string | undefined,
+      mathLead: string | undefined,
+      inlineTex: string | undefined,
+    ) => {
+      if (code !== undefined) {
+        return (
+          (codeLead ?? '') +
+          stash(context, `<code>${escapeHtml(code.replace(/^ (.*) $/, '$1'))}</code>`)
         )
-      )
+      }
+      if (displayTex !== undefined) {
+        return mathSpan(displayTex, true) ?? full
+      }
+      if (inlineTex !== undefined) {
+        const span = mathSpan(inlineTex, false)
+        return span === null ? full : (mathLead ?? '') + span
+      }
+      return full
     },
+  )
+
+  // Backslash escapes, once the verbatim spans are safely out of the way.
+  text = text.replace(/\\([\\`*_{}[\]()#+\-.!|~>$])/g, (_full, char: string) =>
+    stash(context, escapeHtml(char)),
   )
 
   // Images: ![alt](src "title")
