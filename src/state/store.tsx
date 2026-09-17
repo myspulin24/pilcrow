@@ -12,6 +12,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useReducer,
   useRef,
@@ -574,6 +575,13 @@ export interface Actions {
   revealPath(path: string): Promise<void>
   /** Registers the textarea so link insertion knows where the caret is. */
   bindEditorElement(element: HTMLTextAreaElement | null): void
+  /**
+   * Postavit kurzor do editoru poté, co se text změní.
+   *
+   * Volá se hned po `edit()`. Výběr se nastaví až ve chvíli, kdy React nový
+   * text opravdu zapíše do textarey -- viz `pendingSelection` v provideru.
+   */
+  selectInEditor(start: number, end?: number): void
 }
 
 interface StoreValue {
@@ -604,6 +612,37 @@ export function StoreProvider({
   stateRef.current = state
 
   const editorElement = useRef<HTMLTextAreaElement | null>(null)
+
+  /**
+   * Kam postavit kurzor, až se nový text objeví v textarei.
+   *
+   * Textarea je řízená komponenta, takže její hodnotu zapisuje React při
+   * překreslení. Nastavit výběr dřív nemá smysl -- React vzápětí hodnotu
+   * přepíše a prohlížeč skočí kurzorem na konec. Dřív se to řešilo přes
+   * `requestAnimationFrame`, jenže to je závod: na rychlém stroji ho vyhrálo
+   * překreslení, na pomalejším kurzor, a formátování pak obalilo prázdno
+   * místo výběru.
+   */
+  const pendingSelection = useRef<{ start: number; end: number } | null>(null)
+
+  // `useLayoutEffect` běží až po tom, co React zapíše DOM, ale ještě před
+  // vykreslením, takže kurzor nikdy neproblikne na špatném místě.
+  useLayoutEffect(() => {
+    const pending = pendingSelection.current
+    const element = editorElement.current
+    if (!pending || !element) return
+    pendingSelection.current = null
+
+    const limit = element.value.length
+    const start = Math.max(0, Math.min(pending.start, limit))
+    const end = Math.max(start, Math.min(pending.end, limit))
+    element.focus()
+    element.setSelectionRange(start, end)
+  })
+
+  const selectInEditor = useCallback((start: number, end?: number) => {
+    pendingSelection.current = { start, end: end ?? start }
+  }, [])
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** Every pending toast auto-dismiss, so none of them outlive the provider. */
@@ -1059,11 +1098,7 @@ export function StoreProvider({
         const start = element ? element.selectionStart : editor.text.length
         const end = element ? element.selectionEnd : editor.text.length
         edit(editor.text.slice(0, start) + text + editor.text.slice(end))
-        if (!element) return
-        requestAnimationFrame(() => {
-          element.focus()
-          element.setSelectionRange(start + text.length, start + text.length)
-        })
+        selectInEditor(start + text.length)
         return
       }
 
@@ -1073,13 +1108,9 @@ export function StoreProvider({
       const body = parsed.body.slice(0, start) + text + parsed.body.slice(end)
 
       edit(serializeNoteFile(applyBodyEdit(parsed, body)))
-      if (!element) return
-      requestAnimationFrame(() => {
-        element.focus()
-        element.setSelectionRange(start + text.length, start + text.length)
-      })
+      selectInEditor(start + text.length)
     },
-    [edit],
+    [edit, selectInEditor],
   )
 
   const resolveConflict = useCallback(
@@ -1836,6 +1867,7 @@ export function StoreProvider({
       dismissToast: (id) => dispatch({ type: 'dismiss-toast', id }),
       reveal,
       revealPath,
+      selectInEditor,
       bindEditorElement: (element) => {
         editorElement.current = element
       },

@@ -24,7 +24,37 @@ permissions:
   contents: write
 
 jobs:
+  # Testy jednou a dřív než cokoli jiného.
+  #
+  # Dřív si je spouštěla každá ze tří platforem sama, takže tři běhy mohly
+  # dopadnout různě a release vznikl i ve chvíli, kdy `ci` na stejném commitu
+  # spadlo. Teď je to jedna branka: neprojdou testy, nevydá se nic.
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Instalace závislostí
+        run: npm ci
+
+      - name: Testy
+        run: npm test
+
   build:
+    needs: test
     strategy:
       fail-fast: false
       matrix:
@@ -71,8 +101,10 @@ jobs:
       - name: Ikony
         run: npm run icons
 
-      - name: Testy
-        run: npm test
+      # Celá sada už proběhla v jobu `test`; tady jde jen o to, co se chová
+      # na každém systému jinak -- práce se soubory a cestami v Rustu.
+      - name: Testy vrstvy trezoru na této platformě
+        run: npm test -- rust
 
       - uses: tauri-apps/tauri-action@v0
         env:

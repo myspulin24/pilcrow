@@ -1,6 +1,6 @@
 {
   "name": "reader_mj",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "description": "Reader_MJ - čtečka Markdownu a poznámkovník s průzkumníkem souborů, všechno u tebe v počítači. Zdrojem pravdy jsou obyčejné soubory.",

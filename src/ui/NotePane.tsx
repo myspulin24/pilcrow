@@ -236,12 +236,9 @@ export function NotePane() {
         end: element.selectionEnd,
       })
       onEditorChange(next.text)
-      requestAnimationFrame(() => {
-        element.focus()
-        element.setSelectionRange(next.start, next.end)
-      })
+      actions.selectInEditor(next.start, next.end)
     },
-    [onEditorChange],
+    [actions, onEditorChange],
   )
 
   /** Vložit nebo přepsat vzorec tím, co vyšlo z editoru vzorců. */
@@ -261,10 +258,7 @@ export function NotePane() {
         : insertMath(current, tex, display)
 
       onEditorChange(next.text)
-      requestAnimationFrame(() => {
-        element.focus()
-        element.setSelectionRange(next.start, next.end)
-      })
+      actions.selectInEditor(next.start, next.end)
       actions.closeMath()
     },
     [mathRequest, onEditorChange],
@@ -320,7 +314,7 @@ export function NotePane() {
         const start = element.selectionStart
         const end = element.selectionEnd
         onEditorChange(`${element.value.slice(0, start)}  ${element.value.slice(end)}`)
-        requestAnimationFrame(() => element.setSelectionRange(start + 2, start + 2))
+        actions.selectInEditor(start + 2)
       }
     },
     [actions, onEditorChange, onFormat],
@@ -425,17 +419,11 @@ export function useInsertWikiLink() {
 
       if (editor.external) {
         actions.edit(body)
-        requestAnimationFrame(() => {
-          element?.focus()
-          element?.setSelectionRange(caret, caret)
-        })
+        actions.selectInEditor(caret)
         return
       }
       actions.edit(serializeNoteFile(applyBodyEdit(parseNote(editor.text, { path: editor.path }), body)))
-      requestAnimationFrame(() => {
-        element?.focus()
-        element?.setSelectionRange(caret, caret)
-      })
+      actions.selectInEditor(caret)
     },
     [actions, state.editor],
   )

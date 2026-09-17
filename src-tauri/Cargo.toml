@@ -1,6 +1,6 @@
 [package]
 name = "reader_mj"
-version = "0.2.0"
+version = "0.2.1"
 description = "Reader_MJ - local-first Markdown reader with a file explorer"
 authors = ["Reader_MJ contributors"]
 edition = "2021"

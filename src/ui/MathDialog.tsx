@@ -10,7 +10,7 @@
  * klikneš na odmocninu a máš `\sqrt{x}`.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { applySnippet, MATH_GROUPS, renderMath, t, type MathSnippet } from '@/core'
 
@@ -63,6 +63,8 @@ export function MathDialog({
   const [tex, setTex] = useState(initialTex)
   const [display, setDisplay] = useState(initialDisplay)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  /** Kam postavit kurzor po vložení značky z palety. */
+  const pendingCaret = useRef<{ start: number; end: number } | null>(null)
   useEscape(onClose)
 
   useEffect(() => {
@@ -81,14 +83,19 @@ export function MathDialog({
     const end = field?.selectionEnd ?? tex.length
     const next = applySnippet(tex, start, end, snippet.insert)
     setTex(next.tex)
-    // Kurzor musí skočit až po překreslení, jinak ho React přepíše zpátky.
-    requestAnimationFrame(() => {
-      const target = inputRef.current
-      if (!target) return
-      target.focus()
-      target.setSelectionRange(next.selectionStart, next.selectionEnd)
-    })
+    // Kurzor se nastaví až v layout efektu níž: pole je řízené, takže jeho
+    // hodnotu zapisuje React při překreslení a dřív by kurzor skončil na konci.
+    pendingCaret.current = { start: next.selectionStart, end: next.selectionEnd }
   }
+
+  useLayoutEffect(() => {
+    const pending = pendingCaret.current
+    const field = inputRef.current
+    if (!pending || !field) return
+    pendingCaret.current = null
+    field.focus()
+    field.setSelectionRange(pending.start, pending.end)
+  })
 
   const submit = () => {
     if (!trimmed) return

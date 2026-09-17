@@ -109,7 +109,11 @@ describe('lišta formátování', () => {
     await user.click(bold)
     await waitFor(() => expect(body()).toBe('Ahoj **světe**'))
 
-    // Výběr zůstal na slově, takže druhé kliknutí ho odtučňuje.
+    // Na tomhle celé přepínání stojí: výběr musí po zápisu zůstat na slově.
+    // Když se sem kurzor nevrátí, druhé kliknutí nemá co obalit a místo
+    // odtučnění přilepí na konec novou ukázku.
+    expect(editor().value.slice(editor().selectionStart, editor().selectionEnd)).toBe('světe')
+
     await user.click(bold)
     await waitFor(() => expect(body()).toBe('Ahoj světe'))
   })
