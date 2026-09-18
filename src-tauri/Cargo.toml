@@ -2,7 +2,7 @@
 name = "reader_mj"
 version = "0.4.0"
 description = "Reader_MJ - local-first Markdown reader with a file explorer"
-authors = ["Reader_MJ contributors"]
+authors = ["Michal Jašek"]
 edition = "2021"
 rust-version = "1.77"
 license = "MIT"

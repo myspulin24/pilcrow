@@ -55,6 +55,8 @@
       "icons/icon.ico"
     ],
     "category": "Productivity",
+    "publisher": "Michal Jašek",
+    "copyright": "© 2026 Michal Jašek",
     "shortDescription": "Čtečka Markdownu s průzkumníkem souborů",
     "longDescription": "Reader_MJ čte a zapisuje obyčejné soubory Markdown. Otevři jeden soubor nebo celou složku a procházej ji jako rozbalovací strom, vedle místního trezoru poznámek se štítky, odkazy [[...]], zpětnými odkazy a okamžitým fulltextovým hledáním.",
     "windows": {

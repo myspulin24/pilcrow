@@ -12,10 +12,14 @@ src-tauri/gen/
 .env.local
 .env.*.local
 
-# Podpisové klíče aktualizací. Ty žijí mimo repozitář (~/.reader-mj-keys),
-# tohle je pojistka pro případ, že by někdo klíč vygeneroval sem.
+# Podpisové klíče aktualizací a certifikát pro podpis kódu. Ty žijí mimo
+# repozitář (~/.reader-mj-keys), tohle je pojistka pro případ, že by je někdo
+# vygeneroval sem. `.pfx` nese i soukromý klíč, takže by z něj šlo podepsat
+# cokoli tvým jménem.
 *.key
 updater.key*
+*.pfx
+*.p12
 !src-tauri/nsis/*.nsh
 
 # Local user data (a vault should never live inside the repo, but be explicit).

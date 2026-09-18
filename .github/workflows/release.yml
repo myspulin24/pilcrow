@@ -126,6 +126,11 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
 
+    # Secrets nejdou použít přímo v `if:` u kroku, tak si je job přetáhne sem.
+    # Prázdná hodnota znamená „certifikát nemáme“ a podpis se přeskočí.
+    env:
+      WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -164,6 +169,38 @@ jobs:
       - name: Testy vrstvy trezoru na této platformě
         run: npm test -- rust
 
+      # Podpis kódu pro Windows.
+      #
+      # Certifikát je vlastnoručně podepsaný, takže cizím Windows nic
+      # nedokáže -- varování „Neznámý vydavatel“ zůstává. Co dokáže: do
+      # instalátoru se zapíše, že ho podepsal Michal Jašek, a na počítači,
+      # který ten certifikát zná, to Windows potvrdí. Razítko od DigiCertu
+      # je tu proto, aby podpis platil i po vypršení certifikátu.
+      #
+      # Bez secrets se krok přeskočí a sestaví se nepodepsaná verze, místo
+      # aby build spadl.
+      - name: Podpis kódu (Windows)
+        id: codesign
+        if: matrix.platform == 'windows-latest' && env.WINDOWS_CERTIFICATE != ''
+        shell: pwsh
+        run: |
+          $bytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
+          $pfx = Join-Path $env:RUNNER_TEMP 'codesign.pfx'
+          [IO.File]::WriteAllBytes($pfx, $bytes)
+          $password = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -Force -AsPlainText
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          Remove-Item $pfx -Force
+          # Otisk v `tauri.codesign.conf.json` musí sedět na to, co jsme právě
+          # naimportovali; jinak by se podepsalo něčím jiným, nebo vůbec.
+          $expected = (Get-Content src-tauri/tauri.codesign.conf.json -Raw | ConvertFrom-Json).bundle.windows.certificateThumbprint
+          if ($cert.Thumbprint -ne $expected) {
+            throw "Certifikát ze secrets ($($cert.Thumbprint)) není ten z tauri.codesign.conf.json ($expected)."
+          }
+          "args=--config src-tauri/tauri.codesign.conf.json" >> $env:GITHUB_OUTPUT
+          "Podepisuje: $($cert.Subject)"
+        env:
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -177,7 +214,9 @@ jobs:
           # Každý job přiloží do `latest.json` svoje platformy; tauri-action
           # je slučuje s tím, co v něm už je.
           includeUpdaterJson: true
-          args: ${{ matrix.args }}
+          # Na Windows se sem přidá `--config` s otiskem certifikátu; jinde
+          # a bez secrets je to prázdné.
+          args: ${{ matrix.args }} ${{ steps.codesign.outputs.args }}
 
   # Koncept zveřejnit až ve chvíli, kdy jsou uvnitř všechny tři platformy.
   # Teprve tímhle krokem se vydání stane tím, co updater vidí jako `latest`.

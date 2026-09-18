@@ -139,13 +139,54 @@ kontrola funguje dál. Aktualizace jsou jediné síťové spojení, které Reade
 navazuje sám od sebe — s vypnutou kontrolou a vypnutým [asistentem](#asistent-claude)
 neposílá vůbec nic.
 
-### Podpis
+### Podpis aktualizací
 
 Každý aktualizační balíček je podepsaný a aplikace ověřuje podpis veřejným
 klíčem zapečeným v `src-tauri/tauri.conf.json`. Balíček, který nesedí, se
 nenainstaluje — ani kdyby se někdo vloupal do releasu na GitHubu. Soukromý klíč
 v repozitáři není a nikdy nebude; žije v `.env` (mimo git) a v secrets
 repozitáře.
+
+### Podpis kódu
+
+Něco jiného než podpis výš. Ten hlídá, že balíček nikdo cestou nevyměnil.
+Tenhle říká Windows, **kdo aplikaci vydal**: instalátory i `Reader_MJ.exe` jsou
+podepsané certifikátem `CN=Michal Jašek` a orazítkované, takže podpis platí
+i po vypršení certifikátu.
+
+**Ten certifikát je vlastnoručně podepsaný, a to je potřeba říct rovnou:**
+cizím Windows nedokáže nic. Varování „Neznámý vydavatel“ při instalaci
+zůstává úplně stejné, jako by soubor podepsaný nebyl — Windows věří jen
+certifikátům od uznávaných autorit. Co podpis dokáže: ve vlastnostech souboru
+je vidět, kdo ho podepsal a kdy, a nikdo ho nemůže změnit, aniž by se podpis
+rozbil. A na počítači, který ten certifikát zná, ukáže Windows jméno vydavatele
+místo varování:
+
+```powershell
+# Jednou na vlastním počítači. Certifikát se tím stane důvěryhodným --
+# dělej to jen s tím svým a jen když víš, proč.
+Import-Certificate -FilePath ~\.reader-mj-keys\codesign.cer `
+  -CertStoreLocation Cert:\CurrentUser\Root
+```
+
+Jestli má varování zmizet i lidem, kteří tvůj certifikát neznají, jiná cesta
+než certifikát od autority není — nejlevnější je Azure Trusted Signing
+(jednotky dolarů měsíčně), klasický OV/EV od DigiCertu nebo Sectiga vyjde
+na stovky dolarů ročně a od roku 2023 vyžaduje hardwarový token.
+
+Otisk certifikátu je v `src-tauri/tauri.codesign.conf.json` a komituje se —
+je to veřejný údaj. Soukromý klíč (`.pfx`) je v `~/.reader-mj-keys` a mezi
+secrets repozitáře; v gitu není a být nesmí, protože kdo ho má, může tvým
+jménem podepsat cokoli. Podpis je oddělený do vlastního souboru s konfigurací
+schválně: `npm run build` z čerstvého klonu tak funguje i tomu, kdo ten
+certifikát nemá — sestaví se nepodepsaná verze místo chyby.
+
+Co je potřeba mezi secrets repozitáře:
+
+| Secret | Co to je |
+| --- | --- |
+| `WINDOWS_CERTIFICATE` | `codesign.pfx` zakódovaný v base64 |
+| `WINDOWS_CERTIFICATE_PASSWORD` | Heslo k němu |
 
 ### Vydání nové verze
 
@@ -166,12 +207,17 @@ instalátory pro Windows, macOS i Linux, podepíše je klíčem ze secrets a vyd
 jako release i s `latest.json`, na který se dívá updater. Nic dalšího dělat
 nemusíš — běžícím instalacím se nová verze nabídne sama.
 
-Repozitář potřebuje dva secrets (`Settings → Secrets and variables → Actions`):
+Repozitář používá čtyři secrets (`Settings → Secrets and variables → Actions`):
 
 | Secret | Co to je |
 | --- | --- |
 | `TAURI_SIGNING_PRIVATE_KEY` | Obsah souboru se soukromým klíčem |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Heslo k němu |
+| `WINDOWS_CERTIFICATE` | [Certifikát pro podpis kódu](#podpis-kódu) v base64 |
+| `WINDOWS_CERTIFICATE_PASSWORD` | Heslo k němu |
+
+Poslední dva jsou nepovinné: bez nich se release sestaví, jen nebude podepsaný
+jménem vydavatele.
 
 ---
 
