@@ -181,6 +181,16 @@ jménem podepsat cokoli. Podpis je oddělený do vlastního souboru s konfigurac
 schválně: `npm run build` z čerstvého klonu tak funguje i tomu, kdo ten
 certifikát nemá — sestaví se nepodepsaná verze místo chyby.
 
+Pozor na jednu past při ověřování: `src-tauri/target/release/Reader_MJ.exe`
+zůstává po sestavení **nepodepsaný**. Není to chyba a nic to neznamená — je to
+odložený mezivýsledek. Podepsaná je ta binárka, kterou Tauri zabalí dovnitř
+instalátoru, a ta se z `.msi` dá vytáhnout bez instalování:
+
+```powershell
+msiexec /a Reader_MJ_<verze>_x64_cs-CZ.msi /qn TARGETDIR=$env:TEMP\kontrola
+Get-AuthenticodeSignature $env:TEMP\kontrola\PFiles\Reader_MJ\Reader_MJ.exe
+```
+
 Co je potřeba mezi secrets repozitáře:
 
 | Secret | Co to je |
