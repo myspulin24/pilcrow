@@ -184,10 +184,21 @@ jobs:
         if: matrix.platform == 'windows-latest' && env.WINDOWS_CERTIFICATE != ''
         shell: pwsh
         run: |
-          $bytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
+          # Secret se do schránky GitHubu dostane jako text, a podle toho,
+          # čím ho tam kdo nahrál, může začínat neviditelnou značkou pořadí
+          # bajtů nebo končit odřádkováním. Base64 na to neumí reagovat jinak
+          # než pádem, tak se všechno bílé i ta značka nejdřív odstraní.
+          $raw = $env:WINDOWS_CERTIFICATE -replace '\s', '' -replace "`u{FEFF}", ''
+          try {
+            $bytes = [Convert]::FromBase64String($raw)
+          } catch {
+            throw "Secret WINDOWS_CERTIFICATE není platný base64. Nastav ho znovu příkazem ``gh secret set WINDOWS_CERTIFICATE < soubor.b64``."
+          }
           $pfx = Join-Path $env:RUNNER_TEMP 'codesign.pfx'
           [IO.File]::WriteAllBytes($pfx, $bytes)
-          $password = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -Force -AsPlainText
+          # Heslo ze stejného soudku: odřádkování na konci by ho změnilo v jiné.
+          $plain = $env:WINDOWS_CERTIFICATE_PASSWORD.Trim([char]0xFEFF, "`r", "`n", ' ')
+          $password = ConvertTo-SecureString -String $plain -Force -AsPlainText
           $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
           Remove-Item $pfx -Force
           # Otisk v `tauri.codesign.conf.json` musí sedět na to, co jsme právě
