@@ -28,9 +28,17 @@ export interface CommandContext {
   actions: Actions
   prompt: (request: PromptRequest) => void
   confirm: (request: ConfirmRequest) => void
+  /** Otevřít nebo zavřít panel asistenta. Chybí tam, kde asistent není. */
+  toggleAssistant?: () => void
 }
 
-export function buildCommands({ state, actions, prompt, confirm }: CommandContext): Command[] {
+export function buildCommands({
+  state,
+  actions,
+  prompt,
+  confirm,
+  toggleAssistant,
+}: CommandContext): Command[] {
   const hasNote = state.activePath !== null
   const activePath = state.activePath ?? ''
   const activeTitle = state.parsed?.frontmatter.title ?? ''
@@ -303,6 +311,16 @@ export function buildCommands({ state, actions, prompt, confirm }: CommandContex
       // místo aby skončil chybou.
       enabled: state.update.supported,
       run: () => void actions.checkForUpdates(true),
+    },
+    {
+      id: 'app.assistant',
+      title: t.assistant.open,
+      group: t.palette.groups.app,
+      hint: t.assistant.openHint,
+      // Asistent není součástí storu, takže si příkaz přebírá jen to jediné,
+      // co po něm chce: otevřít panel.
+      enabled: toggleAssistant !== undefined,
+      run: () => toggleAssistant?.(),
     },
   ]
 

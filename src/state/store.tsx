@@ -83,6 +83,9 @@ import {
   type UpdateInfo,
   type UpdaterApi,
 } from '@/updater'
+import type { AssistantApi } from '@/assistant'
+
+import { AssistantProvider } from './assistant-store'
 
 export interface MathRequest {
   /** Zápis vzorce, se kterým se editor otevře. */
@@ -504,6 +507,13 @@ export interface Actions {
   openOrCreateByTitle(title: string): Promise<void>
   insertAtCursor(text: string): void
   resolveConflict(resolution: ConflictResolution): Promise<void>
+  /**
+   * Změnit nastavení trezoru.
+   *
+   * Bere jen to, co se mění: kdo ukládá jednu volbu, nemá přepisovat ostatní
+   * hodnotami, které měl náhodou načtené.
+   */
+  updateSettings(patch: Partial<VaultSettings>): Promise<VaultSettings>
   rebuildIndex(): Promise<void>
   exportVault(): Promise<void>
   importFolder(): Promise<void>
@@ -602,10 +612,12 @@ export function StoreProvider({
   children,
   vault,
   updater,
+  assistant,
 }: {
   children: ReactNode
   vault?: VaultApi
   updater?: UpdaterApi
+  assistant?: AssistantApi
 }) {
   const vaultRef = useRef<VaultApi>(vault ?? createVault())
   const updaterRef = useRef<UpdaterApi>(updater ?? createUpdater())
@@ -1171,6 +1183,18 @@ export function StoreProvider({
       }
     },
     [open, refresh, reportError, toast],
+  )
+
+  const updateSettings = useCallback(
+    async (patch: Partial<VaultSettings>): Promise<VaultSettings> => {
+      // Základem je to, co platí teď, ne to, co platilo při vykreslení
+      // komponenty, která o změnu požádala.
+      const next = { ...stateRef.current.settings, ...patch }
+      const saved = await vaultRef.current.saveSettings(next)
+      dispatch({ type: 'settings', settings: saved })
+      return saved
+    },
+    [],
   )
 
   const rebuildIndex = useCallback(async () => {
@@ -1827,6 +1851,7 @@ export function StoreProvider({
       openOrCreateByTitle,
       insertAtCursor,
       resolveConflict,
+      updateSettings,
       rebuildIndex,
       exportVault,
       importFolder,
@@ -1904,6 +1929,7 @@ export function StoreProvider({
       openOrCreateByTitle,
       rebuildIndex,
       refresh,
+      updateSettings,
       refreshTree,
       remove,
       rename,
@@ -1922,7 +1948,13 @@ export function StoreProvider({
     [state, actions],
   )
 
-  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
+  // Asistent se montuje uvnitř, ne vedle: potřebuje otevřenou poznámku
+  // a ukládání nastavení, a takhle ho nemusí obalovat každý test zvlášť.
+  return (
+    <StoreContext.Provider value={value}>
+      <AssistantProvider assistant={assistant}>{children}</AssistantProvider>
+    </StoreContext.Provider>
+  )
 }
 
 export function useStore(): StoreValue {

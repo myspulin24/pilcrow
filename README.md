@@ -18,6 +18,10 @@ GitHub, jestli vyšla novější verze — a i ten se dá vypnout. Tvoje poznám
 soubory `.md`; všechno ostatní je jen mezipaměť, která se z nich dá kdykoli
 postavit znovu.
 
+Jedna výjimka existuje a je vypnutá, dokud ji sám nezapneš: [asistent
+Claude](#asistent-claude) umí odpovídat na otázky k otevřené poznámce a k tomu
+její text odešle Anthropicu. Bez zapnutí se z počítače nepokouší odejít nic.
+
 ```
 ┌──────────────┬─────────────────────┬──────────────────────────┐
 │ Reader_MJ  « │ [ hledat ]          │ [ Zdroj │Obojí│ Náhled ] │
@@ -132,7 +136,8 @@ a v paletě příkazů pod `Zkontrolovat aktualizace`. Když je všechno aktuál
 
 **Vypnout automatickou kontrolu:** `READER_MJ_AUTO_UPDATE=0` v `.env`. Ruční
 kontrola funguje dál. Aktualizace jsou jediné síťové spojení, které Reader_MJ
-navazuje — s vypnutou kontrolou neposílá vůbec nic.
+navazuje sám od sebe — s vypnutou kontrolou a vypnutým [asistentem](#asistent-claude)
+neposílá vůbec nic.
 
 ### Podpis
 
@@ -167,6 +172,83 @@ Repozitář potřebuje dva secrets (`Settings → Secrets and variables → Acti
 | --- | --- |
 | `TAURI_SIGNING_PRIVATE_KEY` | Obsah souboru se soukromým klíčem |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Heslo k němu |
+
+---
+
+## Asistent Claude
+
+Panel vpravo, ve kterém se dá bavit s Claudem o otevřené poznámce. Otevře se
+tlačítkem **Claude** ve stavovém řádku nebo z palety příkazů.
+
+**Je vypnutý, dokud ho nezapneš.** První, co panel ukáže, není chat, ale věta
+o tom, co se stane: text otevřené poznámky a tvoje otázka odejdou k Anthropicu.
+Nic jiného ne — ostatní poznámky, názvy souborů ani nastavení se neposílají.
+Kontextem je vždycky jen ta jedna poznámka, kterou máš zrovna otevřenou, a je
+nad chatem napsané, která to je.
+
+### Jak je to s přihlášením
+
+Neexistuje „Sign in with Claude“, které by cizí aplikaci dovolilo účtovat
+odpovědi na tvoje předplatné. Reader_MJ proto nemá vlastní klíč ani vlastní
+bránu a **mluví s Claudem přes Claude Code** — oficiální nástroj Anthropicu,
+který běží u tebe na počítači a přihlášení si drží v klíčence systému.
+Reader_MJ se tvého tokenu ani hesla nedotkne; jen spustí `claude` a přeposílá,
+co vypíše.
+
+V **nastavení asistenta** (tlačítko v hlavičce panelu) se to celé odbaví:
+
+1. **Je Claude Code nainstalovaný?** Když ne, panel to řekne, ukáže přesný
+   příkaz, který instalaci provede (`irm https://claude.ai/install.ps1 | iex`
+   na Windows, `curl -fsSL https://claude.ai/install.sh | bash` jinde), a teprve
+   na tvoje kliknutí ho spustí. Je to jediné místo v celém Reader_MJ, kde se
+   spouští něco staženého z internetu — proto je ten příkaz vidět předem
+   a proto se to nikdy neděje samo.
+2. **Jsi přihlášený?** Když ne, tlačítko otevře přihlašovací stránku Claude.
+   Potvrdíš přístup v prohlížeči, dostaneš kód a vložíš ho do políčka v panelu.
+   Adresa je celá vidět, ne schovaná pod tlačítkem.
+3. **Hotovo.** Panel ukáže, pod jakým účtem jsi přihlášený a jaké máš
+   předplatné. Když je to účet přes Anthropic Console (fakturace za API, ne
+   předplatné), řekne i to — na to se přijít z faktury je pozdě.
+
+Stav se dá kdykoli ověřit tlačítkem **Zkontrolovat znovu** a odhlásit se jde
+přímo odsud (odhlásí to Claude Code, tedy i pro terminál).
+
+### Co asistent nesmí
+
+Claude Code je primárně agent na kód: umí číst a přepisovat soubory a spouštět
+příkazy. Tady nic z toho mít nemá, takže se mu to vypíná — `--restricted`,
+`--safe-mode`, výslovný zákaz nástrojů a `--permission-prompts none`, aby se
+cokoli, co by se chtělo zeptat, rovnou odmítlo. Poznámku upravuješ ty; když
+Claude navrhne změnu, dostaneš ji jako Markdown v bloku kódu ke zkopírování.
+
+Stejným krokem se vyřazuje i tvoje `CLAUDE.md`, tvoje nastavení a tvoje servery
+MCP. Kromě toho, že do poznámkovníku nepatří, by se posílaly (a platily)
+s každou otázkou: jedna otázka s nimi stojí zhruba dvakrát tolik než bez nich.
+
+### Model a útrata
+
+V hlavičce panelu se vybírá model — stejná jména, jaká nabízí Claude Code sám:
+
+| Volba | Co se pošle |
+| --- | --- |
+| **Podle Claude Code** (výchozí) | nic; rozhodne jeho vlastní nastavení |
+| Claude Opus 5 | `claude-opus-5` |
+| Claude Fable 5.1 | `claude-fable-5-1` |
+| Claude Sonnet 5 | `claude-sonnet-5` |
+| Claude Opus 4.8 · Claude Haiku 4.5 | starší modely |
+
+Seznam je v [`src/core/assistant.ts`](src/core/assistant.ts) napsaný ručně,
+protože katalog modelů má Claude Code zabudovaný ve svém programu a nikam ho
+nevystavuje. Časem se tedy opozdí za novými modely — a přesně proto je první
+volba ta výchozí: neposílá žádné jméno, takže novější Claude Code funguje i bez
+zásahu do Reader_MJ. Model, který v seznamu není, zůstane vybraný, když se do
+nastavení dostane jinudy.
+
+Odpovědi se účtují tvému předplatnému úplně stejně, jako kdyby sis je vyžádal
+v terminálu.
+
+Dlouhá poznámka se ořízne na 40 000 znaků a panel to napíše — raději viditelný
+ústřižek než tiché odeslání dvou megabajtů.
 
 ---
 
@@ -525,11 +607,16 @@ Reader_MJ si říká o tak málo, jak jen desktopová aplikace může:
 | `protocol-asset` (omezené) | Aby webview mohlo zobrazit místní obrázky |
 | `updater` + `process:allow-restart` | Stažení nové verze a restart do ní |
 
-Neříká si o **žádný shell, žádná oznámení, žádnou schránku, žádné spouštění po
-startu**. Viz `src-tauri/capabilities/default.json` — ten soubor je úplný seznam
+Neříká si o **žádná oznámení, žádnou schránku, žádné spouštění po startu**.
+Viz `src-tauri/capabilities/default.json` — ten soubor je úplný seznam
 a Tauri ho vynucuje za běhu.
 
-Na síť sahá jedinou věcí: kontrolou aktualizací na `github.com`. Ta se navíc
+Jediný proces, který Reader_MJ spouští, je `claude` — a jen když si [asistenta](#asistent-claude)
+zapneš. Neděje se to přes plugin shellu (ten v oprávněních není): spouští se
+konkrétní program s konkrétními argumenty z Rustu, takže webview nemůže sestavit
+žádný vlastní příkaz.
+
+Na síť sahá sám od sebe jedinou věcí: kontrolou aktualizací na `github.com`. Ta se navíc
 neděje ve webview, ale v Rustu — politika obsahu (`src-tauri/tauri.conf.json`)
 tak i nadále blokuje **jakékoli** vzdálené spojení ze stránky samotné.
 `READER_MJ_AUTO_UPDATE=0` vypne i tu jednu kontrolu. Vykreslený Markdown se
@@ -619,8 +706,15 @@ Všechno nastavení žije v `.env` (mimo git; `.env.example` je v repozitáři):
 | `TAURI_SIGNING_PRIVATE_KEY` | prázdné | Podpis aktualizací, jen při vydávání |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | prázdné | Heslo k tomu klíči |
 
+Dvě volby nejsou v `.env`, ale v trezoru (`.reader_mj/settings.json`), protože
+patří k němu a ne k tomuhle stroji: `assistantEnabled` (výchozí `false` —
+[asistent](#asistent-claude) je vypnutý, dokud ho nezapneš) a `assistantModel`
+(výchozí prázdné, tedy volba Claude Code). Obojí se přepíná přímo v panelu.
+
 **K tajemstvím:** Reader_MJ nemá účty, takže k jeho používání není potřeba
-nastavit vůbec nic. Jediný přístupový údaj v projektu je soukromý klíč, kterým
+nastavit vůbec nic. Ani asistent: přihlášení ke Claude si drží Claude Code
+v klíčence systému, Reader_MJ žádný token nevidí a nikam si ho neukládá.
+Jediný přístupový údaj v projektu je soukromý klíč, kterým
 se podepisují aktualizace, a ten potřebuješ jen když novou verzi vydáváš.
 Bydlí v `.env` a v secrets repozitáře. `.env` je
 v `.gitignore`; `.env.example` obsahuje jen zástupné klíče a **žádný přístupový
@@ -641,16 +735,20 @@ nahlásí všechno, co je rozbité:
 2. **Vrstva trezoru v Rustu** — `cargo test -p reader-mj-core`: procházení
    cest, atomické zápisy, detekce konfliktů, export/import, rejstřík SQLite,
    řazení přes FTS5, zpětné odkazy, projití složky (prořezávání, pořadí,
-   limity), registr přístupů, který rozhoduje, co se vůbec smí číst, a ukládání
-   skupin
+   limity), registr přístupů, který rozhoduje, co se vůbec smí číst, ukládání
+   skupin a rozhodování kolem Claude Code: kde hledat `claude`, jaký příkaz
+   ukáže instalace a jak se skládají vícebajtové znaky z kousků, které přijdou
+   z roury rozdělené
 3. **Jádro** — `vitest run`: obousměrný převod frontmatteru, vytahování štítků
    a odkazů `[[...]]`, renderer Markdownu a jeho escapování, bezpečné názvy
    souborů, rozbor vyhledávacích dotazů, diff, SHA-256, zplošťování stromu
    souborů, rozbalování a sbalování, filtrování, operace nad skupinami,
    přechody mezi režimy zobrazení, přepínání značek v liště formátování,
-   sázení vzorců a celý český katalog textů včetně tvarů množného čísla
+   sázení vzorců, čtení odpovědí Clauda (NDJSON po kouscích, stav přihlášení,
+   skládání zprávy s poznámkou) a celý český katalog textů včetně tvarů
+   množného čísla
 4. **End-to-end** — `vitest run --config vitest.e2e.config.ts`: průchod
-   poznámkami, strom souborů, skupiny, aktualizace, lišta a vzorce
+   poznámkami, strom souborů, skupiny, aktualizace, lišta, vzorce a asistent
 
 Jednotlivé fáze: `npm test -- rust`, `npm test -- unit`, `npm test -- e2e`.
 
@@ -688,7 +786,16 @@ i s diakritikou v indexu, cena v dolarech ne; editor vzorců naklikne odmocninu
 kolem označeného textu, rozbitý vzorec pojmenuje česky a hotový vzorec se dá
 kliknutím otevřít zpátky k úpravě.
 
-Souborový systém pod všemi pěti pokrývá sada v Rustu.
+`assistant` projde asistenta: panel nejdřív řekne, co odchází z počítače,
+a teprve po souhlasu nabídne cokoli dalšího; bez Claude Code ukáže přesný
+příkaz, který instalaci provede, a po ní se sám posune k přihlášení; nepovedená
+instalace to řekne a nikam neposune; přihlášení ukáže celou adresu, vezme kód
+a skončí jménem účtu, špatný kód ne; otázka odejde i s textem poznámky a nic
+navíc, odpověď se skládá po kouscích; selhání se ukáže u odpovědi místo prázdna;
+vypnutí zahodí rozhovor a vrátí souhlas; v prohlížeči neslibuje něco, co tam
+nejde spustit.
+
+Souborový systém pod všemi šesti pokrývá sada v Rustu.
 
 Obě implementace SHA-256 (TypeScript pro editor, Rust pro souborovou vrstvu)
 se testují proti stejným zveřejněným vektorům, protože detekce konfliktů
@@ -711,9 +818,14 @@ předpoklad, že tvoje poznámky jsou jen soubory na tvém disku:
 - **Hostované veřejné stránky a publikování.** To je práce generátoru statických
   webů; trezor už je jeho vstup.
 - **Účty, placení, telemetrie, analytika, hostovaný řídicí panel.** Jediný
-  síťový požadavek, který Reader_MJ udělá, je dotaz na GitHub, jestli vyšla
-  novější verze. Neposílá při něm nic o tobě ani o tvých poznámkách a vypíná se
-  jedním řádkem v `.env`.
+  síťový požadavek, který Reader_MJ udělá sám od sebe, je dotaz na GitHub,
+  jestli vyšla novější verze. Neposílá při něm nic o tobě ani o tvých
+  poznámkách a vypíná se jedním řádkem v `.env`. [Asistent](#asistent-claude)
+  je z tohohle pravidla vědomá výjimka — proto je vypnutý, proto se zapíná
+  jedním kliknutím a proto je nad ním napsané, co přesně odejde.
+- **Vlastní účet pro AI, vlastní klíč, vlastní fakturace.** Asistent nemá svou
+  bránu ani svůj klíč. Mluví s Claudem přes Claude Code, který na tvém počítači
+  už přihlášený je; Reader_MJ se tvého tokenu ani hesla nedotkne.
 
 ---
 

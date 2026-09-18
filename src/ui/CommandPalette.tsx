@@ -13,6 +13,7 @@ import { fuzzyScore, t } from '@/core'
 import { formatShortcut } from '@/lib/shortcuts'
 import type { Command, ConfirmRequest, PromptRequest } from '@/state/commands'
 import { buildCommands } from '@/state/commands'
+import { useAssistant } from '@/state/assistant-store'
 import { useActions, useAppState } from '@/state/store'
 import { useInsertWikiLink } from './NotePane'
 
@@ -34,6 +35,7 @@ export function CommandPalette({
 }) {
   const state = useAppState()
   const actions = useActions()
+  const assistant = useAssistant()
   const insertWikiLink = useInsertWikiLink()
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(0)
@@ -50,8 +52,11 @@ export function CommandPalette({
   }, [state.paletteMode, state.paletteOpen])
 
   const commands: Command[] = useMemo(
-    () => (linkMode ? [] : buildCommands({ state, actions, prompt, confirm })),
-    [linkMode, state, actions, prompt, confirm],
+    () =>
+      linkMode
+        ? []
+        : buildCommands({ state, actions, prompt, confirm, toggleAssistant: assistant.actions.toggle }),
+    [linkMode, state, actions, assistant, prompt, confirm],
   )
 
   const rows = useMemo<Row[]>(() => {

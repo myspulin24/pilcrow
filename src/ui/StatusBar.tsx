@@ -4,11 +4,13 @@
  */
 
 import { t } from '@/core'
+import { useAssistant } from '@/state/assistant-store'
 import { useActions, useAppState } from '@/state/store'
 
 export function StatusBar() {
   const state = useAppState()
   const actions = useActions()
+  const assistant = useAssistant()
   const status = state.status
 
   return (
@@ -57,6 +59,18 @@ export function StatusBar() {
               : t.update.version(state.update.currentVersion)}
         </button>
       ) : null}
+
+      {/* Asistent se otevírá odsud, ne z lišty nahoře: je to volba, ne nástroj,
+          který má být pořád po ruce. */}
+      <button
+        type="button"
+        className={`status-bar__button ${assistant.view.open ? 'status-bar__button--attention' : ''}`}
+        onClick={assistant.actions.toggle}
+        title={t.assistant.openHint}
+        aria-pressed={assistant.view.open}
+      >
+        {t.assistant.title}
+      </button>
 
       <button
         type="button"

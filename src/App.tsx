@@ -7,12 +7,14 @@ import { useCallback, useEffect } from 'react'
 import { t } from '@/core'
 import { isTypingTarget, matchesShortcut } from '@/lib/shortcuts'
 import { buildCommands } from '@/state/commands'
+import { useAssistant } from '@/state/assistant-store'
 import { useActions, useAppState, useStore } from '@/state/store'
 import { CommandPalette } from '@/ui/CommandPalette'
 import { ContextMenu } from '@/ui/ContextMenu'
 import { ConflictView } from '@/ui/ConflictView'
 import { ErrorState, Spinner, Toasts } from '@/ui/Feedback'
 import { ConfirmModal, PromptModal } from '@/ui/Modal'
+import { AssistantPanel } from '@/ui/AssistantPanel'
 import { UpdateDialog } from '@/ui/UpdateDialog'
 import { Workspace } from '@/ui/Workspace'
 import { NotePane } from '@/ui/NotePane'
@@ -22,6 +24,7 @@ import { StatusBar } from '@/ui/StatusBar'
 export function App() {
   const { state } = useStore()
   const actions = useActions()
+  const assistant = useAssistant()
   // Modals live in the store so the sidebar, the tree and the palette can all
   // raise one without threading callbacks through every component.
   const { prompt, confirm, menu } = state
@@ -35,7 +38,13 @@ export function App() {
     const handler = (event: KeyboardEvent) => {
       if (state.paletteOpen || prompt || confirm || state.conflict || menu) return
 
-      const commands = buildCommands({ state, actions, prompt: requestPrompt, confirm: requestConfirm })
+      const commands = buildCommands({
+        state,
+        actions,
+        prompt: requestPrompt,
+        confirm: requestConfirm,
+        toggleAssistant: assistant.actions.toggle,
+      })
       for (const command of commands) {
         if (!command.shortcut) continue
         // Plain, unmodified keys (F2) must not fire while typing.
@@ -48,7 +57,7 @@ export function App() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [state, actions, prompt, confirm, menu, requestPrompt, requestConfirm])
+  }, [state, actions, assistant, prompt, confirm, menu, requestPrompt, requestConfirm])
 
   // `#note/<path>` links inside the preview.
   useEffect(() => {
@@ -86,6 +95,7 @@ export function App() {
         {state.sidebarVisible ? <Sidebar /> : null}
         <Workspace />
         <NotePane />
+        <AssistantPanel />
       </div>
       <StatusBar />
 

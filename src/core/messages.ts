@@ -488,6 +488,82 @@ export const t = {
     errorInstall: 'Aktualizaci se nepodařilo nainstalovat.',
   },
 
+  assistant: {
+    title: 'Claude',
+    open: 'Otevřít Clauda',
+    openHint: 'Zeptat se Clauda na otevřenou poznámku',
+    close: 'Zavřít panel',
+
+    /** Souhlas. Tohle je jediné místo v aplikaci, odkud odchází text ven. */
+    consentTitle: 'Zeptat se Clauda na poznámku',
+    consentBody:
+      'Reader_MJ jinak nikam nic neposílá. Asistent je výjimka: text otevřené poznámky a tvoje otázka odejdou k Anthropicu, aby na ni mohl Claude odpovědět. Nic jiného se neodesílá — ostatní poznámky, názvy souborů ani nastavení ne.',
+    consentAccount:
+      'Účtuje se to tvému předplatnému Claude, ke kterému se přihlásíš níž. Reader_MJ se tvého hesla ani tokenu nedotkne — přihlášení si drží Claude Code v klíčence systému.',
+    consentEnable: 'Zapnout asistenta',
+    consentOff: 'Vypnout asistenta',
+    consentOffHint: 'Panel zmizí a nic se nikam neodešle.',
+
+    /** Nastavení: co je a co není hotové. */
+    setupTitle: 'Nastavení asistenta',
+    setupShort: 'Nastavení',
+    checking: 'Zjišťuji stav...',
+    recheck: 'Zkontrolovat znovu',
+
+    stepInstall: 'Claude Code není nainstalovaný',
+    stepInstallBody:
+      'Asistent mluví s Claudem přes Claude Code — oficiální nástroj Anthropicu, který běží u tebe na počítači a drží si přihlášení k tvému předplatnému.',
+    stepInstallCommand: 'Spustí se tenhle příkaz:',
+    stepInstallWarning:
+      'Stáhne a spustí instalační skript z claude.ai. Je to jediné místo v celém Reader_MJ, kde se spouští něco staženého z internetu — proto se to děje jen na tvoje kliknutí.',
+    install: 'Nainstalovat Claude Code',
+    installing: 'Instaluji...',
+    installed: (version: string) => `Nainstalováno: ${version}`,
+    installFailed: 'Instalace se nepovedla.',
+
+    stepLogin: 'Nejsi přihlášený',
+    stepLoginBody:
+      'Přihlášení proběhne na webu Claude. Otevře se prohlížeč, potvrdíš přístup a dostaneš kód, který sem vložíš.',
+    login: 'Přihlásit se ke Claude',
+    loggingIn: 'Přihlašuji...',
+    loginUrlHint: 'Pokud se prohlížeč neotevřel sám, jdi na tuhle adresu:',
+    loginCodeLabel: 'Kód z prohlížeče',
+    loginCodePlaceholder: 'Sem vlož kód',
+    loginCodeSend: 'Potvrdit kód',
+    loginCancel: 'Zrušit přihlašování',
+    loginFailed: 'Přihlášení se nepovedlo.',
+
+    account: (email: string) => `Přihlášen jako ${email}`,
+    accountAnonymous: 'Přihlášeno',
+    plan: (plan: string) => `předplatné ${plan}`,
+    console: 'Přihlášeno přes Anthropic Console — odpovědi se účtují podle využití API, ne z předplatného.',
+    logout: 'Odhlásit se',
+    unavailable: 'Asistent funguje jen v desktopové aplikaci.',
+    unavailableHint: 'V prohlížeči není jak spustit Claude Code.',
+    output: 'Výpis',
+
+    /** Rozhovor. */
+    placeholder: 'Zeptej se na tuhle poznámku...',
+    send: 'Odeslat',
+    stop: 'Zastavit',
+    clear: 'Nový rozhovor',
+    empty: 'Zeptej se na cokoli z otevřené poznámky. Claude vidí jen ji.',
+    emptyNoNote: 'Otevři poznámku a Claude se na ni podívá.',
+    contextLine: (title: string) => `Kontext: ${title}`,
+    truncated: 'Poznámka je delší, než se vejde — poslal se jen její začátek.',
+    failed: 'Odpověď se nepovedla.',
+    cancelled: 'Zastaveno.',
+    model: 'Model',
+    modelHint: 'Který model odpoví. Výchozí nechá rozhodnout Claude Code.',
+    modelDefault: 'Podle Claude Code',
+    modelCurrent: 'Aktuální modely',
+    modelLegacy: 'Starší modely',
+    you: 'Ty',
+    claude: 'Claude',
+    copy: 'Kopírovat odpověď',
+    copied: 'Zkopírováno.',
+  },
+
   browser: {
     demoVault: 'Ukázkový trezor (náhled v prohlížeči)',
     warning:

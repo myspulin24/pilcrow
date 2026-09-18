@@ -13,6 +13,7 @@
 //! opens and the frontend renders its recovery screen. A notes app that refuses
 //! to start is worse than one that starts and explains itself.
 
+mod assistant;
 mod commands;
 mod state;
 mod watcher;
@@ -65,6 +66,10 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
             let root = vault_root(&handle);
+
+            // Asistent nemá s trezorem nic společného a hlavně nesmí bránit
+            // startu: drží si jen cestu ke `claude` a rozpracované procesy.
+            app.manage(assistant::AssistantState::default());
 
             match AppState::new(root.clone()) {
                 Ok(state) => {

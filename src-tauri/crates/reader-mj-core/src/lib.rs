@@ -9,6 +9,7 @@
 //! The frontend hands this crate already-derived `IndexRecord`s, so there is
 //! exactly one implementation of "what is a tag" rather than two that drift.
 
+pub mod assistant;
 pub mod collections;
 pub mod error;
 pub mod explorer;

@@ -110,6 +110,16 @@ export interface VaultSettings {
   theme: 'system' | 'light' | 'dark'
   editorFontSize: number
   showPreview: boolean
+  /**
+   * Smí panel asistenta posílat text poznámky ven?
+   *
+   * Výchozí `false` je záměr, ne opatrnost: bez tohohle přepínače z počítače
+   * neodchází nic než dotaz na novou verzi, a to má zůstat pravda, dokud
+   * někdo výslovně neřekne jinak.
+   */
+  assistantEnabled: boolean
+  /** `opus`, `sonnet`, nebo prázdné = nech rozhodnout Claude Code. */
+  assistantModel: string
 }
 
 export interface VaultApi {
@@ -241,4 +251,6 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   theme: 'system',
   editorFontSize: 15,
   showPreview: true,
+  assistantEnabled: false,
+  assistantModel: '',
 }

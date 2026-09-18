@@ -159,6 +159,16 @@ pub struct VaultSettings {
     pub editor_font_size: i64,
     #[serde(default = "default_true")]
     pub show_preview: bool,
+    /// Smí panel asistenta posílat text poznámky ven?
+    ///
+    /// Výchozí `false` je záměr, ne opatrnost: bez tohohle přepínače z počítače
+    /// neodchází nic než dotaz na novou verzi, a to má zůstat pravda, dokud
+    /// někdo výslovně neřekne jinak.
+    #[serde(default)]
+    pub assistant_enabled: bool,
+    /// `opus`, `sonnet`, nebo prázdné = nech rozhodnout Claude Code.
+    #[serde(default)]
+    pub assistant_model: String,
 }
 
 fn default_daily_folder() -> String {
@@ -182,6 +192,8 @@ impl Default for VaultSettings {
             theme: default_theme(),
             editor_font_size: default_font_size(),
             show_preview: true,
+            assistant_enabled: false,
+            assistant_model: String::new(),
         }
     }
 }
