@@ -909,6 +909,14 @@ předpoklad, že tvoje poznámky jsou jen soubory na tvém disku:
 
 ---
 
+## Našel jsi bezpečnostní chybu?
+
+Nezakládej veřejný issue — použij
+[soukromé hlášení](https://github.com/myspulin24/pilcrow/security/advisories/new).
+Co je a co není chyba a kde se dá něco najít, stojí v [SECURITY.md](SECURITY.md).
+
+---
+
 ## Licence
 
-MIT — viz [LICENSE](LICENSE).
+MIT — © 2026 Michal Jašek, viz [LICENSE](LICENSE).
