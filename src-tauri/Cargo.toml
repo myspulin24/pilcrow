@@ -24,6 +24,8 @@ tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Jen kvůli verzi SQLite v sekci „O aplikaci“; samotný rejstřík je v jádru.
+rusqlite = { version = "0.32", features = ["bundled"] }
 notify = "6"
 dotenvy = "0.15"
 

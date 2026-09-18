@@ -13,7 +13,14 @@
  * gracefully instead of throwing a wall of `window.__TAURI__ is undefined`.
  */
 
-import type { Collection, FolderTree, NoteSummary, VaultError } from '@/core'
+import type {
+  Collection,
+  FolderTree,
+  NoteSummary,
+  ThemeSetting,
+  VaultError,
+  ViewMode,
+} from '@/core'
 
 export interface VaultStatus {
   /** False when running in a plain browser with no Tauri runtime. */
@@ -107,9 +114,18 @@ export interface RebuildResult {
 export interface VaultSettings {
   vaultPath: string
   dailyFolder: string
-  theme: 'system' | 'light' | 'dark'
+  theme: ThemeSetting| 'light' | 'dark'
   editorFontSize: number
-  showPreview: boolean
+  /** Co se ukáže po otevření poznámky. */
+  defaultViewMode: ViewMode
+  showSidebar: boolean
+  showToolbar: boolean
+  /**
+   * Kontrolovat po startu novou verzi.
+   *
+   * `PILCROW_AUTO_UPDATE=0` v `.env` to přebije i tehdy, když je tu `true`.
+   */
+  checkUpdates: boolean
   /**
    * Smí panel asistenta posílat text poznámky ven?
    *
@@ -250,7 +266,10 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   dailyFolder: 'daily',
   theme: 'system',
   editorFontSize: 15,
-  showPreview: true,
+  defaultViewMode: 'split',
+  showSidebar: true,
+  showToolbar: true,
+  checkUpdates: true,
   assistantEnabled: false,
   assistantModel: '',
 }

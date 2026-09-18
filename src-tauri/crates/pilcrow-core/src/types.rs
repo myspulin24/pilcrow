@@ -157,8 +157,22 @@ pub struct VaultSettings {
     pub theme: String,
     #[serde(default = "default_font_size")]
     pub editor_font_size: i64,
+    /// `split` | `source` | `preview` -- co se ukáže po otevření poznámky.
+    #[serde(default = "default_view_mode")]
+    pub default_view_mode: String,
+    /// Má být po startu vidět levý panel se skupinami a štítky?
     #[serde(default = "default_true")]
-    pub show_preview: bool,
+    pub show_sidebar: bool,
+    /// Má být nad editorem lišta formátování?
+    #[serde(default = "default_true")]
+    pub show_toolbar: bool,
+    /// Kontrolovat po startu novou verzi.
+    ///
+    /// `PILCROW_AUTO_UPDATE=0` v `.env` to přebije i tehdy, když je tu `true`:
+    /// proměnná prostředí je tvrdší, aby šlo aktualizace vypnout i tam, kde
+    /// uživatel k nastavení aplikace nemá přístup.
+    #[serde(default = "default_true")]
+    pub check_updates: bool,
     /// Smí panel asistenta posílat text poznámky ven?
     ///
     /// Výchozí `false` je záměr, ne opatrnost: bez tohohle přepínače z počítače
@@ -180,6 +194,9 @@ fn default_theme() -> String {
 fn default_font_size() -> i64 {
     15
 }
+fn default_view_mode() -> String {
+    "split".to_string()
+}
 fn default_true() -> bool {
     true
 }
@@ -191,7 +208,10 @@ impl Default for VaultSettings {
             daily_folder: default_daily_folder(),
             theme: default_theme(),
             editor_font_size: default_font_size(),
-            show_preview: true,
+            default_view_mode: default_view_mode(),
+            show_sidebar: true,
+            show_toolbar: true,
+            check_updates: true,
             assistant_enabled: false,
             assistant_model: String::new(),
         }

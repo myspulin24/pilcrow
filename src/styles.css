@@ -26,24 +26,30 @@
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #17161a;
-    --bg-raised: #1f1e23;
-    --bg-sunken: #121114;
-    --border: #2e2c33;
-    --border-strong: #423f49;
-    --text: #ece9e4;
-    --text-muted: #a49e97;
-    --text-faint: #746e68;
-    --accent: #e8825a;
-    --accent-soft: #38251d;
-    --danger: #f2827a;
-    --success: #7fd3a0;
-    --warn: #e0b061;
-    --shadow: 0 10px 30px rgb(0 0 0 / 45%);
-    color-scheme: dark;
-  }
+/* Tmavý vzhled.
+ *
+ * Neváže se na `prefers-color-scheme`, ale na atribut, který na `<html>`
+ * nastaví aplikace. Systém tím nepřestává platit -- jen se ho ptá JavaScript
+ * a výsledek sem předá. Díky tomu je tu jedna tmavá paleta místo dvou
+ * (jedné pro systém a druhé pro ruční volbu), a „podle systému“ se nemusí
+ * plést do CSS. Kdo si vybere světlý na tmavém systému, dostane světlý.
+ */
+:root[data-theme='dark'] {
+  --bg: #17161a;
+  --bg-raised: #1f1e23;
+  --bg-sunken: #121114;
+  --border: #2e2c33;
+  --border-strong: #423f49;
+  --text: #ece9e4;
+  --text-muted: #a49e97;
+  --text-faint: #746e68;
+  --accent: #e8825a;
+  --accent-soft: #38251d;
+  --danger: #f2827a;
+  --success: #7fd3a0;
+  --warn: #e0b061;
+  --shadow: 0 10px 30px rgb(0 0 0 / 45%);
+  color-scheme: dark;
 }
 
 * {
@@ -2906,4 +2912,202 @@ textarea:focus-visible,
 /* Popisek jazyka ustoupí doleva, ať se s tlačítkem nepřekrývá. */
 .markdown-body .code-block:has(.code-copy) .code-lang {
   right: 40px;
+}
+
+/* --- nastavení -------------------------------------------------------------- */
+
+.settings {
+  width: min(680px, 92vw);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.settings__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.settings__head h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.settings__body {
+  overflow-y: auto;
+  padding: 4px 18px 18px;
+}
+
+.settings__section {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings__section:last-child {
+  border-bottom: none;
+}
+
+.settings__heading {
+  margin: 0 0 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+
+.settings__subheading {
+  margin: 14px 0 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Popisek vlevo, ovládání vpravo. Na úzkém okně pod sebou. */
+.settings__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 0;
+}
+
+.settings__label label {
+  font-size: 13.5px;
+}
+
+.settings__hint {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-faint);
+}
+
+.settings__control {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 1px;
+}
+
+.settings__select,
+.settings__input {
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-raised);
+  color: var(--text);
+  min-width: 150px;
+}
+
+.settings__toggle {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.settings__slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings__slider input {
+  accent-color: var(--accent);
+}
+
+.settings__value {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--text-muted);
+  min-width: 42px;
+}
+
+.settings__path {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 320px;
+}
+
+.settings__path code {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  color: var(--text-muted);
+}
+
+.settings__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* --- o aplikaci ------------------------------------------------------------- */
+
+.settings__about-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.settings__app-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* Dvousloupcová tabulka faktů. Hodnoty jsou strojové, tak jsou neproporcionální
+   a dají se označit myší -- někdy je potřeba zkopírovat jen jednu řádku. */
+.settings__facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(120px, auto) 1fr;
+  gap: 3px 14px;
+  font-size: 12.5px;
+}
+
+.settings__fact {
+  display: contents;
+}
+
+.settings__fact dt {
+  color: var(--text-muted);
+}
+
+.settings__fact dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+@media (max-width: 620px) {
+  .settings__row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .settings__facts {
+    grid-template-columns: 1fr;
+    gap: 0 0;
+  }
+
+  .settings__fact dd {
+    margin-bottom: 6px;
+  }
 }

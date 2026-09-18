@@ -59,6 +59,8 @@ export interface MemoryVaultOptions {
    * in for what the explorer would read from disk.
    */
   externalFiles?: Record<string, string>
+  /** Nastavení, se kterým trezor začíná. Zbytek doplní výchozí hodnoty. */
+  settings?: Partial<VaultSettings>
   /** What the folder picker returns. */
   externalRoot?: string
   /** What the file picker returns. Defaults to the first external file. */
@@ -94,7 +96,7 @@ export class MemoryVault implements VaultApi {
     }
     this.externalRoot = options.externalRoot ?? null
     this.dialogFile = options.dialogFile ?? [...this.externalFiles.keys()][0] ?? null
-    this.settings.vaultPath = this.label
+    this.settings = { ...this.settings, ...options.settings, vaultPath: this.label }
   }
 
   async status(): Promise<VaultStatus> {

@@ -313,6 +313,14 @@ export function buildCommands({
       run: () => void actions.checkForUpdates(true),
     },
     {
+      id: 'app.settings',
+      title: t.settings.open,
+      group: t.palette.groups.app,
+      hint: t.settings.openHint,
+      shortcut: { key: ',', mod: true },
+      run: () => actions.openSettings(),
+    },
+    {
       id: 'app.assistant',
       title: t.assistant.open,
       group: t.palette.groups.app,

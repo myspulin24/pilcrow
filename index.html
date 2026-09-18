@@ -5,6 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <title>Pilcrow</title>
+    <script>
+      // Motiv podle systému ještě před prvním vykreslením. Vlastní volbu
+      // uživatele zná až aplikace, protože je uložená v trezoru -- tenhle
+      // řádek jen zabrání tomu, aby tmavému systému bliklo bílé okno.
+      document.documentElement.dataset.theme = window.matchMedia(
+        '(prefers-color-scheme: dark)',
+      ).matches
+        ? 'dark'
+        : 'light'
+    </script>
   </head>
   <body>
     <div id="root"></div>

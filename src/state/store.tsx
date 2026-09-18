@@ -85,6 +85,8 @@ import {
 } from '@/updater'
 import type { AssistantApi } from '@/assistant'
 
+import { applyTheme } from '@/lib/theme'
+
 import { AssistantProvider } from './assistant-store'
 
 export interface MathRequest {
@@ -128,6 +130,13 @@ export interface UpdateState {
   manual: boolean
   /** False v prohlížeči: tlačítko se pak vůbec neukáže. */
   supported: boolean
+  /**
+   * Dovoluje automatickou kontrolu prostředí?
+   *
+   * `PILCROW_AUTO_UPDATE=0` v `.env` je tvrdší než přepínač v nastavení,
+   * takže si nastavení musí umět říct, kdy je ten přepínač k ničemu.
+   */
+  autoAllowed: boolean
   /** Okno s nabídkou aktualizace je otevřené. */
   dialogOpen: boolean
 }
@@ -141,6 +150,7 @@ const initialUpdate: UpdateState = {
   error: null,
   manual: false,
   supported: false,
+  autoAllowed: true,
   dialogOpen: false,
 }
 
@@ -251,6 +261,8 @@ export interface AppState {
   collections: Collection[]
   /** The open right-click menu, if any. */
   menu: MenuRequest | null
+  /** Otevřené nastavení. Ve storu, aby ho uměla otevřít i paleta příkazů. */
+  settingsOpen: boolean
   /** The open modal, if any. Kept in the store so any panel can raise one. */
   prompt: PromptRequest | null
   confirm: ConfirmRequest | null
@@ -287,6 +299,7 @@ const initialState: AppState = {
   sidebarVisible: true,
   collections: [],
   menu: null,
+  settingsOpen: false,
   prompt: null,
   confirm: null,
   notesSectionOpen: true,
@@ -344,6 +357,7 @@ type Action =
   | { type: 'toggle-sidebar' }
   | { type: 'collections'; collections: Collection[] }
   | { type: 'menu'; menu: MenuRequest | null }
+  | { type: 'settings-open'; open: boolean }
   | { type: 'prompt'; prompt: PromptRequest | null }
   | { type: 'confirm'; confirm: ConfirmRequest | null }
   | { type: 'math'; math: MathRequest | null }
@@ -355,7 +369,18 @@ type Action =
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'ready':
-      return { ...state, phase: 'ready', status: action.status, settings: action.settings, fatal: null }
+      return {
+        ...state,
+        phase: 'ready',
+        status: action.status,
+        settings: action.settings,
+        fatal: null,
+        // Nastavení, která říkají „jak to má vypadat po otevření“. Platí jen
+        // teď, při startu -- co si uživatel během práce přepne, mu nastavení
+        // nepřepíše zpátky.
+        viewMode: action.settings.defaultViewMode,
+        sidebarVisible: action.settings.showSidebar,
+      }
     case 'fatal':
       return { ...state, phase: 'failed', fatal: action.error, notesLoading: false }
     case 'status':
@@ -440,6 +465,8 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, collections: action.collections }
     case 'menu':
       return { ...state, menu: action.menu }
+    case 'settings-open':
+      return { ...state, settingsOpen: action.open }
     case 'prompt':
       return { ...state, prompt: action.prompt }
     case 'confirm':
@@ -531,6 +558,8 @@ export interface Actions {
    * hodnotami, které měl náhodou načtené.
    */
   updateSettings(patch: Partial<VaultSettings>): Promise<VaultSettings>
+  openSettings(): void
+  closeSettings(): void
   rebuildIndex(): Promise<void>
   exportVault(): Promise<void>
   importFolder(): Promise<void>
@@ -675,6 +704,11 @@ export function StoreProvider({
   const selectInEditor = useCallback((start: number, end?: number) => {
     pendingSelection.current = { start, end: end ?? start }
   }, [])
+  // Motiv se nanáší na `<html>`, ne do Reactu: barvy jsou v CSS proměnných,
+  // takže překreslovat kvůli nim komponenty nedává smysl.
+  const theme = state.settings.theme
+  useEffect(() => applyTheme(theme), [theme])
+
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** Every pending toast auto-dismiss, so none of them outlive the provider. */
@@ -1221,6 +1255,9 @@ export function StoreProvider({
     },
     [],
   )
+
+  const openSettings = useCallback(() => dispatch({ type: 'settings-open', open: true }), [])
+  const closeSettings = useCallback(() => dispatch({ type: 'settings-open', open: false }), [])
 
   const rebuildIndex = useCallback(async () => {
     dispatch({ type: 'busy', label: 'Přestavuji rejstřík' })
@@ -1827,8 +1864,13 @@ export function StoreProvider({
         type: 'update',
         patch: { supported: updater.available, currentVersion: version },
       })
+      const autoAllowed = await updater.autoCheckEnabled().catch(() => false)
+      dispatch({ type: 'update', patch: { autoAllowed } })
       if (!updater.available) return
-      if (!(await updater.autoCheckEnabled().catch(() => false))) return
+      // Dvě brány, a obě musí být otevřené. `.env` je ta tvrdší: vypnout
+      // aktualizace jde i tam, kde uživatel k nastavení aplikace nemá přístup.
+      if (!autoAllowed) return
+      if (!stateRef.current.settings.checkUpdates) return
       if (cancelled) return
       void checkForUpdates(false)
     })()
@@ -1877,6 +1919,8 @@ export function StoreProvider({
       insertAtCursor,
       resolveConflict,
       updateSettings,
+      openSettings,
+      closeSettings,
       rebuildIndex,
       exportVault,
       importFolder,
@@ -1952,6 +1996,8 @@ export function StoreProvider({
       openFolderFromDisk,
       openFromTree,
       openOrCreateByTitle,
+      closeSettings,
+      openSettings,
       rebuildIndex,
       refresh,
       updateSettings,

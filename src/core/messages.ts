@@ -567,6 +567,66 @@ export const t = {
     copied: 'Zkopírováno.',
   },
 
+  settings: {
+    title: 'Nastavení',
+    open: 'Nastavení...',
+    openHint: 'Vzhled, chování a informace o aplikaci',
+    close: 'Zavřít',
+    saveFailed: 'Nastavení se nepodařilo uložit.',
+    storedIn: (path: string) => `Uloženo v ${path}`,
+
+    appearance: 'Vzhled',
+    theme: 'Motiv',
+    themeSystem: 'Podle systému',
+    themeLight: 'Světlý',
+    themeDark: 'Tmavý',
+    themeHint: 'Podle systému se přepne sám, když si to přepne Windows.',
+    fontSize: 'Velikost písma v editoru',
+    fontSizeHint: 'Týká se jen psaní, ne náhledu.',
+
+    startup: 'Po otevření poznámky',
+    defaultView: 'Výchozí zobrazení',
+    defaultViewHint: 'Čím se začíná. Přepnout jde kdykoli nahoře vpravo nebo přes Ctrl + E.',
+    showSidebar: 'Zobrazit levý panel',
+    showSidebarHint: 'Skupiny a štítky. Skrýt jde i klávesou Ctrl + \.',
+    showToolbar: 'Zobrazit lištu formátování',
+    showToolbarHint: 'Tlačítka nad editorem pro tučné písmo, nadpisy, tabulky a vzorce.',
+
+    notes: 'Poznámky',
+    dailyFolder: 'Složka denních poznámek',
+    dailyFolderHint: 'Kam ukládá Ctrl + D. Prázdné = kořen trezoru.',
+    vaultPath: 'Složka trezoru',
+    vaultPathHint: 'Mění se proměnnou PILCROW_VAULT_PATH v souboru .env, ne tady.',
+    reveal: 'Ukázat ve správci souborů',
+
+    updates: 'Aktualizace',
+    checkUpdates: 'Hledat novou verzi po startu',
+    checkUpdatesHint:
+      'Jediné, kvůli čemu Pilcrow sám sahá na síť. Stažené balíčky se ověřují podpisem.',
+    checkUpdatesBlocked: 'Vypnuto v .env (PILCROW_AUTO_UPDATE=0), tenhle přepínač to nepřebije.',
+    checkNow: 'Zkontrolovat teď',
+
+    assistant: 'Asistent Claude',
+    assistantOn: 'Zapnutý — text otevřené poznámky se posílá Anthropicu.',
+    assistantOff: 'Vypnutý — z počítače neodchází nic.',
+    assistantOpen: 'Otevřít panel',
+
+    about: 'O aplikaci',
+    author: 'Autor',
+    licence: 'Licence',
+    repository: 'Zdrojový kód',
+    aboutFrontend: 'Rozhraní',
+    aboutBackend: 'Jádro aplikace',
+    aboutRuntime: 'Kde to běží',
+    aboutHint:
+      'Verze rozhraní jsou z doby sestavení, verze prostředí a překladače se zjišťují za běhu.',
+    aboutUnavailable: 'Verze jádra jdou zjistit jen v desktopové aplikaci.',
+    copyAbout: 'Kopírovat jako text',
+    copied: 'Zkopírováno',
+    profileDebug: 'vývojové sestavení',
+    profileRelease: 'vydaná verze',
+  },
+
   browser: {
     demoVault: 'Ukázkový trezor (náhled v prohlížeči)',
     warning:

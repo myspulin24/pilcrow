@@ -75,6 +75,15 @@ export function StatusBar() {
       <button
         type="button"
         className="status-bar__button"
+        onClick={actions.openSettings}
+        title={t.settings.openHint}
+      >
+        {t.settings.title}
+      </button>
+
+      <button
+        type="button"
+        className="status-bar__button"
         onClick={() => void actions.rebuildIndex()}
         title={t.status.rebuildIndexHint}
       >

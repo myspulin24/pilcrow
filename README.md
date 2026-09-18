@@ -750,7 +750,32 @@ Obnova: zkopíruj složku zpátky. To je celý postup.
 
 ## Nastavení
 
-Všechno nastavení žije v `.env` (mimo git; `.env.example` je v repozitáři):
+Většina se nastavuje v aplikaci: **Nastavení** ve stavovém řádku vpravo dole,
+nebo `Ctrl` `,`. Každá volba se ukládá hned, jak ji přepneš — žádné tlačítko
+„Uložit“, protože výsledek je vidět v okně za dialogem.
+
+| Volba | Co dělá |
+| --- | --- |
+| **Motiv** | Podle systému, světlý, nebo tmavý. „Podle systému“ se přepne sám, když si to přepne Windows |
+| **Velikost písma v editoru** | 11–24 px; týká se psaní, ne náhledu |
+| **Výchozí zobrazení** | Zdroj / Obojí / Náhled — čím se začíná po otevření |
+| **Levý panel** · **Lišta formátování** | Jestli je po startu vidět |
+| **Složka denních poznámek** | Kam ukládá `Ctrl` `D` |
+| **Hledat novou verzi po startu** | Jediné, kvůli čemu Pilcrow sám sahá na síť |
+| **Asistent Claude** | Stav a odkaz do [panelu](#asistent-claude) |
+
+Poslední sekce je **O aplikaci**: verze všeho, na čem aplikace stojí — React,
+TypeScript, Vite, KaTeX na straně rozhraní, Tauri, Rust, SQLite a WebView2 na
+straně jádra, plus systém a to, jestli běží vydaná verze nebo vývojové
+sestavení. Tlačítkem se to zkopíruje jako text, takže se to dá přilepit
+k hlášení chyby. Verze rozhraní se zjišťují při sestavení z toho, co je
+opravdu v `node_modules`, ne z rozsahů v `package.json`; verze překladače
+a prostředí se zjišťují za běhu.
+
+Uložené to je v `.pilcrow/settings.json` uvnitř trezoru — zkopíruješ složku
+a nastavení jede s ní.
+
+Zbytek žije v `.env` (mimo git; `.env.example` je v repozitáři):
 
 | Proměnná | Výchozí | Význam |
 | --- | --- | --- |
@@ -758,14 +783,13 @@ Všechno nastavení žije v `.env` (mimo git; `.env.example` je v repozitáři):
 | `PILCROW_DEV_PORT` | `5273` | Port vývojového serveru Vite |
 | `PILCROW_DAILY_FOLDER` | `daily` | Podsložka pro denní poznámky |
 | `RUST_LOG` | `info` | Podrobnost logování |
-| `PILCROW_AUTO_UPDATE` | `1` | Kontrola aktualizací po startu |
+| `PILCROW_AUTO_UPDATE` | `1` | Kontrola aktualizací po startu. `0` ji vypne natvrdo -- přepínač v nastavení to nepřebije |
 | `TAURI_SIGNING_PRIVATE_KEY` | prázdné | Podpis aktualizací, jen při vydávání |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | prázdné | Heslo k tomu klíči |
 
-Dvě volby nejsou v `.env`, ale v trezoru (`.pilcrow/settings.json`), protože
-patří k němu a ne k tomuhle stroji: `assistantEnabled` (výchozí `false` —
-[asistent](#asistent-claude) je vypnutý, dokud ho nezapneš) a `assistantModel`
-(výchozí prázdné, tedy volba Claude Code). Obojí se přepíná přímo v panelu.
+Nastavení aplikace je v trezoru (`.pilcrow/settings.json`), protože patří
+k němu a ne k tomuhle stroji -- viz tabulka výš. Asistent je mezi nimi taky:
+`assistantEnabled` je výchozí `false` a přepíná se přímo v panelu.
 
 **K tajemstvím:** Pilcrow nemá účty, takže k jeho používání není potřeba
 nastavit vůbec nic. Ani asistent: přihlášení ke Claude si drží Claude Code

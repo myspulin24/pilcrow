@@ -15,6 +15,7 @@ import { ConflictView } from '@/ui/ConflictView'
 import { ErrorState, Spinner, Toasts } from '@/ui/Feedback'
 import { ConfirmModal, PromptModal } from '@/ui/Modal'
 import { AssistantPanel } from '@/ui/AssistantPanel'
+import { SettingsDialog } from '@/ui/SettingsDialog'
 import { UpdateDialog } from '@/ui/UpdateDialog'
 import { Workspace } from '@/ui/Workspace'
 import { NotePane } from '@/ui/NotePane'
@@ -37,6 +38,7 @@ export function App() {
     if (state.phase !== 'ready') return
     const handler = (event: KeyboardEvent) => {
       if (state.paletteOpen || prompt || confirm || state.conflict || menu) return
+      if (state.settingsOpen) return
 
       const commands = buildCommands({
         state,
@@ -103,6 +105,7 @@ export function App() {
       {prompt ? <PromptModal request={prompt} onClose={actions.dismissPrompt} /> : null}
       {confirm ? <ConfirmModal request={confirm} onClose={actions.dismissConfirm} /> : null}
       {menu ? <ContextMenu request={menu} onClose={actions.closeMenu} /> : null}
+      <SettingsDialog />
       <ConflictView />
       <UpdateDialog />
       <Toasts />

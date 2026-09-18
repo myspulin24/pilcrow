@@ -13,6 +13,7 @@
 //! opens and the frontend renders its recovery screen. A notes app that refuses
 //! to start is worse than one that starts and explains itself.
 
+mod about;
 mod assistant;
 mod commands;
 mod state;

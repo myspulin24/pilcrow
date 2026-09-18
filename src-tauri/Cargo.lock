@@ -2785,6 +2785,7 @@ dependencies = [
  "dotenvy",
  "notify",
  "pilcrow-core",
+ "rusqlite",
  "serde",
  "serde_json",
  "tauri",

@@ -59,7 +59,32 @@ mod tests {
         let settings = load(&path);
         assert_eq!(settings.daily_folder, "journal");
         assert_eq!(settings.editor_font_size, 15);
-        assert!(settings.show_preview);
+        assert_eq!(settings.default_view_mode, "split");
+        assert!(settings.show_sidebar);
+        assert!(settings.show_toolbar);
+        assert!(settings.check_updates);
+        // Asistent je jediný, kdo se v chybějícím souboru nezapne sám.
+        assert!(!settings.assistant_enabled);
+    }
+
+    /// Nastavení z dřívější verze se musí načíst, ne zahodit.
+    ///
+    /// `showPreview` byl kdysi uložený a nikdy se nepoužil; teď už ho struktura
+    /// nezná. Soubor s ním nesmí shodit načítání a zbytek voleb má zůstat.
+    #[test]
+    fn unknown_keys_from_an_older_version_are_ignored() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{"dailyFolder":"journal","showPreview":false,"theme":"dark"}"#,
+        )
+        .unwrap();
+
+        let settings = load(&path);
+        assert_eq!(settings.daily_folder, "journal");
+        assert_eq!(settings.theme, "dark");
+        assert_eq!(settings.default_view_mode, "split");
     }
 
     #[test]

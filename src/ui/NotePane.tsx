@@ -367,10 +367,9 @@ export function NotePane() {
       <div className={`note-pane__body note-pane__body--${state.viewMode}`}>
         {showsEditor(state.viewMode) ? (
         <div className={`editor ${dropActive ? 'is-drop-target' : ''}`}>
-          <Toolbar
-            onFormat={onFormat}
-            onOpenMath={() => actions.openMath()}
-          />
+          {state.settings.showToolbar ? (
+            <Toolbar onFormat={onFormat} onOpenMath={() => actions.openMath()} />
+          ) : null}
           <textarea
             ref={textareaRef}
             data-editor-textarea
