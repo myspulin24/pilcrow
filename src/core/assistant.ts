@@ -7,7 +7,7 @@
  *
  * Jedna věc je na tomhle celém jiná než na zbytku aplikace a je fér ji
  * pojmenovat nahoře: **text poznámky odchází z počítače k Anthropicu.** Všechno
- * ostatní v Reader_MJ zůstává u tebe. Proto je asistent vypnutý, dokud ho
+ * ostatní v Pilcrow zůstává u tebe. Proto je asistent vypnutý, dokud ho
  * někdo vědomě nezapne, a proto je vidět, co přesně se posílá.
  */
 
@@ -249,7 +249,7 @@ export function parseAssistantLine(line: string): AssistantEvent {
  * a strojem na sebejisté nesmysly.
  */
 export const ASSISTANT_SYSTEM_PROMPT = [
-  'Jsi pomocník v poznámkovníku Reader_MJ. Odpovídáš česky.',
+  'Jsi pomocník v poznámkovníku Pilcrow. Odpovídáš česky.',
   '',
   'Uživatel má otevřenou jednu poznámku a ptá se na ni. Text poznámky dostaneš',
   'v uživatelské zprávě mezi značkami <poznámka>. Nic jiného než tuhle poznámku',

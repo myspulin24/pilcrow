@@ -11,7 +11,7 @@
  *     nainstalovat, pak přihlásit, teprve pak se ptát) a streamuje odpověď
  *     po kouscích jako ta pravá.
  *
- * Jedna věc je tu jiná než všude jinde v Reader_MJ a patří to říct nahlas:
+ * Jedna věc je tu jiná než všude jinde v Pilcrow a patří to říct nahlas:
  * **text poznámky odchází z počítače k Anthropicu.** Všechno ostatní zůstává
  * u tebe. Proto je asistent vypnutý, dokud ho někdo vědomě nezapne.
  */
@@ -72,7 +72,7 @@ export interface AssistantApi {
    * Spustit přihlášení k předplatnému.
    *
    * Otevře prohlížeč a čeká na kód, který se v něm objeví. Ten se pošle
-   * přes `loginCode`. Reader_MJ ho nikam neukládá -- jen ho podá dál.
+   * přes `loginCode`. Pilcrow ho nikam neukládá -- jen ho podá dál.
    */
   login(sink: AssistantSink): Promise<void>
   loginCode(code: string): Promise<void>

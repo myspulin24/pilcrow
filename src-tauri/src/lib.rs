@@ -1,8 +1,8 @@
-//! Reader_MJ desktop application.
+//! Pilcrow desktop application.
 //!
 //! Start-up order matters and is worth stating plainly:
 //!
-//! 1. Load `.env` (never committed) so `READER_MJ_VAULT_PATH` is available.
+//! 1. Load `.env` (never committed) so `PILCROW_VAULT_PATH` is available.
 //! 2. Decide where the vault lives.
 //! 3. Open the vault and its index, creating both if needed.
 //! 4. Seed a welcome note when the vault is brand new, so the first run is
@@ -22,7 +22,7 @@ use std::path::PathBuf;
 
 use tauri::Manager;
 
-use reader_mj_core::vault;
+use pilcrow_core::vault;
 
 use crate::state::AppState;
 
@@ -51,7 +51,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init());
 
-    // Aktualizace jsou jediná věc, kvůli které Reader_MJ sahá na síť, a dějí
+    // Aktualizace jsou jediná věc, kvůli které Pilcrow sahá na síť, a dějí
     // se jen na desktopu. Podpis každého balíčku se ověřuje veřejným klíčem
     // z tauri.conf.json, takže nepodepsaná aktualizace se nenainstaluje.
     #[cfg(desktop)]
@@ -76,7 +76,7 @@ pub fn run() {
                     app.manage(state);
 
                     if let Err(error) = commands::bootstrap_vault(&handle) {
-                        eprintln!("reader_mj: trezor se nepodařilo připravit: {error}");
+                        eprintln!("pilcrow: trezor se nepodařilo připravit: {error}");
                     }
 
                     match watcher::start(handle.clone(), &root) {
@@ -91,13 +91,13 @@ pub fn run() {
                         // are noticed on the next save instead of immediately,
                         // and the conflict check still protects the file.
                         Err(error) => eprintln!(
-                            "reader_mj: sledování souborů není k dispozici ({error}); změny zvenčí se poznají až při ukládání"
+                            "pilcrow: sledování souborů není k dispozici ({error}); změny zvenčí se poznají až při ukládání"
                         ),
                     }
                 }
                 Err(error) => {
                     eprintln!(
-                        "reader_mj: trezor v {} se nepodařilo otevřít: {error}",
+                        "pilcrow: trezor v {} se nepodařilo otevřít: {error}",
                         root.display()
                     );
                 }
@@ -106,5 +106,5 @@ pub fn run() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("chyba za běhu Reader_MJ");
+        .expect("chyba za běhu Pilcrow");
 }

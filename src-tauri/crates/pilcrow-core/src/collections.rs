@@ -7,7 +7,7 @@
 //!
 //! Two things make it work:
 //!
-//! 1. **It is stored in the vault** (`.reader_mj/collections.json`), so it
+//! 1. **It is stored in the vault** (`.pilcrow/collections.json`), so it
 //!    survives restarts and travels with the vault.
 //! 2. **Membership is consent.** Adding a file to a collection means you
 //!    pointed at it, so its path is granted on load -- otherwise a linked file

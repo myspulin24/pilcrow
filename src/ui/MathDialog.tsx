@@ -1,7 +1,7 @@
 /**
  * Editor vzorců.
  *
- * Reader_MJ umí třináct zápisů matematiky a tohle okno je místo, kde se mezi
+ * Pilcrow umí třináct zápisů matematiky a tohle okno je místo, kde se mezi
  * nimi vybírá. Uvnitř je vždycky stejný postup: zvolený jazyk se převede na
  * LaTeX (a vysází KaTeX) nebo rovnou na MathML (a vykreslí ho samo okno).
  *

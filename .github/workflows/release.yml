@@ -91,7 +91,7 @@ jobs:
             cat > /tmp/notes.md <<'NOTES'
           Stáhni si instalátor pro svůj systém níž.
 
-          Když už Reader_MJ máš, nic stahovat nemusíš: aplikace si novou verzi
+          Když už Pilcrow máš, nic stahovat nemusíš: aplikace si novou verzi
           najde sama a nabídne ji k instalaci.
           NOTES
             # Zakládá se přes API, ne přes `gh release create`, kvůli jediné
@@ -100,7 +100,7 @@ jobs:
             # a první pokus o v0.3.0 na tom spadl.
             id=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" \
                    -f "tag_name=$TAG" \
-                   -f "name=Reader_MJ ${TAG#v}" \
+                   -f "name=Pilcrow ${TAG#v}" \
                    -F "body=@/tmp/notes.md" \
                    -F draft=true -F prerelease=false \
                    --jq .id)

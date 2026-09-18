@@ -1,9 +1,9 @@
 {
-  "name": "reader_mj",
-  "version": "0.4.1",
+  "name": "pilcrow",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
-  "description": "Reader_MJ - čtečka Markdownu a poznámkovník s průzkumníkem souborů, všechno u tebe v počítači. Zdrojem pravdy jsou obyčejné soubory.",
+  "description": "Pilcrow - čtečka Markdownu a poznámkovník s průzkumníkem souborů, všechno u tebe v počítači. Zdrojem pravdy jsou obyčejné soubory.",
   "license": "MIT",
   "scripts": {
     "start": "node scripts/bootstrap.mjs",
@@ -17,7 +17,7 @@
     "test:unit": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
-    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml -p reader-mj-core",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml -p pilcrow-core",
     "typecheck": "tsc --noEmit",
     "icons": "node scripts/gen-icons.mjs",
     "tauri": "tauri"

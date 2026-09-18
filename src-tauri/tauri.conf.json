@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Reader_MJ",
-  "version": "0.4.1",
-  "identifier": "com.readermj.app",
+  "productName": "Pilcrow",
+  "version": "0.5.0",
+  "identifier": "com.pilcrow.app",
   "build": {
     "beforeDevCommand": "npm run dev:web",
     "devUrl": "http://localhost:5273",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Reader_MJ",
+        "title": "Pilcrow",
         "width": 1500,
         "height": 900,
         "minWidth": 760,
@@ -35,7 +35,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/myspulin24/reader-mj/releases/latest/download/latest.json"
+        "https://github.com/myspulin24/pilcrow/releases/latest/download/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgxQ0U0N0QyOUI1RkM1RUQKUldUdHhWK2Iwa2ZPZ1ZRcUtpR3lyTC9nQ3VmZDFkWld5YmZOcmo2V0xVY2lPcGcrT04yak1kT0kK",
       "windows": {
@@ -58,7 +58,7 @@
     "publisher": "Michal Jašek",
     "copyright": "© 2026 Michal Jašek",
     "shortDescription": "Čtečka Markdownu s průzkumníkem souborů",
-    "longDescription": "Reader_MJ čte a zapisuje obyčejné soubory Markdown. Otevři jeden soubor nebo celou složku a procházej ji jako rozbalovací strom, vedle místního trezoru poznámek se štítky, odkazy [[...]], zpětnými odkazy a okamžitým fulltextovým hledáním.",
+    "longDescription": "Pilcrow čte a zapisuje obyčejné soubory Markdown. Otevři jeden soubor nebo celou složku a procházej ji jako rozbalovací strom, vedle místního trezoru poznámek se štítky, odkazy [[...]], zpětnými odkazy a okamžitým fulltextovým hledáním.",
     "windows": {
       "wix": {
         "language": "cs-CZ"
@@ -68,9 +68,10 @@
         "displayLanguageSelector": false,
         "customLanguageFiles": {
           "Czech": "nsis/Czech.nsh"
-        }
+        },
+        "installerHooks": "nsis/upgrade.nsh"
       }
     }
   },
-  "mainBinaryName": "Reader_MJ"
+  "mainBinaryName": "Pilcrow"
 }

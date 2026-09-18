@@ -2,7 +2,7 @@
  * The command registry.
  *
  * One list drives the command palette, the keyboard listener and the buttons in
- * the toolbar, so every action in Reader_MJ is reachable without the mouse and shows
+ * the toolbar, so every action in Pilcrow is reachable without the mouse and shows
  * the same binding everywhere.
  */
 

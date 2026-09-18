@@ -1,6 +1,6 @@
 //! Settings persistence.
 //!
-//! Settings live in `.reader_mj/settings.json` inside the vault, next to the index,
+//! Settings live in `.pilcrow/settings.json` inside the vault, next to the index,
 //! so a vault is completely self-describing: copy the folder and your
 //! preferences come with it. Nothing here is secret -- credentials belong in
 //! `.env`, which is git-ignored and never read into a note.

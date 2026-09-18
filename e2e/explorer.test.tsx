@@ -5,7 +5,7 @@
  * which stands in for the file system the same way it does for the vault. The
  * folder scan itself -- pruning, ordering, depth limits, and the access rules
  * that decide what may be read at all -- is covered by the Rust tests in
- * `src-tauri/crates/reader-mj-core/src/explorer.rs`.
+ * `src-tauri/crates/pilcrow-core/src/explorer.rs`.
  */
 
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'

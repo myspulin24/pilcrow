@@ -8,11 +8,11 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use reader_mj_core::error::{CoreError, Result};
-use reader_mj_core::explorer::AccessRegistry;
-use reader_mj_core::index::NoteIndex;
-use reader_mj_core::paths::VaultPaths;
-use reader_mj_core::types::VaultStatus;
+use pilcrow_core::error::{CoreError, Result};
+use pilcrow_core::explorer::AccessRegistry;
+use pilcrow_core::index::NoteIndex;
+use pilcrow_core::paths::VaultPaths;
+use pilcrow_core::types::VaultStatus;
 
 pub struct AppState {
     pub vault: VaultPaths,

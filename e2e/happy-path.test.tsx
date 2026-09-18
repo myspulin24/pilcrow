@@ -6,7 +6,7 @@
  * backed by the in-memory vault adapter instead of Rust. That keeps it fast
  * and hermetic while still exercising the whole stack above the file system;
  * the file system itself is covered by the Rust tests in
- * `src-tauri/crates/reader-mj-core`.
+ * `src-tauri/crates/pilcrow-core`.
  *
  * The path it walks is the product in one sentence: write a tagged note, link
  * it to another, see the backlink, find it by search, and export the folder.

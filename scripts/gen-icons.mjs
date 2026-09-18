@@ -7,7 +7,8 @@
  * geometric primitives, drawing it here keeps the repo dependency-free and the
  * icons reproducible: `npm run icons` regenerates byte-identical files.
  *
- * The mark is a rounded square with a warm gradient and a white "U" arc.
+ * The mark is a rounded square with a warm gradient and a white pilcrow (¶),
+ * the paragraph mark the application is named after.
  */
 
 import { deflateSync } from 'node:zlib'
@@ -100,7 +101,7 @@ function boxCoverage(x, y, size) {
   return clamp01(0.5 - distance)
 }
 
-/** Signed distance to a thick line segment, used for the R's leg. */
+/** Signed distance to a thick line segment, used for the bowl's spine. */
 function segmentDistance(px, py, ax, ay, bx, by) {
   const dx = bx - ax
   const dy = by - ay
@@ -110,44 +111,43 @@ function segmentDistance(px, py, ax, ay, bx, by) {
 }
 
 /**
- * Coverage of the white "R" at a point, 0..1.
+ * Coverage of the white pilcrow (¶) at a point, 0..1.
  *
- * Three primitives unioned: a vertical stem, the half-ring of the bowl, and a
- * diagonal leg. Each returns a signed distance, so edges anti-alias for free.
+ * Three primitives unioned: the full-height stem on the right, a shorter stem
+ * beside it, and the solid bowl that closes over them both. Each returns a
+ * signed distance, so edges anti-alias for free.
+ *
+ * The bowl is solid rather than a ring on purpose: at 16 px an outlined bowl
+ * closes up into a grey smudge, while a filled one stays a recognisable mark.
  */
 function glyphCoverage(x, y, size) {
-  const top = size * 0.26
-  const bottom = size * 0.75
-  const left = size * 0.375
-  const stroke = size * 0.058
+  const top = size * 0.23
+  const bottom = size * 0.79
+  const stroke = size * 0.05 // half-thickness of a stem
 
-  // The bowl is a half-ring centred on the stem; its base is where the leg
-  // starts, a little above the middle of the letter.
-  const bowlRadius = size * 0.155
-  const bowlBottom = size * 0.505
-  const bowlCenterY = (top + stroke + bowlBottom) / 2
+  const rightStem = size * 0.6
+  const leftStem = size * 0.455
 
-  // 1. Stem: a vertical bar down the left side.
-  const stemDistance = Math.max(Math.abs(x - left) - stroke, top - y, y - bottom)
+  const bowlRadius = size * 0.135
+  const bowlCenterY = top + bowlRadius
+  // Left end of the bowl's spine; the round cap reaches `bowlRadius` further.
+  const bowlStart = size * 0.3 + bowlRadius
 
-  // 2. Bowl: the right half of a ring, from the top down to its base.
+  // 1. Right stem: full height, the spine of the mark.
+  const rightDistance = Math.max(Math.abs(x - rightStem) - stroke, top - y, y - bottom)
+
+  // 2. Left stem: descends from inside the bowl, parallel to the first.
+  const leftDistance = Math.max(Math.abs(x - leftStem) - stroke, bowlCenterY - y, y - bottom)
+
+  // 3. Bowl: a capsule, clipped at the right stem so it does not bulge past
+  //    it -- the stem supplies that edge itself.
   let bowlDistance = Number.POSITIVE_INFINITY
-  if (x >= left && y >= top && y <= bowlBottom) {
-    bowlDistance = Math.abs(Math.hypot(x - left, y - bowlCenterY) - bowlRadius) - stroke
+  if (x <= rightStem) {
+    bowlDistance =
+      segmentDistance(x, y, bowlStart, bowlCenterY, rightStem, bowlCenterY) - bowlRadius
   }
 
-  // 3. Leg: from where the bowl closes, down and out to the right.
-  const legDistance =
-    segmentDistance(
-      x,
-      y,
-      left + bowlRadius * 0.2,
-      bowlBottom - stroke,
-      left + bowlRadius + stroke * 0.6,
-      bottom,
-    ) - stroke
-
-  const distance = Math.min(stemDistance, bowlDistance, legDistance)
+  const distance = Math.min(rightDistance, leftDistance, bowlDistance)
   return clamp01(0.5 - distance)
 }
 

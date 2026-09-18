@@ -2779,6 +2779,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "pilcrow"
+version = "0.5.0"
+dependencies = [
+ "dotenvy",
+ "notify",
+ "pilcrow-core",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-opener",
+ "tauri-plugin-process",
+ "tauri-plugin-updater",
+]
+
+[[package]]
+name = "pilcrow-core"
+version = "0.1.0"
+dependencies = [
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror 1.0.69",
+ "walkdir",
+]
+
+[[package]]
 name = "pin-project-lite"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2987,36 +3017,6 @@ name = "raw-window-handle"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20675572f6f24e9e76ef639bc5552774ed45f1c30e2951e1e99c59888861c539"
-
-[[package]]
-name = "reader-mj-core"
-version = "0.1.0"
-dependencies = [
- "rusqlite",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "thiserror 1.0.69",
- "walkdir",
-]
-
-[[package]]
-name = "reader_mj"
-version = "0.4.1"
-dependencies = [
- "dotenvy",
- "notify",
- "reader-mj-core",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-opener",
- "tauri-plugin-process",
- "tauri-plugin-updater",
-]
 
 [[package]]
 name = "redox_syscall"

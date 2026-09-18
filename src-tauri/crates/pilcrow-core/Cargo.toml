@@ -1,9 +1,9 @@
 [package]
-name = "reader-mj-core"
+name = "pilcrow-core"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Vault file handling and the rebuildable SQLite index for Reader_MJ. No Tauri dependency, so it tests in seconds."
+description = "Vault file handling and the rebuildable SQLite index for Pilcrow. No Tauri dependency, so it tests in seconds."
 
 [dependencies]
 rusqlite = { version = "0.32", features = ["bundled"] }

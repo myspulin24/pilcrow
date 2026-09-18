@@ -29,11 +29,11 @@ export function withCount(count: number, one: string, few: string, many: string)
 
 export const t = {
   app: {
-    name: 'Reader_MJ',
+    name: 'Pilcrow',
     opening: 'Otevírám trezor',
     failedTitle: 'Trezor se nepodařilo otevřít',
     failedHint:
-      'Zkontroluj, že READER_MJ_VAULT_PATH v souboru .env ukazuje na složku, do které se dá zapisovat, a zkus to znovu.',
+      'Zkontroluj, že PILCROW_VAULT_PATH v souboru .env ukazuje na složku, do které se dá zapisovat, a zkus to znovu.',
     retry: 'Zkusit znovu',
     unknownError: 'Neznámá chyba.',
   },
@@ -287,7 +287,7 @@ export const t = {
   conflict: {
     title: 'Tenhle soubor se změnil na disku',
     subtitle: (path: string) =>
-      `Soubor ${path} někdo změnil mimo Reader_MJ, zatímco jsi měl neuložené úpravy. Nic se nepřepsalo.`,
+      `Soubor ${path} někdo změnil mimo Pilcrow, zatímco jsi měl neuložené úpravy. Nic se nepřepsalo.`,
     yours: 'tvoje',
     onDisk: 'na disku',
     unchanged: 'beze změny',
@@ -347,7 +347,7 @@ export const t = {
     noneUsable: (n: number) =>
       `Ani ${withCount(n, 'jedna položka', 'jedny položky', 'jedna z položek')} není soubor .md ani složka.`,
     deletedOutside: (path: string) =>
-      `Soubor ${path} byl smazán mimo Reader_MJ. Tvůj neuložený text tu pořád je.`,
+      `Soubor ${path} byl smazán mimo Pilcrow. Tvůj neuložený text tu pořád je.`,
     changedButUnreadable: (path: string) =>
       `Soubor ${path} se změnil na disku, ale nejde ho znovu načíst.`,
     attachmentsVaultOnly: 'Přílohy fungují jen u poznámek v trezoru.',
@@ -464,7 +464,7 @@ export const t = {
     version: (version: string) => `verze ${version}`,
     dialogTitle: 'Je k dispozici nová verze',
     availableLine: (next: string, current: string) =>
-      `Reader_MJ ${next} je venku. Ty máš ${current}.`,
+      `Pilcrow ${next} je venku. Ty máš ${current}.`,
     released: (date: string) => `Vydáno ${date}`,
     notesTitle: 'Co je nového',
     noNotes: 'K téhle verzi nejsou žádné poznámky.',
@@ -472,7 +472,7 @@ export const t = {
     downloadingShort: 'Stahuji aktualizaci...',
     installing: 'Instaluji...',
     installHint:
-      'Instalace zavře Reader_MJ a hned ho spustí znovu. Rozepsané změny se předtím uloží.',
+      'Instalace zavře Pilcrow a hned ho spustí znovu. Rozepsané změny se předtím uloží.',
     installNow: 'Nainstalovat a restartovat',
     later: 'Později',
     readyTitle: 'Aktualizace je připravená',
@@ -483,7 +483,7 @@ export const t = {
       `Verze ${version} je stažená. Nainstaluje se po restartu.`,
     failedTitle: 'Aktualizace se nepovedla',
     unavailable: 'Aktualizace fungují jen v desktopové aplikaci.',
-    autoOff: 'Automatická kontrola je vypnutá (READER_MJ_AUTO_UPDATE=0).',
+    autoOff: 'Automatická kontrola je vypnutá (PILCROW_AUTO_UPDATE=0).',
     errorCheck: 'Aktualizace se nepodařilo zkontrolovat.',
     errorInstall: 'Aktualizaci se nepodařilo nainstalovat.',
   },
@@ -497,9 +497,9 @@ export const t = {
     /** Souhlas. Tohle je jediné místo v aplikaci, odkud odchází text ven. */
     consentTitle: 'Zeptat se Clauda na poznámku',
     consentBody:
-      'Reader_MJ jinak nikam nic neposílá. Asistent je výjimka: text otevřené poznámky a tvoje otázka odejdou k Anthropicu, aby na ni mohl Claude odpovědět. Nic jiného se neodesílá — ostatní poznámky, názvy souborů ani nastavení ne.',
+      'Pilcrow jinak nikam nic neposílá. Asistent je výjimka: text otevřené poznámky a tvoje otázka odejdou k Anthropicu, aby na ni mohl Claude odpovědět. Nic jiného se neodesílá — ostatní poznámky, názvy souborů ani nastavení ne.',
     consentAccount:
-      'Účtuje se to tvému předplatnému Claude, ke kterému se přihlásíš níž. Reader_MJ se tvého hesla ani tokenu nedotkne — přihlášení si drží Claude Code v klíčence systému.',
+      'Účtuje se to tvému předplatnému Claude, ke kterému se přihlásíš níž. Pilcrow se tvého hesla ani tokenu nedotkne — přihlášení si drží Claude Code v klíčence systému.',
     consentEnable: 'Zapnout asistenta',
     consentOff: 'Vypnout asistenta',
     consentOffHint: 'Panel zmizí a nic se nikam neodešle.',
@@ -515,7 +515,7 @@ export const t = {
       'Asistent mluví s Claudem přes Claude Code — oficiální nástroj Anthropicu, který běží u tebe na počítači a drží si přihlášení k tvému předplatnému.',
     stepInstallCommand: 'Spustí se tenhle příkaz:',
     stepInstallWarning:
-      'Stáhne a spustí instalační skript z claude.ai. Je to jediné místo v celém Reader_MJ, kde se spouští něco staženého z internetu — proto se to děje jen na tvoje kliknutí.',
+      'Stáhne a spustí instalační skript z claude.ai. Je to jediné místo v celém Pilcrow, kde se spouští něco staženého z internetu — proto se to děje jen na tvoje kliknutí.',
     install: 'Nainstalovat Claude Code',
     installing: 'Instaluji...',
     installed: (version: string) => `Nainstalováno: ${version}`,

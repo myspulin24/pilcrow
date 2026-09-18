@@ -6,7 +6,7 @@
 //! jen TypeScript. Jedna definice, jedno místo k opravě, jedno místo k testům.
 //!
 //! Předplatné se tu neřeší: `claude` je přihlášený sám, přes klíčenku systému.
-//! Reader_MJ se tak nikdy nedotkne žádného tokenu ani hesla.
+//! Pilcrow se tak nikdy nedotkne žádného tokenu ani hesla.
 //!
 //! Čte se po **bajtech**, ne po řádcích. Dvakrát je to potřeba: přihlašovací
 //! výzva „Paste code here“ končí mezerou, ne odřádkováním, a řádek by na ni
@@ -19,11 +19,11 @@ use std::sync::{Arc, Mutex};
 
 use tauri::ipc::Channel;
 
-use reader_mj_core::assistant::{
+use pilcrow_core::assistant::{
     claude_candidates, install_command, take_decodable, AskRequest, AssistantChunk, AssistantProbe,
     INSTALL_URL_UNIX, INSTALL_URL_WINDOWS,
 };
-use reader_mj_core::error::{CoreError, Result};
+use pilcrow_core::error::{CoreError, Result};
 
 /// Nástroje Claude Code, které v poznámkovníku nemají co dělat.
 ///
@@ -447,7 +447,7 @@ pub async fn assistant_install(
 /// `claude auth login` otevře prohlížeč a čeká, až mu na vstup přijde kód,
 /// který se v prohlížeči objeví. Proto se tu drží jeho vstup otevřený:
 /// uživatel kód vloží do políčka v aplikaci a `assistant_login_code` ho pošle
-/// dál. Reader_MJ ten kód nikde neukládá ani nečte -- jen ho podá.
+/// dál. Pilcrow ten kód nikde neukládá ani nečte -- jen ho podá.
 #[tauri::command]
 pub async fn assistant_login(
     state: tauri::State<'_, AssistantState>,

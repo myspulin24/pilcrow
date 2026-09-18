@@ -4,7 +4,7 @@
  * Tři vrstvy nad sebou, a záleží na jejich pořadí:
  *
  *   1. **Souhlas.** Dokud ho uživatel nedá, panel neudělá vůbec nic --
- *      ani nezjišťuje, jestli je `claude` nainstalovaný. Reader_MJ stojí
+ *      ani nezjišťuje, jestli je `claude` nainstalovaný. Pilcrow stojí
  *      na tom, že z počítače neodchází nic; tohle je jediná výjimka a musí
  *      se o ni říct.
  *   2. **Nastavení.** Doinstalovat a přihlásit, jeden krok po druhém.

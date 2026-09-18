@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Reader_MJ běží celý místně. Potřebuje číst a zapisovat složku trezoru, ukázat výběr složky pro import/export a ukázat soubory ve správci souborů. Sám od sebe navazuje jediné síťové spojení, a to updaterem na GitHub Releases. Zapnutý asistent spouští `claude`, ale ne přes plugin shellu -- ten tu schválně není, takže webview nesestaví žádný vlastní příkaz; spouští se konkrétní program s konkrétními argumenty z Rustu. O nic dalšího si aplikace neříká -- žádná oznámení, žádná schránka.",
+  "description": "Pilcrow běží celý místně. Potřebuje číst a zapisovat složku trezoru, ukázat výběr složky pro import/export a ukázat soubory ve správci souborů. Sám od sebe navazuje jediné síťové spojení, a to updaterem na GitHub Releases. Zapnutý asistent spouští `claude`, ale ne přes plugin shellu -- ten tu schválně není, takže webview nesestaví žádný vlastní příkaz; spouští se konkrétní program s konkrétními argumenty z Rustu. O nic dalšího si aplikace neříká -- žádná oznámení, žádná schránka.",
   "windows": ["main"],
   "permissions": [
     "core:default",

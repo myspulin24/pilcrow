@@ -35,7 +35,7 @@ import {
   type WriteResult,
 } from './api'
 
-const EXTERNAL_CHANGE_EVENT = 'reader-mj://external-change'
+const EXTERNAL_CHANGE_EVENT = 'pilcrow://external-change'
 
 /** True when a Tauri runtime is present in this window. */
 export function isTauriAvailable(): boolean {

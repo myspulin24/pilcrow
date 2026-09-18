@@ -1,4 +1,4 @@
-# Reader_MJ
+# Pilcrow
 
 Čtečka Markdownu a poznámkovník, který má všechno u tebe v počítači.
 
@@ -24,7 +24,7 @@ její text odešle Anthropicu. Bez zapnutí se z počítače nepokouší odejít
 
 ```
 ┌──────────────┬─────────────────────┬──────────────────────────┐
-│ Reader_MJ  « │ [ hledat ]          │ [ Zdroj │Obojí│ Náhled ] │
+│ Pilcrow    « │ [ hledat ]          │ [ Zdroj │Obojí│ Náhled ] │
 │              │                     │                          │
 │ SKUPINY    + │ ▾ POZNÁMKY       12 │   čtečka / editor        │
 │ ▾ Bitdefender│    Vítej            │   + živý náhled          │
@@ -49,14 +49,14 @@ Tvůj trezor na disku:
 
 ```
 Trezor/
-├── Vítej v Reader_MJ.md         jeden soubor Markdown na poznámku
+├── Vítej v Pilcrow.md           jeden soubor Markdown na poznámku
 ├── daily/
 │   └── 2026-09-15.md            denní poznámky jsou obyčejné soubory
 ├── projekty/
 │   └── Zahájení Acme.md
 ├── attachments/
 │   └── 20260915123456-schema.png
-└── .reader_mj/
+└── .pilcrow/
     ├── index.sqlite             přestavitelný rejstřík — smazat je bezpečné
     └── settings.json
 ```
@@ -72,7 +72,7 @@ npm start
 ```
 
 Zkontroluje nástroje, nainstaluje závislosti, vytvoří `.env` podle
-`.env.example`, vygeneruje ikony a spustí Reader_MJ. První spuštění překládá
+`.env.example`, vygeneruje ikony a spustí Pilcrow. První spuštění překládá
 Rust a trvá pár minut; každé další jsou vteřiny.
 
 **Co musíš mít:** [Node 20.10+](https://nodejs.org) a
@@ -102,11 +102,11 @@ Výsledky najdeš v `src-tauri/target/release/`:
 
 | Systém | Výstup |
 | --- | --- |
-| Windows | `Reader_MJ.exe` (samostatný, ~4,7 MB) · `bundle/nsis/Reader_MJ_<verze>_x64-setup.exe` · `bundle/msi/Reader_MJ_<verze>_x64_cs-CZ.msi` |
-| macOS | `bundle/macos/Reader_MJ.app` · `bundle/dmg/Reader_MJ_<verze>_<arch>.dmg` |
+| Windows | `Pilcrow.exe` (samostatný, ~4,7 MB) · `bundle/nsis/Pilcrow_<verze>_x64-setup.exe` · `bundle/msi/Pilcrow_<verze>_x64_cs-CZ.msi` |
+| macOS | `bundle/macos/Pilcrow.app` · `bundle/dmg/Pilcrow_<verze>_<arch>.dmg` |
 | Linux | `bundle/appimage/*.AppImage` · `bundle/deb/*.deb` |
 
-`Reader_MJ.exe` je soběstačný — zkopíruj ho kamkoli a spusť. Používá běhové
+`Pilcrow.exe` je soběstačný — zkopíruj ho kamkoli a spusť. Používá běhové
 prostředí WebView2, které je součástí Windows 10/11. Instalátory jsou jen kvůli
 položce v nabídce Start a odinstalaci.
 
@@ -116,7 +116,7 @@ Přidej `--no-bundle` a sestaví se jen binárka bez instalátorů.
 
 ## Aktualizace
 
-Reader_MJ se udržuje aktuální sám z [GitHub Releases](https://github.com/myspulin24/reader-mj/releases).
+Pilcrow se udržuje aktuální sám z [GitHub Releases](https://github.com/myspulin24/pilcrow/releases).
 
 Jak to probíhá:
 
@@ -126,7 +126,7 @@ Jak to probíhá:
    **Nainstalovat a restartovat** se aplikace přepne na novou verzi.
    Rozepsaná poznámka se předtím uloží.
 
-Instalaci si odklikneš schválně: instalátor Reader_MJ zavře a spustí znovu,
+Instalaci si odklikneš schválně: instalátor Pilcrow zavře a spustí znovu,
 a to není věc, která by se měla stát uprostřed věty. Stahování běží bez ptaní,
 takže to kliknutí je opravdu jen jedno.
 
@@ -134,8 +134,8 @@ takže to kliknutí je opravdu jen jedno.
 a v paletě příkazů pod `Zkontrolovat aktualizace`. Když je všechno aktuální,
 řekne to a nic dalšího se neděje.
 
-**Vypnout automatickou kontrolu:** `READER_MJ_AUTO_UPDATE=0` v `.env`. Ruční
-kontrola funguje dál. Aktualizace jsou jediné síťové spojení, které Reader_MJ
+**Vypnout automatickou kontrolu:** `PILCROW_AUTO_UPDATE=0` v `.env`. Ruční
+kontrola funguje dál. Aktualizace jsou jediné síťové spojení, které Pilcrow
 navazuje sám od sebe — s vypnutou kontrolou a vypnutým [asistentem](#asistent-claude)
 neposílá vůbec nic.
 
@@ -150,7 +150,7 @@ repozitáře.
 ### Podpis kódu
 
 Něco jiného než podpis výš. Ten hlídá, že balíček nikdo cestou nevyměnil.
-Tenhle říká Windows, **kdo aplikaci vydal**: instalátory i `Reader_MJ.exe` jsou
+Tenhle říká Windows, **kdo aplikaci vydal**: instalátory i `Pilcrow.exe` jsou
 podepsané certifikátem `CN=Michal Jašek` a orazítkované, takže podpis platí
 i po vypršení certifikátu.
 
@@ -165,7 +165,7 @@ místo varování:
 ```powershell
 # Jednou na vlastním počítači. Certifikát se tím stane důvěryhodným --
 # dělej to jen s tím svým a jen když víš, proč.
-Import-Certificate -FilePath ~\.reader-mj-keys\codesign.cer `
+Import-Certificate -FilePath ~\.pilcrow-keys\codesign.cer `
   -CertStoreLocation Cert:\CurrentUser\Root
 ```
 
@@ -175,20 +175,20 @@ než certifikát od autority není — nejlevnější je Azure Trusted Signing
 na stovky dolarů ročně a od roku 2023 vyžaduje hardwarový token.
 
 Otisk certifikátu je v `src-tauri/tauri.codesign.conf.json` a komituje se —
-je to veřejný údaj. Soukromý klíč (`.pfx`) je v `~/.reader-mj-keys` a mezi
+je to veřejný údaj. Soukromý klíč (`.pfx`) je v `~/.pilcrow-keys` a mezi
 secrets repozitáře; v gitu není a být nesmí, protože kdo ho má, může tvým
 jménem podepsat cokoli. Podpis je oddělený do vlastního souboru s konfigurací
 schválně: `npm run build` z čerstvého klonu tak funguje i tomu, kdo ten
 certifikát nemá — sestaví se nepodepsaná verze místo chyby.
 
-Pozor na jednu past při ověřování: `src-tauri/target/release/Reader_MJ.exe`
+Pozor na jednu past při ověřování: `src-tauri/target/release/Pilcrow.exe`
 zůstává po sestavení **nepodepsaný**. Není to chyba a nic to neznamená — je to
 odložený mezivýsledek. Podepsaná je ta binárka, kterou Tauri zabalí dovnitř
 instalátoru, a ta se z `.msi` dá vytáhnout bez instalování:
 
 ```powershell
-msiexec /a Reader_MJ_<verze>_x64_cs-CZ.msi /qn TARGETDIR=$env:TEMP\kontrola
-Get-AuthenticodeSignature $env:TEMP\kontrola\PFiles\Reader_MJ\Reader_MJ.exe
+msiexec /a Pilcrow_<verze>_x64_cs-CZ.msi /qn TARGETDIR=$env:TEMP\kontrola
+Get-AuthenticodeSignature $env:TEMP\kontrola\PFiles\Pilcrow\Pilcrow.exe
 ```
 
 Co je potřeba mezi secrets repozitáře:
@@ -245,10 +245,10 @@ nad chatem napsané, která to je.
 ### Jak je to s přihlášením
 
 Neexistuje „Sign in with Claude“, které by cizí aplikaci dovolilo účtovat
-odpovědi na tvoje předplatné. Reader_MJ proto nemá vlastní klíč ani vlastní
+odpovědi na tvoje předplatné. Pilcrow proto nemá vlastní klíč ani vlastní
 bránu a **mluví s Claudem přes Claude Code** — oficiální nástroj Anthropicu,
 který běží u tebe na počítači a přihlášení si drží v klíčence systému.
-Reader_MJ se tvého tokenu ani hesla nedotkne; jen spustí `claude` a přeposílá,
+Pilcrow se tvého tokenu ani hesla nedotkne; jen spustí `claude` a přeposílá,
 co vypíše.
 
 V **nastavení asistenta** (tlačítko v hlavičce panelu) se to celé odbaví:
@@ -256,7 +256,7 @@ V **nastavení asistenta** (tlačítko v hlavičce panelu) se to celé odbaví:
 1. **Je Claude Code nainstalovaný?** Když ne, panel to řekne, ukáže přesný
    příkaz, který instalaci provede (`irm https://claude.ai/install.ps1 | iex`
    na Windows, `curl -fsSL https://claude.ai/install.sh | bash` jinde), a teprve
-   na tvoje kliknutí ho spustí. Je to jediné místo v celém Reader_MJ, kde se
+   na tvoje kliknutí ho spustí. Je to jediné místo v celém Pilcrow, kde se
    spouští něco staženého z internetu — proto je ten příkaz vidět předem
    a proto se to nikdy neděje samo.
 2. **Jsi přihlášený?** Když ne, tlačítko otevře přihlašovací stránku Claude.
@@ -297,7 +297,7 @@ Seznam je v [`src/core/assistant.ts`](src/core/assistant.ts) napsaný ručně,
 protože katalog modelů má Claude Code zabudovaný ve svém programu a nikam ho
 nevystavuje. Časem se tedy opozdí za novými modely — a přesně proto je první
 volba ta výchozí: neposílá žádné jméno, takže novější Claude Code funguje i bez
-zásahu do Reader_MJ. Model, který v seznamu není, zůstane vybraný, když se do
+zásahu do Pilcrow. Model, který v seznamu není, zůstane vybraný, když se do
 nastavení dostane jinudy.
 
 Odpovědi se účtují tvému předplatnému úplně stejně, jako kdyby sis je vyžádal
@@ -322,7 +322,7 @@ Skupina je název a seznam odkazů — nic se nepřesouvá ani nekopíruje.
 - Odebrání souboru ze skupiny se souboru nedotkne. Smazání skupiny se nedotkne
   ani jednoho souboru.
 
-Skupiny se ukládají do `.reader_mj/collections.json` uvnitř trezoru, takže
+Skupiny se ukládají do `.pilcrow/collections.json` uvnitř trezoru, takže
 přežijí restart a putují s ním. Propojení souboru si zároveň zapamatuje
 oprávnění ho číst — jinak by propojený soubor byl při dalším spuštění
 nečitelný, což by celou funkci zbavilo smyslu. Položky, jejichž soubor mezitím
@@ -379,7 +379,7 @@ Tři věci, které projití složky dělá záměrně:
   otevření velké složky nemůže aplikaci zaseknout. Když se na limit narazí,
   panel to napíše.
 
-Takhle otevřené soubory si Reader_MJ **nepřivlastňuje**. Ukáže je přesně tak,
+Takhle otevřené soubory si Pilcrow **nepřivlastňuje**. Ukáže je přesně tak,
 jak jsou, a úpravy zapíše bajt po bajtu zpátky: nikdy do souboru, který
 nevytvořil, nepřidá frontmatter, id ani záznam do rejstříku. Jediné, co přidá,
 je stejná pojistka jako u trezoru — když se soubor na disku změní, zatímco ho
@@ -394,7 +394,7 @@ máš otevřený, dostaneš pohled na konflikt místo přepsání.
 **Piš.** Poznámky jsou Markdown. Štítkuj přes `#napad` nebo
 `#prace/klienti/acme` — štítky se dají zanořovat a v bočním panelu se ukáže
 strom. Odkazuj přes `[[Jiná poznámka]]`; napiš `[[` a otevře se výběr. Otevři
-odkaz na poznámku, která ještě neexistuje, a Reader_MJ ji vytvoří.
+odkaz na poznámku, která ještě neexistuje, a Pilcrow ji vytvoří.
 
 **Hledej.** Hledání je okamžité, přes název, text i štítky:
 
@@ -479,7 +479,7 @@ editor si `Cmd/Ctrl` `B` ponechává původní význam (sbalit sekci Soubory).
 
 ### Vzorce
 
-Reader_MJ sází matematiku přes [KaTeX](https://katex.org), celou místně —
+Pilcrow sází matematiku přes [KaTeX](https://katex.org), celou místně —
 žádné volání ven, písma jsou zabalená v aplikaci.
 
 ```markdown
@@ -567,8 +567,8 @@ schránky) a zkopíruje se do `attachments/` a odkáže se relativní cestou.
 ┌──────────────────────────── Rust (Tauri 2) ───────────────────────────────┐
 │  src-tauri/src/            příkazy · hlídač souborů · stav aplikace       │
 │                                                                           │
-│  src-tauri/crates/         reader-mj-core — BEZ závislosti na Tauri, takže│
-│    reader-mj-core/         se celý crate otestuje za pár sekund:          │
+│  src-tauri/crates/         pilcrow-core — BEZ závislosti na Tauri, takže│
+│    pilcrow-core/         se celý crate otestuje za pár sekund:          │
 │                                                                           │
 │      paths.rs        každá cesta v trezoru se kontroluje dvakrát          │
 │      vault.rs        atomické zápisy, detekce konfliktů, export/import    │
@@ -587,14 +587,14 @@ triviálně pokrýt unit testy.
 
 **2. Rejstřík SQLite je mezipaměť, nikdy zdroj pravdy.** Každý sloupec se
 odvozuje ze souboru. `Přestavět vyhledávací rejstřík` ho zahodí a naplní znovu.
-Smazáním `.reader_mj/index.sqlite` nepřijdeš o nic.
+Smazáním `.pilcrow/index.sqlite` nepřijdeš o nic.
 
 **3. `VaultApi` má dvě implementace.** Ta paměťová není atrapa — vynucuje
 stejná pravidla konfliktů a sdílí `src/core` s tou skutečnou. Díky ní má smysl
 `npm run dev:web`, na ní běží end-to-end testy a na ni aplikace spadne zpět
 (s viditelnou hláškou), když běhové prostředí Tauri chybí.
 
-**4. Reader_MJ smí číst jen to, co jsi otevřel.** Čtení mimo trezor vyžaduje
+**4. Pilcrow smí číst jen to, co jsi otevřel.** Čtení mimo trezor vyžaduje
 výslovné povolení a vydat ho umí jedině nativní dialog na výběr souboru
 a přetažení myší — v obou případech ukazuje na cestu uživatel a výběr
 i povolení proběhnou v jednom volání backendu, takže frontend si nemůže sám
@@ -626,7 +626,7 @@ Dál: [[Čtvrtletní plán]]
 - [ ] domluvit další schůzku
 ```
 
-Frontmatter se spravuje za tebe — nikdy ho nepíšeš. Klíče, kterým Reader_MJ
+Frontmatter se spravuje za tebe — nikdy ho nepíšeš. Klíče, kterým Pilcrow
 nerozumí (Obsidianovské `aliases`, `cssclass`, cokoli dalšího), se při každém
 zápisu **zachovají doslova**, takže sdílení složky s jiným editorem nic
 neztrácí. Soubor úplně bez frontmatteru se otevře taky: název se vezme z prvního
@@ -635,7 +635,7 @@ nadpisu nebo z názvu souboru.
 ### Změny zvenčí a konflikty
 
 Zdrojem pravdy jsou soubory, takže je může změnit cokoli — iCloud Drive, textový
-editor, `git checkout`. Reader_MJ trezor hlídá a:
+editor, `git checkout`. Pilcrow trezor hlídá a:
 
 - **tiše načte znovu**, když nemáš neuložené úpravy;
 - **ignoruje** změny, které jsou jeho vlastní zápisy (porovnává se hash obsahu,
@@ -645,14 +645,14 @@ editor, `git checkout`. Reader_MJ trezor hlídá a:
   verzi*. Dokud se nerozhodneš, nic se nezapíše.
 
 Stejná kontrola hlídá každé uložení: zápis s sebou nese hash, se kterým editor
-soubor načetl, a Rust ho odmítne, pokud soubor už nesedí. **Reader_MJ nikdy
+soubor načetl, a Rust ho odmítne, pokud soubor už nesedí. **Pilcrow nikdy
 tiše nepřepisuje.**
 
 ---
 
 ## Oprávnění
 
-Reader_MJ si říká o tak málo, jak jen desktopová aplikace může:
+Pilcrow si říká o tak málo, jak jen desktopová aplikace může:
 
 | Oprávnění | Proč |
 | --- | --- |
@@ -667,7 +667,7 @@ Neříká si o **žádná oznámení, žádnou schránku, žádné spouštění 
 Viz `src-tauri/capabilities/default.json` — ten soubor je úplný seznam
 a Tauri ho vynucuje za běhu.
 
-Jediný proces, který Reader_MJ spouští, je `claude` — a jen když si [asistenta](#asistent-claude)
+Jediný proces, který Pilcrow spouští, je `claude` — a jen když si [asistenta](#asistent-claude)
 zapneš. Neděje se to přes plugin shellu (ten v oprávněních není): spouští se
 konkrétní program s konkrétními argumenty z Rustu, takže webview nemůže sestavit
 žádný vlastní příkaz.
@@ -675,13 +675,13 @@ konkrétní program s konkrétními argumenty z Rustu, takže webview nemůže s
 Na síť sahá sám od sebe jedinou věcí: kontrolou aktualizací na `github.com`. Ta se navíc
 neděje ve webview, ale v Rustu — politika obsahu (`src-tauri/tauri.conf.json`)
 tak i nadále blokuje **jakékoli** vzdálené spojení ze stránky samotné.
-`READER_MJ_AUTO_UPDATE=0` vypne i tu jednu kontrolu. Vykreslený Markdown se
+`PILCROW_AUTO_UPDATE=0` vypne i tu jednu kontrolu. Vykreslený Markdown se
 escapuje už u zdroje a u každé URL se kontroluje schéma, takže poznámka
 obsahující `<script>` nebo odkaz
 `javascript:` je neškodná.
 
 **macOS:** když poprvé otevřeš trezor v `~/Documents` nebo v iCloud Drive,
-macOS si řekne o přístup ke složce. Povol ho jednou. Když ho odmítneš, Reader_MJ
+macOS si řekne o přístup ke složce. Povol ho jednou. Když ho odmítneš, Pilcrow
 ukáže obrazovku s vysvětlením, ne prázdné okno.
 
 ---
@@ -692,21 +692,21 @@ Ve výchozím stavu:
 
 | Systém | Trezor |
 | --- | --- |
-| macOS | `~/Documents/Reader_MJ` |
-| Windows | `%USERPROFILE%\Documents\Reader_MJ` |
-| Linux | `~/Documents/Reader_MJ` |
+| macOS | `~/Documents/Pilcrow` |
+| Windows | `%USERPROFILE%\Documents\Pilcrow` |
+| Linux | `~/Documents/Pilcrow` |
 
-Změníš to nastavením `READER_MJ_VAULT_PATH` v `.env`. Nikde jinde se nic
+Změníš to nastavením `PILCROW_VAULT_PATH` v `.env`. Nikde jinde se nic
 neukládá — žádný adresář v podpoře aplikací, žádná skrytá databáze, žádný cloud.
 
 ### Synchronizace na zařízení Apple
 
-Reader_MJ nemá synchronizační server záměrně. Nasměruj trezor do iCloud Drive
+Pilcrow nemá synchronizační server záměrně. Nasměruj trezor do iCloud Drive
 a složka se synchronizuje jako kterákoli jiná:
 
 ```bash
 # .env
-READER_MJ_VAULT_PATH=/Users/ty/Library/Mobile Documents/com~apple~CloudDocs/Reader_MJ
+PILCROW_VAULT_PATH=/Users/ty/Library/Mobile Documents/com~apple~CloudDocs/Pilcrow
 ```
 
 Poznámky se pak objeví v aplikaci **Soubory** na iPhonu a iPadu, upravíš je
@@ -714,7 +714,7 @@ v jakémkoli iOS editoru Markdownu a za chvíli jsou zpátky na Macu. Protože n
 souborů jsou omezené na to, co přijme macOS, Windows i iCloud zároveň, trezor
 napsaný na jednom stroji se vždycky otevře i na ostatních.
 
-Když stejnou poznámku upraví dvě zařízení naráz, iCloud zachová obě a Reader_MJ
+Když stejnou poznámku upraví dvě zařízení naráz, iCloud zachová obě a Pilcrow
 ti ukáže pohled na konflikt místo toho, aby vybral vítěze za tebe.
 
 Dropbox, Syncthing, git nebo flashka fungují úplně stejně dobře. Je to složka.
@@ -726,7 +726,7 @@ nástroj.
 
 ```bash
 # Kopie s datem
-cp -r ~/Documents/Reader_MJ ~/Zalohy/Reader_MJ-$(date +%F)
+cp -r ~/Documents/Pilcrow ~/Zalohy/Pilcrow-$(date +%F)
 
 # Nebo přímo z aplikace:
 #   Paleta příkazů -> „Exportovat trezor do složky...“
@@ -735,13 +735,13 @@ cp -r ~/Documents/Reader_MJ ~/Zalohy/Reader_MJ-$(date +%F)
 Historie verzí přes git funguje dobře, Markdown se diffuje čistě:
 
 ```bash
-cd ~/Documents/Reader_MJ
-git init && printf '.reader_mj/\n' > .gitignore
+cd ~/Documents/Pilcrow
+git init && printf '.pilcrow/\n' > .gitignore
 git add -A && git commit -m "poznamky"
 ```
 
 Time Machine, Backblaze a spol. nepotřebují žádné nastavení. **Nezálohuj
-`.reader_mj/index.sqlite`** — generuje se znovu a `Přestavět vyhledávací
+`.pilcrow/index.sqlite`** — generuje se znovu a `Přestavět vyhledávací
 rejstřík` ho postaví za milisekundy.
 
 Obnova: zkopíruj složku zpátky. To je celý postup.
@@ -754,22 +754,22 @@ Všechno nastavení žije v `.env` (mimo git; `.env.example` je v repozitáři):
 
 | Proměnná | Výchozí | Význam |
 | --- | --- | --- |
-| `READER_MJ_VAULT_PATH` | složka Dokumenty podle systému | Kde jsou poznámky |
-| `READER_MJ_DEV_PORT` | `5273` | Port vývojového serveru Vite |
-| `READER_MJ_DAILY_FOLDER` | `daily` | Podsložka pro denní poznámky |
+| `PILCROW_VAULT_PATH` | složka Dokumenty podle systému | Kde jsou poznámky |
+| `PILCROW_DEV_PORT` | `5273` | Port vývojového serveru Vite |
+| `PILCROW_DAILY_FOLDER` | `daily` | Podsložka pro denní poznámky |
 | `RUST_LOG` | `info` | Podrobnost logování |
-| `READER_MJ_AUTO_UPDATE` | `1` | Kontrola aktualizací po startu |
+| `PILCROW_AUTO_UPDATE` | `1` | Kontrola aktualizací po startu |
 | `TAURI_SIGNING_PRIVATE_KEY` | prázdné | Podpis aktualizací, jen při vydávání |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | prázdné | Heslo k tomu klíči |
 
-Dvě volby nejsou v `.env`, ale v trezoru (`.reader_mj/settings.json`), protože
+Dvě volby nejsou v `.env`, ale v trezoru (`.pilcrow/settings.json`), protože
 patří k němu a ne k tomuhle stroji: `assistantEnabled` (výchozí `false` —
 [asistent](#asistent-claude) je vypnutý, dokud ho nezapneš) a `assistantModel`
 (výchozí prázdné, tedy volba Claude Code). Obojí se přepíná přímo v panelu.
 
-**K tajemstvím:** Reader_MJ nemá účty, takže k jeho používání není potřeba
+**K tajemstvím:** Pilcrow nemá účty, takže k jeho používání není potřeba
 nastavit vůbec nic. Ani asistent: přihlášení ke Claude si drží Claude Code
-v klíčence systému, Reader_MJ žádný token nevidí a nikam si ho neukládá.
+v klíčence systému, Pilcrow žádný token nevidí a nikam si ho neukládá.
 Jediný přístupový údaj v projektu je soukromý klíč, kterým
 se podepisují aktualizace, a ten potřebuješ jen když novou verzi vydáváš.
 Bydlí v `.env` a v secrets repozitáře. `.env` je
@@ -788,7 +788,7 @@ Spustí čtyři fáze a vypíše souhrn. Pokračuje i po chybě, takže jeden p�
 nahlásí všechno, co je rozbité:
 
 1. **Typy TypeScriptu** — `tsc --noEmit`
-2. **Vrstva trezoru v Rustu** — `cargo test -p reader-mj-core`: procházení
+2. **Vrstva trezoru v Rustu** — `cargo test -p pilcrow-core`: procházení
    cest, atomické zápisy, detekce konfliktů, export/import, rejstřík SQLite,
    řazení přes FTS5, zpětné odkazy, projití složky (prořezávání, pořadí,
    limity), registr přístupů, který rozhoduje, co se vůbec smí číst, ukládání
@@ -865,7 +865,7 @@ Ne „přijde později“ — vědomě zavrženo, protože každá z těch věc�
 předpoklad, že tvoje poznámky jsou jen soubory na tvém disku:
 
 - **Vlastní synchronizační server.** Synchronizace je práce tvého nástroje na
-  synchronizaci souborů. Reader_MJ by tvoje poznámky musel hostovat, zabezpečit
+  synchronizaci souborů. Pilcrow by tvoje poznámky musel hostovat, zabezpečit
   a nakonec i zpeněžit.
 - **Dokumenty pro víc lidí v reálném čase.** Stav CRDT by se stal druhým
   zdrojem pravdy, který obyčejný soubor `.md` neumí vyjádřit.
@@ -874,14 +874,14 @@ předpoklad, že tvoje poznámky jsou jen soubory na tvém disku:
 - **Hostované veřejné stránky a publikování.** To je práce generátoru statických
   webů; trezor už je jeho vstup.
 - **Účty, placení, telemetrie, analytika, hostovaný řídicí panel.** Jediný
-  síťový požadavek, který Reader_MJ udělá sám od sebe, je dotaz na GitHub,
+  síťový požadavek, který Pilcrow udělá sám od sebe, je dotaz na GitHub,
   jestli vyšla novější verze. Neposílá při něm nic o tobě ani o tvých
   poznámkách a vypíná se jedním řádkem v `.env`. [Asistent](#asistent-claude)
   je z tohohle pravidla vědomá výjimka — proto je vypnutý, proto se zapíná
   jedním kliknutím a proto je nad ním napsané, co přesně odejde.
 - **Vlastní účet pro AI, vlastní klíč, vlastní fakturace.** Asistent nemá svou
   bránu ani svůj klíč. Mluví s Claudem přes Claude Code, který na tvém počítači
-  už přihlášený je; Reader_MJ se tvého tokenu ani hesla nedotkne.
+  už přihlášený je; Pilcrow se tvého tokenu ani hesla nedotkne.
 
 ---
 

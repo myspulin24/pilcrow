@@ -74,7 +74,7 @@ export interface UpdaterApi {
   /**
    * Smí se po startu kontrolovat samo?
    *
-   * Vypíná se `READER_MJ_AUTO_UPDATE=0` v `.env`. Ruční kontrola tím dotčená
+   * Vypíná se `PILCROW_AUTO_UPDATE=0` v `.env`. Ruční kontrola tím dotčená
    * není -- vypíná se jen to, co se děje bez zeptání.
    */
   autoCheckEnabled(): Promise<boolean>

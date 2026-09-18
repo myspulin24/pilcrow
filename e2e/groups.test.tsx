@@ -4,7 +4,7 @@
  * These are the things the left rail is *for*: linking files that live in
  * different places into one list you can get back to. The persistence and the
  * access rules behind them are covered by the Rust tests in
- * `src-tauri/crates/reader-mj-core/src/collections.rs`.
+ * `src-tauri/crates/pilcrow-core/src/collections.rs`.
  */
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'

@@ -8,7 +8,7 @@
 //!    Markdown files. Folders that contain no Markdown anywhere are pruned, so
 //!    opening a source repository shows the handful of `.md` files rather than
 //!    every directory in it.
-//! 2. **Access.** Reader_MJ can read the vault, plus exactly the files and
+//! 2. **Access.** Pilcrow can read the vault, plus exactly the files and
 //!    folders the user has explicitly opened through a native dialog this
 //!    session. Nothing else. The registry below is what enforces that, so an
 //!    IPC call cannot be talked into reading `~/.ssh/id_rsa`.
@@ -273,7 +273,7 @@ impl AccessRegistry {
             return Ok(())
         }
         Err(CoreError::Permission(format!(
-            "Reader_MJ nemá přístup k {}. Otevři to nejdřív přes „Otevřít soubor“ nebo „Otevřít složku“.",
+            "Pilcrow nemá přístup k {}. Otevři to nejdřív přes „Otevřít soubor“ nebo „Otevřít složku“.",
             path.display()
         )))
     }

@@ -1,7 +1,7 @@
-//! Reader_MJ's vault layer: files on disk plus a rebuildable SQLite index.
+//! Pilcrow's vault layer: files on disk plus a rebuildable SQLite index.
 //!
 //! Deliberately free of any Tauri dependency, for two reasons: the whole crate
-//! compiles and tests in seconds (`cargo test -p reader-mj-core`), and the rules
+//! compiles and tests in seconds (`cargo test -p pilcrow-core`), and the rules
 //! that matter -- path safety, atomic writes, conflict detection -- are
 //! testable without spinning up a webview.
 //!

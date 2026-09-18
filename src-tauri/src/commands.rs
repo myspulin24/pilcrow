@@ -1,6 +1,6 @@
 //! The IPC surface.
 //!
-//! Thin by design: each command validates its inputs, calls into `reader-mj-core`,
+//! Thin by design: each command validates its inputs, calls into `pilcrow-core`,
 //! and keeps the index in step with the file it just touched. Anything
 //! resembling a decision -- what a tag is, how a link resolves, what the file
 //! should contain -- happens in TypeScript before it gets here.
@@ -9,12 +9,12 @@ use std::path::PathBuf;
 
 use tauri::{AppHandle, Manager, State};
 
-use reader_mj_core::collections::{self, Collection};
-use reader_mj_core::error::{CoreError, Result};
-use reader_mj_core::explorer::{self, DroppedPaths, FolderTree, ScanLimits};
-use reader_mj_core::settings;
-use reader_mj_core::types::*;
-use reader_mj_core::vault;
+use pilcrow_core::collections::{self, Collection};
+use pilcrow_core::error::{CoreError, Result};
+use pilcrow_core::explorer::{self, DroppedPaths, FolderTree, ScanLimits};
+use pilcrow_core::settings;
+use pilcrow_core::types::*;
+use pilcrow_core::vault;
 
 use crate::state::AppState;
 
@@ -27,12 +27,12 @@ pub fn vault_status(state: State<'_, AppState>) -> Result<VaultStatus> {
 
 /// Má se po startu samo sáhnout na GitHub pro novou verzi?
 ///
-/// Aktualizace jsou jediné síťové spojení, které Reader_MJ navazuje, takže se
+/// Aktualizace jsou jediné síťové spojení, které Pilcrow navazuje, takže se
 /// dají vypnout jedinou proměnnou v `.env` bez přestavování aplikace. Ruční
 /// „Zkontrolovat aktualizace“ funguje dál -- vypíná se jen to automatické.
 #[tauri::command]
 pub fn auto_update_enabled() -> bool {
-    match std::env::var("READER_MJ_AUTO_UPDATE") {
+    match std::env::var("PILCROW_AUTO_UPDATE") {
         Ok(value) => !matches!(
             value.trim().to_ascii_lowercase().as_str(),
             "0" | "false" | "off" | "ne" | "no"
@@ -47,7 +47,7 @@ pub fn auto_update_enabled() -> bool {
 ///
 /// Na Windows vydáváme MSI i NSIS a plugin sáhne po MSI. Jenže MSI se instaluje
 /// pro celý počítač a ptá se přes UAC, kdežto `setup.exe` běží jen pro
-/// přihlášeného uživatele -- a přesně tak se Reader_MJ instaluje. Kdyby se
+/// přihlášeného uživatele -- a přesně tak se Pilcrow instaluje. Kdyby se
 /// aktualizovalo tím druhým, nepřepsalo by to stávající instalaci, ale
 /// postavilo vedle ní druhou.
 #[tauri::command]
@@ -221,7 +221,7 @@ pub fn save_settings(
     // The vault path is decided at start-up from `.env`; a client cannot move
     // the vault by writing to the settings file.
     next.vault_path = state.vault.root().to_string_lossy().to_string();
-    reader_mj_core::settings::save(&state.vault.settings_path(), &next)
+    pilcrow_core::settings::save(&state.vault.settings_path(), &next)
 }
 
 /// Show a path in the platform file manager. Best-effort by design.

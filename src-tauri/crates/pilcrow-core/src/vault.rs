@@ -83,7 +83,7 @@ pub fn read_note(vault: &VaultPaths, relative: &str) -> Result<NoteFile> {
     to_note_file(relative, &absolute)
 }
 
-/// Every `.md` file in the vault, excluding Reader_MJ's own metadata folder.
+/// Every `.md` file in the vault, excluding Pilcrow's own metadata folder.
 pub fn read_all_notes(vault: &VaultPaths) -> Result<Vec<NoteFile>> {
     let mut out = Vec::new();
     for entry in WalkDir::new(vault.root())
@@ -117,7 +117,7 @@ pub fn read_all_notes(vault: &VaultPaths) -> Result<Vec<NoteFile>> {
 }
 
 fn log_skip(relative: &str, error: &CoreError) {
-    eprintln!("reader_mj: přeskakuji {relative}: {error}");
+    eprintln!("pilcrow: přeskakuji {relative}: {error}");
 }
 
 /// Write bytes atomically: temp file in the same directory, then rename.
@@ -432,7 +432,7 @@ pub fn seed_if_empty(vault: &VaultPaths) -> Result<bool> {
         return Ok(false);
     }
     let welcome = include_str!("welcome.md");
-    create_note(vault, "Vítej v Reader_MJ.md", welcome)?;
+    create_note(vault, "Vítej v Pilcrow.md", welcome)?;
     Ok(true)
 }
 
@@ -504,10 +504,10 @@ pub fn delete_file_at(absolute: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Resolve the vault root: explicit setting, then `READER_MJ_VAULT_PATH`, then the
+/// Resolve the vault root: explicit setting, then `PILCROW_VAULT_PATH`, then the
 /// platform documents folder.
 pub fn default_vault_root(documents_dir: Option<PathBuf>) -> PathBuf {
-    if let Ok(configured) = std::env::var("READER_MJ_VAULT_PATH") {
+    if let Ok(configured) = std::env::var("PILCROW_VAULT_PATH") {
         let trimmed = configured.trim();
         if !trimmed.is_empty() {
             return PathBuf::from(trimmed);
@@ -515,7 +515,7 @@ pub fn default_vault_root(documents_dir: Option<PathBuf>) -> PathBuf {
     }
     documents_dir
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("Reader_MJ")
+        .join("Pilcrow")
 }
 
 #[cfg(test)]

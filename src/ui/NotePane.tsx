@@ -3,11 +3,11 @@
  *
  * It shows two kinds of document, and the difference matters:
  *
- * - A **vault note** is owned by Reader_MJ. The textarea edits the body while
+ * - A **vault note** is owned by Pilcrow. The textarea edits the body while
  *   frontmatter is managed for you, which is why the file on disk always has
  *   `id`, `created`, `updated`, `pinned` and `tags` without you typing them.
  * - An **external file**, opened through the explorer, is not owned by
- *   Reader_MJ. The textarea shows the file exactly as it is, and saving writes
+ *   Pilcrow. The textarea shows the file exactly as it is, and saving writes
  *   it back byte for byte. Someone else's Markdown never acquires frontmatter,
  *   an id, or an index entry just because it was opened here.
  */
@@ -50,7 +50,7 @@ function NoteHeader({ path, external }: { path: string; external: boolean }) {
   const parsed = state.parsed
 
   // A vault note is titled by its frontmatter; an external file is titled by
-  // its file name, because Reader_MJ does not own its metadata.
+  // its file name, because Pilcrow does not own its metadata.
   const title = external ? baseName(path) : (parsed?.frontmatter.title ?? titleFromPath(path))
   const folder = external
     ? parentPath(path)
@@ -294,7 +294,7 @@ export function NotePane() {
       /**
        * Zkratky, které patří editoru.
        *
-       * `Ctrl + B` je celosvětově tučné písmo, jenže v Reader_MJ dosud sbalovalo
+       * `Ctrl + B` je celosvětově tučné písmo, jenže v Pilcrow dosud sbalovalo
        * sekci Soubory. Uvnitř editoru vyhrává formátování, mimo něj zůstává
        * původní význam -- proto se tu událost zastaví a nepustí se dál k oknu.
        */

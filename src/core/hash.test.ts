@@ -4,7 +4,7 @@ import { hashText, sha256Bytes } from './hash'
 
 describe('sha256', () => {
   /**
-   * These vectors also appear in `src-tauri/crates/reader-mj-core/src/vault.rs`.
+   * These vectors also appear in `src-tauri/crates/pilcrow-core/src/vault.rs`.
    * The two implementations must agree, because conflict detection compares a
    * hash computed in the browser against one computed in Rust.
    */

@@ -4,7 +4,7 @@
 //! and can be thrown away: `rebuild` drops the tables and repopulates them from
 //! whatever the frontend parsed out of the vault. That is what makes "Rebuild
 //! index" a safe command rather than a scary one, and it is why the index lives
-//! in `.reader_mj/` rather than alongside the notes.
+//! in `.pilcrow/` rather than alongside the notes.
 //!
 //! Search uses FTS5 when the bundled SQLite has it, and falls back to `LIKE`
 //! when it does not, so the app degrades instead of breaking.
@@ -395,7 +395,7 @@ impl NoteIndex {
             .optional()?)
     }
 
-    /// Hash recorded for a path; lets the watcher ignore Reader_MJ's own writes.
+    /// Hash recorded for a path; lets the watcher ignore Pilcrow's own writes.
     pub fn hash_for(&self, path: &str) -> Result<Option<String>> {
         Ok(self
             .connection
@@ -640,24 +640,24 @@ mod tests {
             .rebuild(&[
                 record(
                     "welcome.md",
-                    "Welcome to Reader_MJ",
-                    "Reader_MJ keeps plain Markdown files. See [[Cheatsheet]].",
-                    &["reader_mj"],
+                    "Welcome to Pilcrow",
+                    "Pilcrow keeps plain Markdown files. See [[Cheatsheet]].",
+                    &["pilcrow"],
                     &["cheatsheet"],
                 ),
                 record(
                     "cheatsheet.md",
                     "Cheatsheet",
                     "Tables, tasks and code blocks.\n- [ ] try it",
-                    &["reader_mj/getting-started"],
+                    &["pilcrow/getting-started"],
                     &[],
                 ),
                 record(
                     "groceries.md",
                     "Groceries",
-                    "Apples and oranges. Links back to [[Welcome to Reader_MJ]].",
+                    "Apples and oranges. Links back to [[Welcome to Pilcrow]].",
                     &["home/errands"],
-                    &["welcome to reader_mj"],
+                    &["welcome to pilcrow"],
                 ),
             ])
             .unwrap();
@@ -715,7 +715,7 @@ mod tests {
         let index = seeded();
 
         let parent = SearchQuery {
-            tags: vec!["reader_mj".into()],
+            tags: vec!["pilcrow".into()],
             ..Default::default()
         };
         let titles: Vec<_> = index
@@ -724,10 +724,10 @@ mod tests {
             .into_iter()
             .map(|note| note.title)
             .collect();
-        assert_eq!(titles.len(), 2, "tag:reader_mj should match reader_mj/getting-started too");
+        assert_eq!(titles.len(), 2, "tag:pilcrow should match pilcrow/getting-started too");
 
         let excluded = SearchQuery {
-            exclude_tags: vec!["reader_mj".into()],
+            exclude_tags: vec!["pilcrow".into()],
             ..Default::default()
         };
         let remaining = index.search(&excluded, 20).unwrap();
@@ -770,10 +770,10 @@ mod tests {
     fn backlinks_resolve_by_title_and_by_path() {
         let index = seeded();
 
-        let inbound = index.backlinks("welcome.md", "Welcome to Reader_MJ").unwrap();
+        let inbound = index.backlinks("welcome.md", "Welcome to Pilcrow").unwrap();
         assert_eq!(inbound.len(), 1);
         assert_eq!(inbound[0].path, "groceries.md");
-        assert!(inbound[0].context.contains("[[Welcome to Reader_MJ]]"));
+        assert!(inbound[0].context.contains("[[Welcome to Pilcrow]]"));
 
         let to_cheatsheet = index.backlinks("cheatsheet.md", "Cheatsheet").unwrap();
         assert_eq!(to_cheatsheet.len(), 1);
@@ -794,7 +794,7 @@ mod tests {
         let mut index = seeded();
         index.remove("groceries.md").unwrap();
         assert_eq!(index.note_count().unwrap(), 2);
-        assert!(index.backlinks("welcome.md", "Welcome to Reader_MJ").unwrap().is_empty());
+        assert!(index.backlinks("welcome.md", "Welcome to Pilcrow").unwrap().is_empty());
         let tag_rows: i64 = index
             .connection
             .query_row("SELECT COUNT(*) FROM tags WHERE path = 'groceries.md'", [], |row| {
@@ -812,7 +812,7 @@ mod tests {
         let listed: Vec<_> = index.list(20).unwrap().into_iter().map(|note| note.path).collect();
         assert!(listed.contains(&"home/groceries.md".to_string()));
 
-        let inbound = index.backlinks("welcome.md", "Welcome to Reader_MJ").unwrap();
+        let inbound = index.backlinks("welcome.md", "Welcome to Pilcrow").unwrap();
         assert_eq!(inbound[0].path, "home/groceries.md");
         assert_eq!(
             index.list(20).unwrap().iter().find(|note| note.path == "home/groceries.md").unwrap().tags,

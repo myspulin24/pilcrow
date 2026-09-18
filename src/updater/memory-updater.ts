@@ -26,7 +26,7 @@ export interface MemoryUpdaterOptions {
   failDownload?: string
   /** `false` znamená, že se v tomhle prostředí aktualizovat nedá. */
   available?: boolean
-  /** `false` vypne kontrolu po startu, stejně jako `READER_MJ_AUTO_UPDATE=0`. */
+  /** `false` vypne kontrolu po startu, stejně jako `PILCROW_AUTO_UPDATE=0`. */
   autoCheck?: boolean
 }
 

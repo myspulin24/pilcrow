@@ -1,8 +1,8 @@
 /**
  * Tests for the central transformation: Markdown file text <-> parsed note.
  *
- * This is the code every other part of Reader_MJ depends on being right. If
- * frontmatter round-trips lossily, editing a note in Reader_MJ quietly corrupts
+ * This is the code every other part of Pilcrow depends on being right. If
+ * frontmatter round-trips lossily, editing a note in Pilcrow quietly corrupts
  * metadata another editor wrote; if tag extraction is wrong, the sidebar lies.
  */
 

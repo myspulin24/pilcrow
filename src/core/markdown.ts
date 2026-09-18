@@ -1,7 +1,7 @@
 /**
  * A small, dependency-free Markdown renderer.
  *
- * It exists instead of a general-purpose library because Reader_MJ needs three
+ * It exists instead of a general-purpose library because Pilcrow needs three
  * things a stock renderer does not give us:
  *
  *   1. `[[wiki links]]` rendered as real links that know whether the target

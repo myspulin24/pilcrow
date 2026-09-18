@@ -1,24 +1,24 @@
 [package]
-name = "reader_mj"
-version = "0.4.1"
-description = "Reader_MJ - local-first Markdown reader with a file explorer"
+name = "pilcrow"
+version = "0.5.0"
+description = "Pilcrow - local-first Markdown reader with a file explorer"
 authors = ["Michal Jašek"]
 edition = "2021"
 rust-version = "1.77"
 license = "MIT"
 
 [workspace]
-members = ["crates/reader-mj-core"]
+members = ["crates/pilcrow-core"]
 
 [lib]
-name = "reader_mj_lib"
+name = "pilcrow_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-reader-mj-core = { path = "crates/reader-mj-core" }
+pilcrow-core = { path = "crates/pilcrow-core" }
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"

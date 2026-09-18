@@ -88,7 +88,7 @@ impl From<std::io::Error> for CoreError {
         match error.kind() {
             std::io::ErrorKind::NotFound => CoreError::NotFound(error.to_string()),
             std::io::ErrorKind::PermissionDenied => CoreError::Permission(format!(
-                "{error}. Povol Reader_MJ přístup ke složce trezoru a zkus to znovu."
+                "{error}. Povol Pilcrow přístup ke složce trezoru a zkus to znovu."
             )),
             std::io::ErrorKind::AlreadyExists => CoreError::Duplicate(error.to_string()),
             _ => CoreError::Io(error.to_string()),

@@ -1,7 +1,7 @@
 /**
  * The central transformation: Markdown file text <-> `ParsedNote`.
  *
- * `parseNote(serializeNoteFile(note)) === note` for everything Reader_MJ cares
+ * `parseNote(serializeNoteFile(note)) === note` for everything Pilcrow cares
  * about, and parsing a note written by any other Markdown editor never throws:
  * missing frontmatter is filled in from the file name and the body.
  */

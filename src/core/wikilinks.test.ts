@@ -85,14 +85,14 @@ describe('linkKey', () => {
 
 describe('buildLinkIndex / resolveLink', () => {
   const notes = [
-    { path: 'welcome.md', title: 'Welcome to Reader_MJ' },
+    { path: 'welcome.md', title: 'Welcome to Pilcrow' },
     { path: 'daily/2026-09-15.md', title: '2026-09-15' },
     { path: 'projects/acme.md', title: 'Acme' },
   ]
   const index = buildLinkIndex(notes)
 
   it('resolves by title, by file name and by full path', () => {
-    expect(resolveLink(index, 'Welcome to Reader_MJ')).toBe('welcome.md')
+    expect(resolveLink(index, 'Welcome to Pilcrow')).toBe('welcome.md')
     expect(resolveLink(index, 'welcome')).toBe('welcome.md')
     expect(resolveLink(index, 'welcome.md')).toBe('welcome.md')
     expect(resolveLink(index, 'projects/acme')).toBe('projects/acme.md')
@@ -100,7 +100,7 @@ describe('buildLinkIndex / resolveLink', () => {
   })
 
   it('is case-insensitive', () => {
-    expect(resolveLink(index, 'WELCOME TO READER_MJ')).toBe('welcome.md')
+    expect(resolveLink(index, 'WELCOME TO PILCROW')).toBe('welcome.md')
   })
 
   it('returns null for a target that does not exist', () => {
@@ -110,7 +110,7 @@ describe('buildLinkIndex / resolveLink', () => {
   it('lets an exact path win over a title that collides with it', () => {
     // A note literally titled "welcome" must not shadow the file `welcome.md`.
     const colliding = buildLinkIndex([
-      { path: 'welcome.md', title: 'Welcome to Reader_MJ' },
+      { path: 'welcome.md', title: 'Welcome to Pilcrow' },
       { path: 'other.md', title: 'welcome' },
     ])
     expect(resolveLink(colliding, 'welcome')).toBe('welcome.md')

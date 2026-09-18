@@ -1,7 +1,7 @@
 /**
  * A deliberately small YAML-ish frontmatter reader/writer.
  *
- * We only support the handful of shapes Reader_MJ writes -- scalars, quoted
+ * We only support the handful of shapes Pilcrow writes -- scalars, quoted
  * scalars, inline `[a, b]` lists and block `- item` lists. That is enough to
  * round-trip our own files and to read the frontmatter other Markdown editors
  * produce, without pulling a YAML parser into the bundle. Unknown keys are

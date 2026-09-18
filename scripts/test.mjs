@@ -33,7 +33,7 @@ const STAGES = [
     name: 'rust',
     label: 'Vrstva trezoru v Rustu (soubory, cesty, rejstřík, procházení složek)',
     command: 'cargo',
-    args: ['test', '--manifest-path', 'src-tauri/Cargo.toml', '-p', 'reader-mj-core'],
+    args: ['test', '--manifest-path', 'src-tauri/Cargo.toml', '-p', 'pilcrow-core'],
   },
   {
     name: 'unit',

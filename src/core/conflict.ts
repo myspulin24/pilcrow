@@ -3,7 +3,7 @@
  *
  * Because Markdown files are the source of truth, anything can change them:
  * iCloud Drive syncing a copy from an iPhone, a text editor, a git checkout.
- * Reader_MJ never silently overwrites. Every write carries the hash the editor
+ * Pilcrow never silently overwrites. Every write carries the hash the editor
  * loaded from; if the file on disk no longer matches, the write is refused and
  * the user is shown both versions.
  */

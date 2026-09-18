@@ -170,7 +170,7 @@ export function Sidebar() {
     <nav className="sidebar" aria-label={t.rail.label}>
       <div className="sidebar__section sidebar__section--top">
         <div className="sidebar__brand">
-          <span className="sidebar__brand-name">Reader_MJ</span>
+          <span className="sidebar__brand-name">Pilcrow</span>
           <button
             type="button"
             className="sidebar__collapse"

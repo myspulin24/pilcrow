@@ -1,5 +1,5 @@
 /**
- * The four states every surface in Reader_MJ has to be able to show: loading,
+ * The four states every surface in Pilcrow has to be able to show: loading,
  * empty, error and success. Keeping them in one file makes it obvious when a
  * new view forgets one.
  */

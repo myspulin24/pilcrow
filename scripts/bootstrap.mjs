@@ -94,7 +94,7 @@ function checkToolchain() {
   if (!rustcOutput) {
     fail(
       'Rust není v PATH.',
-      'Reader_MJ je aplikace v Tauri, takže potřebuje Rust. Nainstaluj ho z https://rustup.rs a spusť `npm start` znovu.',
+      'Pilcrow je aplikace v Tauri, takže potřebuje Rust. Nainstaluj ho z https://rustup.rs a spusť `npm start` znovu.',
     )
   }
   const rust = parseVersion(rustcOutput)
@@ -144,7 +144,7 @@ function ensureEnvFile() {
   copyFileSync(example, target)
   step('Vytvořil jsem .env podle .env.example')
   console.log(
-    dim('  Reader_MJ nepotřebuje žádné přihlašovací údaje. Nastav tam READER_MJ_VAULT_PATH a vyber, kde mají být tvoje poznámky.'),
+    dim('  Pilcrow nepotřebuje žádné přihlašovací údaje. Nastav tam PILCROW_VAULT_PATH a vyber, kde mají být tvoje poznámky.'),
   )
 }
 
@@ -164,19 +164,19 @@ function reportVaultLocation() {
   let configured = ''
   try {
     const env = readFileSync(join(ROOT, '.env'), 'utf8')
-    configured = /^READER_MJ_VAULT_PATH\s*=\s*(.*)$/m.exec(env)?.[1]?.trim() ?? ''
+    configured = /^PILCROW_VAULT_PATH\s*=\s*(.*)$/m.exec(env)?.[1]?.trim() ?? ''
   } catch {
     // No .env is fine; the app falls back to the platform default.
   }
-  const where = configured || join('<tvoje složka Dokumenty>', 'Reader_MJ')
+  const where = configured || join('<tvoje složka Dokumenty>', 'Pilcrow')
   console.log(`\n  ${bold('Tvoje poznámky budou v')} ${where}`)
-  console.log(dim('  Jeden soubor Markdown na poznámku, k tomu přestavitelný .reader_mj/index.sqlite.\n'))
+  console.log(dim('  Jeden soubor Markdown na poznámku, k tomu přestavitelný .pilcrow/index.sqlite.\n'))
 }
 
 // --- main -------------------------------------------------------------------
 
 async function main() {
-  console.log(`\n${bold('Reader_MJ')} ${dim('- poznámky v Markdownu, všechno u tebe')}\n`)
+  console.log(`\n${bold('Pilcrow')} ${dim('- poznámky v Markdownu, všechno u tebe')}\n`)
 
   checkToolchain()
   installDependencies()
@@ -189,7 +189,7 @@ async function main() {
     return
   }
 
-  step('Spouštím Reader_MJ (první sestavení Rustu trvá pár minut, další už jsou rychlá)')
+  step('Spouštím Pilcrow (první sestavení Rustu trvá pár minut, další už jsou rychlá)')
   console.log()
 
   const child = spawn('npm', ['run', 'dev'], {

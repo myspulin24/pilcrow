@@ -1,4 +1,4 @@
-//! Watching the vault for changes made outside Reader_MJ.
+//! Watching the vault for changes made outside Pilcrow.
 //!
 //! This is what makes "the folder is the source of truth" true rather than
 //! aspirational: iCloud Drive delivering a note edited on an iPhone, a text
@@ -8,7 +8,7 @@
 //!
 //! 1. **Debouncing.** Editors and sync clients write in bursts. Events are
 //!    coalesced per path over a short window so one save is one notification.
-//! 2. **Echo suppression.** Reader_MJ's own writes also trip the watcher. Rather
+//! 2. **Echo suppression.** Pilcrow's own writes also trip the watcher. Rather
 //!    than track "did I just write this?" with a timer -- which races -- we
 //!    compare the file's hash against what the index recorded. If they match,
 //!    the change was ours and nothing is emitted.
@@ -22,12 +22,12 @@ use std::time::{Duration, Instant};
 use notify::{EventKind, RecursiveMode, Watcher};
 use tauri::{AppHandle, Emitter, Manager};
 
-use reader_mj_core::types::ExternalChange;
-use reader_mj_core::vault;
+use pilcrow_core::types::ExternalChange;
+use pilcrow_core::vault;
 
 use crate::state::AppState;
 
-pub const EXTERNAL_CHANGE_EVENT: &str = "reader-mj://external-change";
+pub const EXTERNAL_CHANGE_EVENT: &str = "pilcrow://external-change";
 
 /// How long a path must be quiet before we report it.
 const QUIET_PERIOD: Duration = Duration::from_millis(350);
@@ -68,7 +68,7 @@ pub fn start(app: AppHandle, root: &Path) -> notify::Result<Box<dyn std::any::An
                         }
                     }
                 }
-                Ok(Err(error)) => eprintln!("reader_mj: chyba sledování souborů: {error}"),
+                Ok(Err(error)) => eprintln!("pilcrow: chyba sledování souborů: {error}"),
                 Err(RecvTimeoutError::Timeout) => continue,
                 // The sender is gone, which means the watcher was dropped.
                 Err(RecvTimeoutError::Disconnected) => break,

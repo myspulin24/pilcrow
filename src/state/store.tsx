@@ -186,7 +186,7 @@ export interface EditorBuffer {
   /**
    * True for a file opened through the explorer rather than from the vault.
    *
-   * External files are edited and written verbatim: Reader_MJ never adds
+   * External files are edited and written verbatim: Pilcrow never adds
    * frontmatter to a file it did not create, and there is no index row for it.
    */
   external: boolean
@@ -757,7 +757,7 @@ export function StoreProvider({
       if (!editor.dirty && !options.force) return
 
       // An external file is written exactly as it appears in the editor.
-      // Reader_MJ does not own it, so it does not get frontmatter, an id or an
+      // Pilcrow does not own it, so it does not get frontmatter, an id or an
       // index row -- only the same "did this change underneath me?" guard.
       if (editor.external) {
         dispatch({ type: 'saving', saving: true })
@@ -1637,7 +1637,7 @@ export function StoreProvider({
           // Kontrola po startu nesmí uživateli skočit do cesty oknem. Bez sítě
           // se nic neděje a aplikace funguje dál.
           dispatch({ type: 'update', patch: { dialogOpen: false } })
-          console.warn(`reader_mj: kontrola aktualizací selhala: ${message}`)
+          console.warn(`pilcrow: kontrola aktualizací selhala: ${message}`)
         }
       }
     },

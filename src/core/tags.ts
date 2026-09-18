@@ -1,7 +1,7 @@
 /**
  * Tag extraction and normalisation.
  *
- * Reader_MJ uses Bear-style inline tags: `#idea`, `#work/clients/acme`. A tag is a
+ * Pilcrow uses Bear-style inline tags: `#idea`, `#work/clients/acme`. A tag is a
  * `#` that is not preceded by a word character (so `C#` is not a tag, and
  * `# Heading` is not either because a heading has a space after the hash),
  * followed by a letter, then letters/digits/`-`/`_`/`/`.

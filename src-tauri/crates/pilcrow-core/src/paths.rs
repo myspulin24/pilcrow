@@ -13,8 +13,8 @@ use crate::error::{CoreError, Result};
 
 /// Folder inside the vault that holds images and other binaries.
 pub const ATTACHMENTS_DIR: &str = "attachments";
-/// Folder inside the vault that holds Reader_MJ's own rebuildable state.
-pub const META_DIR: &str = ".reader_mj";
+/// Folder inside the vault that holds Pilcrow's own rebuildable state.
+pub const META_DIR: &str = ".pilcrow";
 pub const INDEX_FILE: &str = "index.sqlite";
 pub const SETTINGS_FILE: &str = "settings.json";
 pub const COLLECTIONS_FILE: &str = "collections.json";
@@ -33,7 +33,7 @@ pub fn is_safe_segment(segment: &str) -> bool {
     if segment == "." || segment == ".." {
         return false;
     }
-    // Leading dots are reserved for Reader_MJ's own metadata folder.
+    // Leading dots are reserved for Pilcrow's own metadata folder.
     if segment.starts_with(' ') || (segment.starts_with('.') && segment != META_DIR) {
         return false;
     }
@@ -201,7 +201,7 @@ impl VaultPaths {
         }
     }
 
-    /// True for paths Reader_MJ manages itself and must not treat as notes.
+    /// True for paths Pilcrow manages itself and must not treat as notes.
     pub fn is_internal(&self, relative: &str) -> bool {
         relative == META_DIR
             || relative.starts_with(&format!("{META_DIR}/"))
@@ -307,7 +307,7 @@ mod tests {
     #[test]
     fn internal_paths_are_not_notes() {
         let vault = VaultPaths::new("/tmp/vault");
-        assert!(vault.is_internal(".reader_mj/index.sqlite"));
+        assert!(vault.is_internal(".pilcrow/index.sqlite"));
         assert!(vault.is_internal("attachments/cat.png"));
         assert!(!vault.is_internal("notes/cat.md"));
     }

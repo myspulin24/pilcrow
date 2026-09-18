@@ -208,7 +208,7 @@ export interface VaultApi {
    * Save a file opened through the explorer. Guarded by the same hash check as
    * the vault, so an external edit produces a conflict rather than a silent
    * overwrite. Unlike a vault note, the text is written exactly as given --
-   * no frontmatter is added to a file Reader_MJ did not create.
+   * no frontmatter is added to a file Pilcrow did not create.
    */
   writeExternalFile(input: {
     path: string

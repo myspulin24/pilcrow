@@ -1,7 +1,7 @@
 /**
  * Lišta formátování nad editorem.
  *
- * Reader_MJ ukládá poznámky jako Markdown, protože to je obyčejný text, který
+ * Pilcrow ukládá poznámky jako Markdown, protože to je obyčejný text, který
  * přežije tuhle i každou další aplikaci. To ale neznamená, že se ho někdo musí
  * učit. Lišta dělá přesně to, co lišta ve Wordu: klikneš na tučné a text je
  * tučný. Že se tomu v souboru říká `**takhle**`, je vidět až když se někdo
@@ -72,7 +72,7 @@ const GROUPS: Group[] = [
   {
     name: t.toolbar.groups.links,
     buttons: [
-      { id: 'link', glyph: '🔗', label: t.toolbar.link, sample: '[Reader_MJ](https://example.com)' },
+      { id: 'link', glyph: '🔗', label: t.toolbar.link, sample: '[Pilcrow](https://example.com)' },
       { id: 'wikilink', glyph: '[[]]', label: t.toolbar.wikilink, sample: '[[Jiná poznámka]]' },
       { id: 'image', glyph: '🖼', label: t.toolbar.image, sample: '![popis](obrazek.png)' },
     ],

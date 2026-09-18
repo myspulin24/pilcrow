@@ -33,7 +33,7 @@ export interface MemoryAssistantOptions {
   failAsk?: string
 }
 
-const LOGIN_URL = 'https://claude.com/cai/oauth/authorize?code=true&client_id=reader-mj-demo'
+const LOGIN_URL = 'https://claude.com/cai/oauth/authorize?code=true&client_id=pilcrow-demo'
 
 /** Rozsekat odpověď na kousky, aby se v panelu objevovala postupně. */
 function pieces(text: string): string[] {
@@ -62,7 +62,7 @@ export class MemoryAssistant implements AssistantApi {
     }
     return {
       installed: true,
-      version: '2.1.0 (Reader_MJ, paměťová implementace)',
+      version: '2.1.0 (Pilcrow, paměťová implementace)',
       path: 'claude',
       auth: JSON.stringify({
         loggedIn: this.loggedIn,
