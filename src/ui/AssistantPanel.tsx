@@ -21,6 +21,7 @@ import {
   t,
   type AssistantMessage,
 } from '@/core'
+import { handleCopyCodeClick } from '@/lib/copy-code'
 import { useAssistant } from '@/state/assistant-store'
 import { useAppState } from '@/state/store'
 
@@ -56,9 +57,19 @@ function Bubble({ message }: { message: AssistantMessage }) {
         // `renderMarkdown` je ten samý, který kreslí náhled poznámky: escapuje
         // text a kontroluje schéma každé adresy.
         <div
-          className="assistant-msg__text preview"
+          // `markdown-body` je tu podstatné: na tu třídu je navázané veškeré
+          // stylování vykresleného Markdownu včetně bloků kódu. Bez ní se
+          // Claudovy odpovědi kreslily bez něj -- a tlačítko na kopírování by
+          // tu viselo neupravené a pořád viditelné.
+          className="assistant-msg__text preview markdown-body"
+          // Claude posílá návrhy v blocích kódu, takže tlačítko na zkopírování
+          // jednoho bloku dává smysl i tady -- vedle toho nahoře, které zkopíruje
+          // celou odpověď.
+          onClick={(event) => {
+            if (handleCopyCodeClick(event.target)) event.preventDefault()
+          }}
           // eslint-disable-next-line react/no-danger
-          dangerouslySetInnerHTML={{ __html: renderMarkdown(message.text) }}
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(message.text, { copyableCode: true }) }}
         />
       )}
       {message.streaming ? <span className="assistant-msg__caret" aria-hidden="true" /> : null}

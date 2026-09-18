@@ -331,7 +331,11 @@ type Action =
   | { type: 'drop-active'; active: boolean }
   | { type: 'edit'; text: string }
   | { type: 'saving'; saving: boolean }
-  | { type: 'saved'; hash: string; text: string; at: number }
+  /**
+   * `text` je to, co se zapsalo na disk. `from` je to, co bylo v editoru, když
+   * se ukládání rozjelo -- podle toho se pozná, jestli uživatel mezitím psal.
+   */
+  | { type: 'saved'; hash: string; text: string; at: number; from: string }
   | { type: 'reparse'; parsed: ParsedNote }
   | { type: 'backlinks'; backlinks: BacklinkRow[] }
   | { type: 'conflict'; conflict: ConflictState | null }
@@ -397,13 +401,26 @@ function reducer(state: AppState, action: Action): AppState {
       return state.editor ? { ...state, editor: { ...state.editor, saving: action.saving } } : state
     case 'saved': {
       if (!state.editor) return state
+      // Psal uživatel, zatímco se ukládalo? Jen tehdy jsou v editoru změny,
+      // které na disku nejsou.
+      //
+      // Porovnává se proti tomu, s čím ukládání začalo, ne proti zapsanému
+      // textu. Ty dva se totiž vždycky liší: `applyBodyEdit` při ukládání
+      // přepíše `updated` v hlavičce na aktuální čas, takže srovnávat editor
+      // se zapsaným souborem znamenalo trvale svítící „Neuložené změny“ --
+      // i když se uložilo v pořádku.
+      const typedMeanwhile = state.editor.text !== action.from
       return {
         ...state,
         editor: {
           ...state.editor,
+          // Když uživatel nic nenapsal, převezme editor zapsanou podobu
+          // i s novým časem, aby buffer a soubor byly bajt po bajtu stejné.
+          // Text poznámky se tím nemění, takže v textarei není co poznat.
+          text: typedMeanwhile ? state.editor.text : action.text,
           baseText: action.text,
           baseHash: action.hash,
-          dirty: state.editor.text !== action.text,
+          dirty: typedMeanwhile,
           saving: false,
           savedAt: action.at,
         },
@@ -767,7 +784,7 @@ export function StoreProvider({
             content: editor.text,
             expectedHash: options.force ? null : editor.baseHash,
           })
-          dispatch({ type: 'saved', hash: result.hash, text: editor.text, at: Date.now() })
+          dispatch({ type: 'saved', hash: result.hash, text: editor.text, at: Date.now(), from: editor.text })
           dispatch({ type: 'reparse', parsed: parseNote(editor.text, { path: editor.path }) })
         } catch (error) {
           dispatch({ type: 'saving', saving: false })
@@ -788,7 +805,7 @@ export function StoreProvider({
           expectedHash: options.force ? null : editor.baseHash,
           record: toIndexRecord(editor.path, content, refreshed),
         })
-        dispatch({ type: 'saved', hash: result.hash, text: content, at: Date.now() })
+        dispatch({ type: 'saved', hash: result.hash, text: content, at: Date.now(), from: editor.text })
         dispatch({ type: 'reparse', parsed: refreshed })
         void refresh()
         void loadBacklinks(editor.path)
@@ -1175,7 +1192,15 @@ export function StoreProvider({
           record: toIndexRecord(conflict.path, content, next),
         })
         dispatch({ type: 'conflict', conflict: null })
-        dispatch({ type: 'saved', hash: result.hash, text: content, at: Date.now() })
+        // Po vyřešení konfliktu „nech moje“ má editor převzít to, co se
+        // zapsalo -- pokud do něj mezitím nikdo nepsal.
+        dispatch({
+          type: 'saved',
+          hash: result.hash,
+          text: content,
+          at: Date.now(),
+          from: stateRef.current.editor?.text ?? content,
+        })
         await refresh()
         toast('success', t.toast.keptMine)
       } catch (error) {

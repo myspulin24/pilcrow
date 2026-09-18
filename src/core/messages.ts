@@ -396,6 +396,9 @@ export const t = {
 
   markdown: {
     missingNote: (target: string) => `${target} (poznámka zatím neexistuje)`,
+    copyCode: 'Kopírovat kód',
+    codeCopied: 'Zkopírováno',
+    copyFailed: 'Do schránky se to nepodařilo vložit',
   },
 
   toolbar: {

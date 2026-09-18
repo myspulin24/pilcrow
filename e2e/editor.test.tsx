@@ -331,3 +331,101 @@ describe('editor vzorců', () => {
     expect(await screen.findByRole('dialog', { name: 'Vzorec' })).toBeInTheDocument()
   })
 })
+
+/**
+ * Náhled není jen obrázek textu -- dá se v něm pracovat.
+ *
+ * Obojí níž vypadá jako drobnost, ale obojí sahá na zdroj poznámky, takže
+ * je to přesně to místo, kde se dá tiše přijít o data nebo o obsah schránky.
+ */
+describe('práce v náhledu', () => {
+  it('kliknutí na zaškrtávátko přepíše zdroj i soubor v trezoru', async () => {
+    const user = userEvent.setup()
+    await type(user, '- [ ] koupit mléko\n- [ ] zalít kytky')
+
+    const box = () =>
+      preview().querySelectorAll('input[type="checkbox"]')[0] as HTMLInputElement
+    await waitFor(() => expect(box()).toBeTruthy())
+    expect(box().disabled).toBe(false)
+
+    await user.click(box())
+
+    // 1. zdroj v editoru
+    await waitFor(() => {
+      expect(body()).toContain('- [x] koupit mléko')
+    })
+    // Druhý úkol zůstal, jak byl -- přepnul se jen ten, na který se kliklo.
+    expect(body()).toContain('- [ ] zalít kytky')
+
+    // 2. a uloží se to na disk samo, bez Ctrl+S
+    await waitFor(
+      () => {
+        expect(vault.peek('pokus.md') ?? '').toContain('- [x] koupit mléko')
+      },
+      { timeout: 3000 },
+    )
+  })
+
+  it('u bloku kódu je tlačítko, které vloží do schránky jen ten kód', async () => {
+    const user = userEvent.setup()
+    const copied: string[] = []
+    //  má v jsdom jen getter, takže se musí podstrčit
+    // přes defineProperty.
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: (text: string) => {
+          copied.push(text)
+          return Promise.resolve()
+        },
+      },
+    })
+
+    await type(user, '```bash\nls -la\necho hotovo\n```')
+
+    const button = () =>
+      preview().querySelector('[data-copy-code]') as HTMLButtonElement
+    await waitFor(() => expect(button()).toBeTruthy())
+
+    await user.click(button())
+
+    await waitFor(() => {
+      // Do schránky jde samotný kód: ani popisek jazyka, ani značky ohrady.
+      expect(copied).toEqual(['ls -la\necho hotovo'])
+    })
+    await waitFor(() => {
+      expect(button().classList.contains('is-copied')).toBe(true)
+    })
+  })
+})
+
+/**
+ * Automatické ukládání.
+ *
+ * Uživatel se o uložení nestará -- píše a po chvíli je to na disku. Jediné,
+ * podle čeho pozná, že se to povedlo, je hláška v záhlaví. Když ta lže,
+ * je to stejně zlé, jako kdyby se neuložilo: nedá se tomu věřit.
+ */
+describe('automatické ukládání', () => {
+  it('po chvíli uloží a přestane hlásit neuložené změny', async () => {
+    const user = userEvent.setup()
+    await type(user, 'Něco napsaného.')
+
+    // 1. obsah se opravdu dostane na disk
+    await waitFor(
+      () => {
+        expect(vault.peek('pokus.md') ?? '').toContain('Něco napsaného.')
+      },
+      { timeout: 3000 },
+    )
+
+    // 2. a záhlaví to přizná
+    const header = screen.getByLabelText('Poznámka').querySelector('.note-header__status')
+    await waitFor(
+      () => {
+        expect(header?.textContent).toBe('Uloženo')
+      },
+      { timeout: 3000 },
+    )
+  })
+})

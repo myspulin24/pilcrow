@@ -2574,8 +2574,12 @@ textarea:focus-visible,
 
 /* Náhled uvnitř bubliny je užší než v poznámce, tak se zmenší i to, co v něm
    bývá velké. */
+/* Bublina v panelu není stránka náhledu: `.preview` jí dává odsazení
+   a vlastní posuvník, což uvnitř zprávy nedává smysl. */
 .assistant-msg__text.preview {
   white-space: normal;
+  padding: 0;
+  overflow-y: visible;
 }
 
 .assistant-msg__text.preview > :first-child {
@@ -2822,3 +2826,84 @@ textarea:focus-visible,
   color: var(--text);
 }
 
+
+/* --- kopírování bloku kódu -------------------------------------------------- */
+
+/* Tlačítko sedí v rohu bloku a drží se zpátky, dokud na blok nenajedeš myší --
+   u dlouhého scriptu by jinak pořád překáželo v zorném poli. Na dotykovém
+   zařízení není kam najet, tak je vidět vždycky. */
+.markdown-body .code-copy {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.markdown-body .code-block:hover .code-copy,
+.markdown-body .code-copy:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .markdown-body .code-copy {
+    opacity: 1;
+  }
+}
+
+.markdown-body .code-copy:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.code-copy__icon {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Po zkopírování se jen přehodí, která z obou ikon je vidět. */
+.code-copy__icon--done {
+  display: none;
+}
+
+.markdown-body .code-copy.is-copied {
+  border-color: var(--success);
+  color: var(--success);
+  opacity: 1;
+}
+
+.code-copy.is-copied .code-copy__icon--copy {
+  display: none;
+}
+
+.code-copy.is-copied .code-copy__icon--done {
+  display: block;
+}
+
+/* Blok si udělá nahoře místo, aby tlačítko leželo nad kódem, a ne na něm.
+   Bez toho by u dlouhého prvního řádku zakrývalo text, který se má kopírovat.
+   28 px tlačítko + 4 px odsazení = 32. */
+.markdown-body .code-block:has(.code-copy) pre {
+  padding-top: 34px;
+}
+
+/* Popisek jazyka ustoupí doleva, ať se s tlačítkem nepřekrývá. */
+.markdown-body .code-block:has(.code-copy) .code-lang {
+  right: 40px;
+}

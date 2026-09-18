@@ -37,6 +37,7 @@ import {
   type FormatId,
   type MathLanguageId,
 } from '@/core'
+import { handleCopyCodeClick } from '@/lib/copy-code'
 import { useActions, useAppState, useStore } from '@/state/store'
 import { EmptyState } from './Feedback'
 import { ViewSwitch } from './ViewSwitch'
@@ -149,6 +150,7 @@ export function NotePane() {
     if (!live) return ''
     return renderMarkdown(live.body, {
       interactiveTasks: true,
+      copyableCode: true,
       resolveWikiLink: (target) => {
         const resolved = resolveLink(linkIndex, target)
         return { href: `#note/${encodeURIComponent(resolved ?? target)}`, exists: resolved !== null }
@@ -181,6 +183,27 @@ export function NotePane() {
   const onPreviewClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
       const target = event.target as HTMLElement
+      // Kopírování kódu je první: tlačítko sedí uvnitř bloku, takže by se
+      // klik na něj jinak mohl vyložit jako klik do textu pod ním.
+      if (handleCopyCodeClick(target)) {
+        event.preventDefault()
+        return
+      }
+      // Zaškrtávátko úkolu.
+      //
+      // Dřív to viselo na `onChange` kontejneru a nefungovalo to: náhled se
+      // vkládá jako hotové HTML, takže React u těch prvků nemá sledovač
+      // hodnoty a změnu z nich nikdy nevydá. Obyčejný klik projde.
+      //
+      // `preventDefault` je tu schválně -- políčko se nesmí přepnout samo od
+      // sebe. Přepne ho až překreslení ze zdroje, takže to, co vidíš, vždycky
+      // odpovídá tomu, co je v souboru.
+      const task = target.closest('input[type="checkbox"][data-task-index]')
+      if (task instanceof HTMLInputElement) {
+        event.preventDefault()
+        void actions.toggleTaskAt(Number(task.dataset.taskIndex))
+        return
+      }
       const wikilink = target.closest('[data-wikilink]')
       if (wikilink instanceof HTMLElement) {
         event.preventDefault()
@@ -207,16 +230,6 @@ export function NotePane() {
           display: found?.display ?? math.classList.contains('math--block'),
           ...(found ? { replace: { from: found.from, to: found.to } } : {}),
         })
-      }
-    },
-    [actions],
-  )
-
-  const onPreviewChange = useCallback(
-    (event: React.ChangeEvent<HTMLDivElement>) => {
-      const target = event.target as HTMLElement
-      if (target instanceof HTMLInputElement && target.dataset.taskIndex !== undefined) {
-        void actions.toggleTaskAt(Number(target.dataset.taskIndex))
       }
     },
     [actions],
@@ -391,7 +404,6 @@ export function NotePane() {
             className="preview markdown-body"
             aria-label={t.note.preview}
             onClick={onPreviewClick}
-            onChange={onPreviewChange}
             // `renderMarkdown` escapes all text and scheme-checks every URL.
             dangerouslySetInnerHTML={{ __html: html }}
           />

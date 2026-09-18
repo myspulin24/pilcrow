@@ -282,3 +282,31 @@ describe('robustness', () => {
     }
   })
 })
+
+describe('kopírování bloku kódu', () => {
+  it('tlačítko se přidá jen na vyžádání', () => {
+    const source = '```bash\nls -la\n```'
+    expect(renderMarkdown(source)).not.toContain('data-copy-code')
+    expect(renderMarkdown(source, { copyableCode: true })).toContain('data-copy-code')
+  })
+
+  it('dostane ho i blok bez uvedeného jazyka a blok odsazený mezerami', () => {
+    expect(renderMarkdown('```\nprosté\n```', { copyableCode: true })).toContain('data-copy-code')
+    expect(renderMarkdown('    odsazené\n', { copyableCode: true })).toContain('data-copy-code')
+  })
+
+  it('kód zůstane escapovaný a tlačítko stojí mimo něj', () => {
+    const html = renderMarkdown('```html\n<script>zle()</script>\n```', { copyableCode: true })
+    // Tlačítko je před `<pre>`, takže se jeho značky nedostanou do textu,
+    // který se kopíruje.
+    expect(html.indexOf('data-copy-code')).toBeLessThan(html.indexOf('<pre>'))
+    expect(html).toContain('&lt;script&gt;')
+    expect(html).not.toContain('<script>')
+  })
+
+  it('řádkový kód tlačítko nedostane', () => {
+    expect(renderMarkdown('text s `kódem` uvnitř', { copyableCode: true })).not.toContain(
+      'data-copy-code',
+    )
+  })
+})

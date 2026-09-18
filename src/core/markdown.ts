@@ -27,6 +27,35 @@ export interface RenderOptions {
   resolveImage?: (src: string) => string
   /** Render task checkboxes as enabled inputs (the preview pane does). */
   interactiveTasks?: boolean
+  /**
+   * Put a copy button on every block of code.
+   *
+   * Vypnuté schválně: tlačítko samo nic neumí, klik na něj musí odchytit ten,
+   * kdo výsledek vykresluje. Kdyby se přidávalo vždycky, objevilo by se
+   * i tam, kde ho nikdo neposlouchá -- a tlačítko, které po stisknutí mlčí,
+   * je horší než žádné.
+   */
+  copyableCode?: boolean
+}
+
+/**
+ * Tlačítko „zkopírovat“ pro blok kódu.
+ *
+ * Obě ikony jsou v něm rovnou: po zkopírování se jen přehodí třída, takže
+ * odezva nepotřebuje překreslení ani přepisování HTML zvenčí.
+ */
+function copyButton(): string {
+  const copy =
+    '<svg class="code-copy__icon code-copy__icon--copy" viewBox="0 0 24 24" aria-hidden="true">' +
+    '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>'
+  const done =
+    '<svg class="code-copy__icon code-copy__icon--done" viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path d="m5 13 4 4L19 7"/></svg>'
+  const label = escapeHtml(t.markdown.copyCode)
+  return (
+    `<button type="button" class="code-copy" data-copy-code title="${label}" aria-label="${label}">` +
+    `${copy}${done}</button>`
+  )
 }
 
 const SAFE_URL = /^(https?:|mailto:|tel:|#|\/|\.\/|\.\.\/)/i
@@ -557,8 +586,9 @@ export function renderMarkdown(source: string, options: RenderOptions = {}): str
       }
       const languageClass = language ? ` class="language-${escapeHtml(language.toLowerCase())}"` : ''
       const label = language ? `<span class="code-lang">${escapeHtml(language)}</span>` : ''
+      const copy = state.options.copyableCode ? copyButton() : ''
       out.push(
-        `<div class="code-block">${label}<pre><code${languageClass}>${escapeHtml(code.join('\n'))}</code></pre></div>`,
+        `<div class="code-block">${label}${copy}<pre><code${languageClass}>${escapeHtml(code.join('\n'))}</code></pre></div>`,
       )
       continue
     }
@@ -623,7 +653,10 @@ export function renderMarkdown(source: string, options: RenderOptions = {}): str
         state.index += 1
       }
       while (code.length > 0 && (code[code.length - 1] ?? '').trim() === '') code.pop()
-      out.push(`<div class="code-block"><pre><code>${escapeHtml(code.join('\n'))}</code></pre></div>`)
+      const copy = state.options.copyableCode ? copyButton() : ''
+      out.push(
+        `<div class="code-block">${copy}<pre><code>${escapeHtml(code.join('\n'))}</code></pre></div>`,
+      )
       continue
     }
 
