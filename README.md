@@ -201,15 +201,30 @@ Co je potřeba mezi secrets repozitáře:
 ### Vydání nové verze
 
 ```bash
-# 1. zvedni číslo verze na obou místech
+# 1. napiš do CHANGELOG.md, co je v té verzi nového
+#    ## 0.2.0 — 2026-09-19
+
+# 2. zvedni číslo verze na třech místech
 #    package.json  ->  "version"
 #    src-tauri/tauri.conf.json  ->  "version"
 #    src-tauri/Cargo.toml  ->  [package] version
 
-# 2. commit a tag
+# 3. commit a tag
 git commit -am "v0.2.0"
 git tag v0.2.0
 git push && git push --tags
+```
+
+První krok není zdvořilost: **sekce z [CHANGELOG.md](CHANGELOG.md) se stane
+textem vydání a zároveň jde do `latest.json`**, odkud ji aplikace ukáže v okně
+„Co je nového“. Když sekce k dané verzi chybí nebo je prázdná, workflow skončí
+chybou a nic se nevydá — dřív se v tom okně objevovalo „K téhle verzi nejsou
+žádné poznámky“, což je horší než o vydání víc počkat.
+
+Co se z changelogu vytáhne, si můžeš zkontrolovat předem:
+
+```bash
+node scripts/changelog.mjs 0.2.0
 ```
 
 Tag `v*` spustí workflow [`release.yml`](.github/workflows/release.yml): sestaví

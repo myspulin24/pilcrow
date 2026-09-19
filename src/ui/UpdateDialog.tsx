@@ -9,7 +9,14 @@
 
 import { useId } from 'react'
 
-import { downloadPercent, formatProgress, renderMarkdown, summariseNotes, t } from '@/core'
+import {
+  downloadPercent,
+  formatProgress,
+  formatReleaseDate,
+  renderMarkdown,
+  summariseNotes,
+  t,
+} from '@/core'
 import { useActions, useAppState } from '@/state/store'
 
 import { Backdrop, useEscape } from './Modal'
@@ -77,7 +84,9 @@ export function UpdateDialog() {
             {ready
               ? t.update.readyLine(info.version)
               : t.update.availableLine(info.version, info.currentVersion)}
-            {info.date ? <span className="update__date">{t.update.released(info.date)}</span> : null}
+            {formatReleaseDate(info.date ?? '') ? (
+              <span className="update__date">{t.update.released(formatReleaseDate(info.date ?? ''))}</span>
+            ) : null}
           </p>
         ) : null}
 

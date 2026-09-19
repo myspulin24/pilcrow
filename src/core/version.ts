@@ -121,6 +121,30 @@ export function formatProgress(downloaded: number, total: number | null): string
 }
 
 /**
+ * Datum vydání česky.
+ *
+ * Server posílá ISO 8601 v UTC (`2026-09-19T07:45:16.633Z`). To je správný
+ * formát pro přenos a mizerný pro čtení -- a navíc ukazuje jiný čas, než jaký
+ * byl na hodinách toho, kdo se dívá. Převádí se proto do místního času
+ * a českého zápisu: `19. 9. 2026 v 9:45`.
+ *
+ * Nečitelné datum vrátí prázdný řetězec, ne `Invalid Date`. Okno pak řádku
+ * s datem vynechá; chybějící údaj je lepší než nesmysl.
+ */
+export function formatReleaseDate(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const day = date.getDate()
+  const month = date.getMonth() + 1
+  const year = date.getFullYear()
+  const hours = date.getHours()
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+
+  return `${day}. ${month}. ${year} v ${hours}:${minutes}`
+}
+
+/**
  * Poznámky k vydání zkrácené na pár řádků.
  *
  * GitHub do nich přidává patičku „Full Changelog: ...“ a seznam přispěvatelů;

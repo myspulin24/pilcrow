@@ -5,6 +5,7 @@ import {
   downloadPercent,
   formatBytes,
   formatProgress,
+  formatReleaseDate,
   isNewer,
   parseVersion,
   summariseNotes,
@@ -132,5 +133,27 @@ describe('summariseNotes', () => {
 
   it('leaves a short note alone', () => {
     expect(summariseNotes('- jedna\n- dva')).toBe('- jedna\n- dva')
+  })
+})
+
+describe('formatReleaseDate', () => {
+  it('z ISO udělá české datum a čas v místním pásmu', () => {
+    // Testy běží v UTC (viz vitest.config.ts), takže výsledek je předvídatelný.
+    expect(formatReleaseDate('2026-09-19T07:45:16.633Z')).toBe('19. 9. 2026 v 7:45')
+  })
+
+  it('nepřidává nuly tam, kam v češtině nepatří', () => {
+    // Den, měsíc ani hodina se nedoplňují nulou; minuty ano.
+    expect(formatReleaseDate('2026-01-05T09:07:00.000Z')).toBe('5. 1. 2026 v 9:07')
+  })
+
+  it('půlnoc je 0:00, ne 24:00 ani prázdno', () => {
+    expect(formatReleaseDate('2026-03-01T00:00:00.000Z')).toBe('1. 3. 2026 v 0:00')
+  })
+
+  it('nečitelné datum vrátí prázdno, ne „Invalid Date“', () => {
+    for (const bad of ['', '   ', 'včera', '2026-13-45T99:99:99Z']) {
+      expect(formatReleaseDate(bad), bad).toBe('')
+    }
   })
 })
