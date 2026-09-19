@@ -75,7 +75,12 @@ jobs:
 
       - name: Kontrola podpisu
         run: |
-          set -uo pipefail
+          # GitHub pouští krok jako `bash -e`. Tady se ale na nenulový návrat
+          # potřebujeme podívat a rozhodnout se sami -- `grep`, který nic
+          # nenajde, je v půlce případů právě ta žádaná odpověď.
+          set +e
+          set -u
+
           APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/Pilcrow.app"
 
           if [ ! -d "$APP" ]; then
@@ -90,37 +95,47 @@ jobs:
           echo
 
           fail=0
-          check() {  # check <popis> <podmínka-splněna: 0/1>
-            if [ "$2" -eq 0 ]; then
-              echo "  OK    $1"
-            else
-              echo "  CHYBA $1"
-              fail=1
-            fi
-          }
+          ok()  { echo "  OK    $1"; }
+          bad() { echo "  CHYBA $1"; fail=1; }
 
           echo "--- podmínky ---"
 
           # 1. Podepsáno ad-hoc, ale ne jen linkerem. `linker-signed` znamená,
           #    že bundler nepodepsal nic a zůstalo to, co udělal linker.
-          echo "$INFO" | grep -q 'flags=.*adhoc'; check "flags obsahují adhoc" $?
-          echo "$INFO" | grep -q 'linker-signed'
-          [ $? -ne 0 ]; check "flags NEobsahují linker-signed" $?
+          if grep -q 'flags=.*adhoc' <<< "$INFO"
+            then ok "flags obsahují adhoc"
+            else bad "flags obsahují adhoc"
+          fi
+          if grep -q 'linker-signed' <<< "$INFO"
+            then bad "flags NEobsahují linker-signed"
+            else ok "flags NEobsahují linker-signed"
+          fi
 
           # 2. Info.plist je zapečetěný, ne „not bound".
-          echo "$INFO" | grep -qE 'Info\.plist entries=[0-9]+'; check "Info.plist entries=<číslo>" $?
+          if grep -qE 'Info.plist entries=[0-9]+' <<< "$INFO"
+            then ok "Info.plist entries=<číslo>"
+            else bad "Info.plist entries=<číslo>"
+          fi
 
           # 3. Zapečetěné resources -- bez nich si macOS identitu neudrží.
-          echo "$INFO" | grep -qE 'Sealed Resources version=[0-9]+'; check "Sealed Resources version=<číslo>" $?
+          if grep -qE 'Sealed Resources version=[0-9]+' <<< "$INFO"
+            then ok "Sealed Resources version=<číslo>"
+            else bad "Sealed Resources version=<číslo>"
+          fi
 
           # 4. Soubor, ve kterém ty resources jsou.
-          [ -f "$APP/Contents/_CodeSignature/CodeResources" ]; check "existuje Contents/_CodeSignature/CodeResources" $?
+          if [ -f "$APP/Contents/_CodeSignature/CodeResources" ]
+            then ok "existuje Contents/_CodeSignature/CodeResources"
+            else bad "existuje Contents/_CodeSignature/CodeResources"
+          fi
 
           # 5. A nakonec ať to posoudí sám codesign.
           echo
           echo "--- codesign --verify --strict ---"
-          codesign --verify --strict --verbose=2 "$APP" 2>&1
-          check "codesign --verify --strict skončil s 0" $?
+          if codesign --verify --strict --verbose=2 "$APP" 2>&1
+            then ok "codesign --verify --strict skončil s 0"
+            else bad "codesign --verify --strict skončil s 0"
+          fi
 
           echo
           if [ "$fail" -ne 0 ]; then
