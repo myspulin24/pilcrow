@@ -10,6 +10,22 @@ uživateli vyskočí okno s prázdnou kolonkou.
 Píše se pro toho, kdo aplikaci používá, ne pro toho, kdo ji píše: co se změní
 na obrazovce, ne které soubory se upravily. Nejnovější verze je nahoře.
 
+## 0.6.3 — nevydáno
+
+### Přidáno
+
+- **Přesunout do poznámek** v pravém tlačítku na soubor ve stromu. Soubor se
+  přesune do trezoru a stane se z něj běžná poznámka — na původním místě už
+  nezůstane. Když se jméno v poznámkách už používá, přidá se číslo; nic se
+  nepřepíše. Chceš-li soubor nechat, kde je, a jen se na něj odkázat, je na to
+  pořád „Přidat do skupiny“.
+
+### Změněno
+
+- **Otevřená složka i soubor zůstanou otevřené i po zavření aplikace.** Panel
+  Soubory dosud po každém startu začínal prázdný. Cesta, která mezitím zmizela
+  nebo na tomhle počítači nikdy nebyla, se tiše přeskočí.
+
 ## 0.6.2 — 2026-09-19
 
 ### Přidáno
