@@ -1,0 +1,166 @@
+# Kontrola, že se .app pro macOS opravdu podepisuje.
+#
+# Bez podpisu si macOS nedokáže udělat stabilní identitu aplikace: každou
+# kontrolu ji vyhodnotí jako novou, neznámou, a zahodí jí udělená oprávnění
+# TCC. Projeví se to tak, že se aplikace při každém spuštění znovu ptá na
+# přístup do Dokumentů a odpověď „Povolit" si nepamatuje.
+#
+# Chyba byla v tom, že `bundle` v `tauri.conf.json` neměl klíč `macOS`, takže
+# bundler `.app` nepodepsal vůbec a zůstal jen ad-hoc podpis od linkeru.
+# Z konfigurace to není poznat pohledem -- chybějící klíč nikde nesvítí --
+# a na Windows se to neověří. Proto tenhle běh.
+#
+# Spouští se jen tehdy, když se sáhne na konfiguraci sestavení, aby kvůli
+# každé změně v textu nejel desetiminutový build.
+
+name: macos-signing
+
+on:
+  pull_request:
+    paths:
+      - 'src-tauri/tauri.conf.json'
+      - 'src-tauri/Cargo.toml'
+      - '.github/workflows/macos-signing.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Instalace závislostí
+        run: npm ci
+
+      - name: Ikony
+        run: npm run icons
+
+      # Zahoditelný klíč pro podpis aktualizací.
+      #
+      # `createUpdaterArtifacts` je zapnuté, takže bundler chce balíček
+      # podepsat minisignem a bez klíče skončí chybou -- i když je .app i
+      # tarball hotový. Skutečný klíč sem ale nepatří: ověřuje se podpis od
+      # Apple, ne ten aktualizační, a tenhle běh se pouští i nad cizími
+      # příspěvky. Klíč vyrobený tady a zahozený s během stačí a nechává
+      # návratový kód něco znamenat.
+      - name: Zahoditelný klíč pro updater
+        run: |
+          set -euo pipefail
+          npx tauri signer generate --ci --force \
+            -w "$RUNNER_TEMP/updater.key" -p zahodit
+          {
+            echo "TAURI_SIGNING_PRIVATE_KEY=$RUNNER_TEMP/updater.key"
+            echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=zahodit"
+          } >> "$GITHUB_ENV"
+
+      # Stejný cíl jako u vydání, ať se ověřuje to, co se opravdu rozesílá.
+      # `--bundles app` vynechá .dmg, které pro podpis samotné aplikace nehraje
+      # roli a jen by prodlužovalo běh.
+      - name: Sestavení .app
+        run: npx tauri build --target universal-apple-darwin --bundles app
+
+      - name: Kontrola podpisu
+        run: |
+          # GitHub pouští krok jako `bash -e`. Tady se ale na nenulový návrat
+          # potřebujeme podívat a rozhodnout se sami -- `grep`, který nic
+          # nenajde, je v půlce případů právě ta žádaná odpověď.
+          set +e
+          set -u
+
+          APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/Pilcrow.app"
+
+          if [ ! -d "$APP" ]; then
+            echo "::error::Sestavení nevyrobilo $APP"
+            exit 1
+          fi
+
+          echo "--- codesign -dv --verbose=2 ---"
+          # Vypisuje na chybový výstup, proto to sloučení.
+          INFO=$(codesign -dv --verbose=2 "$APP" 2>&1)
+          echo "$INFO"
+          echo
+
+          fail=0
+          ok()  { echo "  OK    $1"; }
+          bad() { echo "  CHYBA $1"; fail=1; }
+
+          echo "--- podmínky ---"
+
+          # 1. Podepsáno ad-hoc, ale ne jen linkerem. `linker-signed` znamená,
+          #    že bundler nepodepsal nic a zůstalo to, co udělal linker.
+          if grep -q 'flags=.*adhoc' <<< "$INFO"
+            then ok "flags obsahují adhoc"
+            else bad "flags obsahují adhoc"
+          fi
+          if grep -q 'linker-signed' <<< "$INFO"
+            then bad "flags NEobsahují linker-signed"
+            else ok "flags NEobsahují linker-signed"
+          fi
+
+          # 2. Info.plist je zapečetěný, ne „not bound".
+          if grep -qE 'Info.plist entries=[0-9]+' <<< "$INFO"
+            then ok "Info.plist entries=<číslo>"
+            else bad "Info.plist entries=<číslo>"
+          fi
+
+          # 3. Zapečetěné resources -- bez nich si macOS identitu neudrží.
+          if grep -qE 'Sealed Resources version=[0-9]+' <<< "$INFO"
+            then ok "Sealed Resources version=<číslo>"
+            else bad "Sealed Resources version=<číslo>"
+          fi
+
+          # 4. Soubor, ve kterém ty resources jsou.
+          if [ -f "$APP/Contents/_CodeSignature/CodeResources" ]
+            then ok "existuje Contents/_CodeSignature/CodeResources"
+            else bad "existuje Contents/_CodeSignature/CodeResources"
+          fi
+
+          # 5. A nakonec ať to posoudí sám codesign.
+          echo
+          echo "--- codesign --verify --strict ---"
+          if codesign --verify --strict --verbose=2 "$APP" 2>&1
+            then ok "codesign --verify --strict skončil s 0"
+            else bad "codesign --verify --strict skončil s 0"
+          fi
+
+          echo
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::.app není podepsaný tak, jak má být -- macOS bude znovu a znovu zahazovat udělená oprávnění."
+            exit 1
+          fi
+          echo "Podpis .app je v pořádku."
+
+      # Do updateru jde .app zabalený do tar.gz. Bundler ho podle zdrojáku
+      # nepodepisuje znovu, jen zabalí hotový adresář -- ověřme, že tím podpis
+      # opravdu projde, místo abychom tomu věřili.
+      - name: Kontrola podpisu v balíčku pro updater
+        run: |
+          set -euo pipefail
+
+          TAR=$(find src-tauri/target -name '*.app.tar.gz' | head -1)
+          if [ -z "$TAR" ]; then
+            echo "::error::Balíček pro updater nevznikl, i když createUpdaterArtifacts je zapnuté."
+            exit 1
+          fi
+
+          WORK=$(mktemp -d)
+          tar -xzf "$TAR" -C "$WORK"
+          EXTRACTED=$(find "$WORK" -maxdepth 1 -name '*.app' | head -1)
+          echo "rozbaleno: $EXTRACTED"
+          test -f "$EXTRACTED/Contents/_CodeSignature/CodeResources"
+          codesign --verify --strict "$EXTRACTED"
+          echo "Podpis přežil i cestu do balíčku pro updater."
