@@ -1,6 +1,6 @@
 {
   "name": "pilcrow",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "type": "module",
   "description": "Pilcrow - čtečka Markdownu a poznámkovník s průzkumníkem souborů, všechno u tebe v počítači. Zdrojem pravdy jsou obyčejné soubory.",
