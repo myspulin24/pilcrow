@@ -299,6 +299,19 @@ export class MemoryVault implements VaultApi {
     return buildTreeFromPaths(path, inside)
   }
 
+  async reopenFolder(path: string): Promise<FolderTree | null> {
+    // Bez skutečného disku je „existuje?“ totéž co „známe pod ním soubory?“.
+    try {
+      return await this.readFolderTree(path)
+    } catch {
+      return null
+    }
+  }
+
+  async reopenFile(path: string): Promise<string | null> {
+    return this.externalFiles.has(path) ? path : null
+  }
+
   async readExternalFile(path: string): Promise<NoteFile> {
     const content = this.externalFiles.get(path)
     if (content === undefined) throw vaultError('not-found', `${path} už neexistuje.`)

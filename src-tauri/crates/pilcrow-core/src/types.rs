@@ -173,6 +173,17 @@ pub struct VaultSettings {
     /// uživatel k nastavení aplikace nemá přístup.
     #[serde(default = "default_true")]
     pub check_updates: bool,
+    /// Naposledy otevřená složka v průzkumníku, aby po startu byla znovu.
+    ///
+    /// Je to absolutní cesta, a proto se snese, že na jiném počítači
+    /// neexistuje -- aplikace ji tam prostě neotevře. Ukládá se sem, a ne
+    /// bokem, aby nastavení zůstalo na jednom místě; cena je, že se s
+    /// trezorem přenese cesta, která jinde nic neznamená.
+    #[serde(default)]
+    pub last_folder: String,
+    /// Naposledy otevřený samostatný soubor, když nebyla otevřená složka.
+    #[serde(default)]
+    pub last_file: String,
     /// Smí panel asistenta posílat text poznámky ven?
     ///
     /// Výchozí `false` je záměr, ne opatrnost: bez tohohle přepínače z počítače
@@ -212,6 +223,8 @@ impl Default for VaultSettings {
             show_sidebar: true,
             show_toolbar: true,
             check_updates: true,
+            last_folder: String::new(),
+            last_file: String::new(),
             assistant_enabled: false,
             assistant_model: String::new(),
         }

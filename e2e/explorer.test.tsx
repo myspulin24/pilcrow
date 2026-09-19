@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { App } from '@/App'
 import { StoreProvider } from '@/state/store'
+import type { VaultSettings } from '@/vault'
 import { MemoryVault } from '@/vault'
 
 const VAULT_NOTE = [
@@ -43,13 +44,14 @@ const EXTERNAL_FILES = {
 
 let vault: MemoryVault
 
-function renderApp() {
+function renderApp(settings?: Partial<VaultSettings>) {
   vault = new MemoryVault({
     seed: { 'poznamka-z-trezoru.md': VAULT_NOTE },
     label: 'Testovací trezor',
     externalFiles: EXTERNAL_FILES,
     externalRoot: '/docs',
     dialogFile: '/elsewhere/standalone.md',
+    settings,
   })
   return render(
     <StoreProvider vault={vault}>
@@ -345,6 +347,83 @@ describe('the explorer and the vault coexist', () => {
     await user.keyboard('{Control>}b{/Control}')
     await waitFor(() => {
       expect(within(workspace()).getByRole('tree')).toBeInTheDocument()
+    })
+  })
+describe('pamatuje si, co bylo otevřené', () => {
+    /** Zavři aplikaci a spusť ji znovu s nastavením, které po sobě nechala. */
+    async function restart() {
+      const settings = await vault.loadSettings()
+      cleanup()
+      renderApp(settings)
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      return settings
+    }
+
+    it('otevře po startu složku z minulého spuštění', async () => {
+      const user = userEvent.setup()
+      await openTheFolder(user)
+
+      const settings = await restart()
+      expect(settings.lastFolder).toBe('/docs')
+
+      // Nikdo nic neklikl -- strom je tam sám od sebe.
+      await waitFor(() => {
+        expect(within(workspace()).getByRole('tree')).toBeInTheDocument()
+      })
+      expect(treeRowNames()).toContain('README.md')
+    })
+
+    it('otevře po startu samostatný soubor z minulého spuštění', async () => {
+      const user = userEvent.setup()
+      await user.click(within(workspace()).getByRole('button', { name: 'Otevřít soubor...' }))
+      await waitFor(() => {
+        expect(within(workspace()).getByText('standalone.md')).toBeInTheDocument()
+      })
+
+      const settings = await restart()
+      expect(settings.lastFile).toBe('/elsewhere/standalone.md')
+      expect(settings.lastFolder).toBe('')
+
+      await waitFor(() => {
+        expect(within(workspace()).getByText('standalone.md')).toBeInTheDocument()
+      })
+      // A je i otevřený v editoru, ne jen vypsaný v panelu.
+      await waitFor(() => {
+        expect(editor().value).toContain('Opened on its own.')
+      })
+    })
+
+    it('zavření složky ji i zapomene', async () => {
+      const user = userEvent.setup()
+      await openTheFolder(user)
+      // Nejdřív se opravdu zapamatovala -- jinak by test prošel i tehdy,
+      // kdyby se nikdy nic neukládalo.
+      await waitFor(async () => {
+        expect((await vault.loadSettings()).lastFolder).toBe('/docs')
+      })
+      await user.click(within(workspace()).getByRole('button', { name: 'Zavřít složku' }))
+
+      const settings = await restart()
+      expect(settings.lastFolder).toBe('')
+      expect(within(workspace()).queryByRole('tree')).not.toBeInTheDocument()
+    })
+
+    it('mlčky přejde cestu, která už neexistuje', async () => {
+      // Nastavení přenesené z jiného počítače: cesta v něm nic neznamená.
+      cleanup()
+      renderApp({ lastFolder: '/tohle/tady/neni' })
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+
+      expect(within(workspace()).queryByRole('tree')).not.toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      // A zapomene se, aby to nezkoušela znovu při každém startu.
+      await waitFor(async () => {
+        expect((await vault.loadSettings()).lastFolder).toBe('')
+      })
     })
   })
 })

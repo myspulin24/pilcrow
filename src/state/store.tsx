@@ -1366,6 +1366,31 @@ export function StoreProvider({
     [reportError],
   )
 
+  /**
+   * Zapiš do nastavení, co má průzkumník otevřít po příštím startu.
+   *
+   * Píše se jen při skutečné změně, takže obnovení po startu ani obyčejné
+   * načtení stromu nesahá na disk zbytečně. Selhání se polyká: neuložená
+   * cesta je nepohodlí, ale rozbít kvůli ní otevření složky by bylo horší.
+   */
+  const rememberExplorer = useCallback(
+    (lastFolder: string, lastFile: string) => {
+      const settings = stateRef.current.settings
+      if (settings.lastFolder === lastFolder && settings.lastFile === lastFile) return
+      void updateSettings({ lastFolder, lastFile }).catch(() => {})
+    },
+    [updateSettings],
+  )
+
+  /** Ukaž v průzkumníku jeden soubor bez složky a zapamatuj si ho. */
+  const showLoneFile = useCallback(
+    (path: string) => {
+      dispatch({ type: 'explorer-lone-file', path })
+      rememberExplorer('', path)
+    },
+    [rememberExplorer],
+  )
+
   const loadTree = useCallback(
     async (rootPath: string, keepExpanded: string[] = []) => {
       dispatch({ type: 'explorer-loading' })
@@ -1380,6 +1405,7 @@ export function StoreProvider({
           truncated: folder.truncated,
           expanded: keepExpanded,
         })
+        rememberExplorer(rootPath, '')
         if (folder.fileCount === 0) {
           toast('info', t.toast.emptyFolder)
         } else if (folder.truncated) {
@@ -1390,19 +1416,19 @@ export function StoreProvider({
         dispatch({ type: 'explorer-error', message })
       }
     },
-    [toast],
+    [rememberExplorer, toast],
   )
 
   const openFileFromDisk = useCallback(async () => {
     try {
       const path = await vaultRef.current.openFileDialog()
       if (!path) return
-      dispatch({ type: 'explorer-lone-file', path })
+      showLoneFile(path)
       await openFromTree(path)
     } catch (error) {
       reportError(error, t.errors.openFile)
     }
-  }, [openFromTree, reportError])
+  }, [openFromTree, reportError, showLoneFile])
 
   const openFolderFromDisk = useCallback(async () => {
     try {
@@ -1580,7 +1606,7 @@ export function StoreProvider({
           return
         }
         if (dropped.file) {
-          dispatch({ type: 'explorer-lone-file', path: dropped.file })
+          showLoneFile(dropped.file)
           await openFromTree(dropped.file)
           return
         }
@@ -1589,7 +1615,7 @@ export function StoreProvider({
         reportError(error, t.errors.drop)
       }
     },
-    [loadTree, openFromTree, reportError, toast],
+    [loadTree, openFromTree, reportError, showLoneFile, toast],
   )
 
   // -- aktualizace ------------------------------------------------------------
@@ -1748,6 +1774,52 @@ export function StoreProvider({
     dispatch({ type: 'update', patch: { dialogOpen: false } })
   }, [])
 
+  /**
+   * Otevři znovu to, co bylo v průzkumníku při posledním zavření aplikace.
+   *
+   * Nejde přes `loadTree`: povolení ke čtení mimo trezor platí jen po dobu
+   * běhu, takže se cesta musí nejdřív znovu povolit -- to dělá `reopenFolder`.
+   * Když cesta zmizela, vrátí null a tady se jen zapomene. Žádná hláška:
+   * uživatel o složku nepřišel teď, a nastavení se dá přenést na počítač,
+   * kde ta cesta nikdy neexistovala.
+   */
+  const restoreExplorer = useCallback(
+    async (settings: VaultSettings): Promise<string | null> => {
+      try {
+        if (settings.lastFolder) {
+          const folder = await vaultRef.current.reopenFolder(settings.lastFolder)
+          if (!folder) {
+            void updateSettings({ lastFolder: '' }).catch(() => {})
+            return null
+          }
+          dispatch({
+            type: 'explorer-tree',
+            rootPath: settings.lastFolder,
+            tree: folder.root,
+            fileCount: folder.fileCount,
+            folderCount: folder.folderCount,
+            truncated: folder.truncated,
+            expanded: [],
+          })
+          return null
+        }
+        if (settings.lastFile) {
+          const file = await vaultRef.current.reopenFile(settings.lastFile)
+          if (!file) {
+            void updateSettings({ lastFile: '' }).catch(() => {})
+            return null
+          }
+          dispatch({ type: 'explorer-lone-file', path: file })
+          return file
+        }
+      } catch {
+        /* průzkumník je doplněk; neotevřená složka nesmí shodit start */
+      }
+      return null
+    },
+    [updateSettings],
+  )
+
   // -- lifecycle -------------------------------------------------------------
 
   useEffect(() => {
@@ -1771,8 +1843,16 @@ export function StoreProvider({
         } catch {
           /* leave the list empty */
         }
-        const first = notes[0]
-        if (first) void open(first.path)
+        // Obnovený samostatný soubor má přednost před první poznámkou:
+        // je to to poslední, co měl uživatel v ruce.
+        const restored = await restoreExplorer(settings)
+        if (cancelled) return
+        if (restored) {
+          void openFromTree(restored)
+        } else {
+          const first = notes[0]
+          if (first) void open(first.path)
+        }
       } catch (error) {
         if (cancelled) return
         dispatch({
@@ -1953,7 +2033,10 @@ export function StoreProvider({
       expandAllFolders,
       collapseAllFolders: () => dispatch({ type: 'explorer-set-expanded', expanded: [] }),
       setTreeFilter: (filter) => dispatch({ type: 'explorer-filter', filter }),
-      closeFolder: () => dispatch({ type: 'explorer-close' }),
+      closeFolder: () => {
+        dispatch({ type: 'explorer-close' })
+        rememberExplorer('', '')
+      },
       openMath: (request) => dispatch({ type: 'math', math: request ?? { tex: '', display: true, language: 'latex' } }),
       closeMath: () => dispatch({ type: 'math', math: null }),
       checkForUpdates,
@@ -2000,6 +2083,7 @@ export function StoreProvider({
       openSettings,
       rebuildIndex,
       refresh,
+      rememberExplorer,
       updateSettings,
       refreshTree,
       remove,

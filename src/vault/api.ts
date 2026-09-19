@@ -127,6 +127,15 @@ export interface VaultSettings {
    */
   checkUpdates: boolean
   /**
+   * Naposledy otevřená složka v průzkumníku, aby po startu byla znovu.
+   *
+   * Absolutní cesta. Když na tomhle počítači neexistuje, nic se neotevře
+   * a nic se nehlásí -- trezor se dá přenést jinam, cesta ne.
+   */
+  lastFolder: string
+  /** Naposledy otevřený samostatný soubor, když nebyla otevřená složka. */
+  lastFile: string
+  /**
    * Smí panel asistenta posílat text poznámky ven?
    *
    * Výchozí `false` je záměr, ne opatrnost: bez tohohle přepínače z počítače
@@ -217,6 +226,19 @@ export interface VaultApi {
   /** Scan an opened folder into a tree of folders and Markdown files. */
   readFolderTree(path: string): Promise<FolderTree>
 
+  /**
+   * Re-open the folder remembered from the last run.
+   *
+   * Access to files outside the vault is granted per run, so a remembered path
+   * has to be granted again before it can be read -- the same thing loading a
+   * collection does. Returns null when the path is gone, which is not an error
+   * worth a message: settings travel with the vault, machines do not.
+   */
+  reopenFolder(path: string): Promise<FolderTree | null>
+
+  /** Re-open the single remembered file. Null when it is no longer there. */
+  reopenFile(path: string): Promise<string | null>
+
   /** Read a file opened through the explorer, by absolute path. */
   readExternalFile(path: string): Promise<NoteFile>
 
@@ -270,6 +292,8 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   showSidebar: true,
   showToolbar: true,
   checkUpdates: true,
+  lastFolder: '',
+  lastFile: '',
   assistantEnabled: false,
   assistantModel: '',
 }

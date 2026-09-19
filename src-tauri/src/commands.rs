@@ -317,6 +317,43 @@ pub async fn pick_folder(app: AppHandle, state: State<'_, AppState>) -> Result<O
     Ok(Some(path.to_string_lossy().to_string()))
 }
 
+/// Re-open the folder the user had open when the app last closed.
+///
+/// Grants access before scanning, the same way `load_collections` re-grants
+/// the files a group links to: the path got into settings through a native
+/// dialog in an earlier run, and throwing that away on every restart is the
+/// whole reason the explorer started empty. A path that no longer exists --
+/// deleted, or on a machine the settings merely synced to -- grants nothing
+/// and returns `None`, so the caller can stay quiet about it.
+#[tauri::command]
+pub fn reopen_folder(state: State<'_, AppState>, path: String) -> Result<Option<FolderTree>> {
+    let target = PathBuf::from(&path);
+    if !target.is_dir() {
+        return Ok(None);
+    }
+    state.with_access(|access| {
+        access.grant_dir(&target);
+        Ok(())
+    })?;
+    explorer::scan_folder(&target, ScanLimits::default()).map(Some)
+}
+
+/// Re-open the single file the user had open when the app last closed.
+///
+/// Same bargain as [`reopen_folder`], narrowed to one file.
+#[tauri::command]
+pub fn reopen_file(state: State<'_, AppState>, path: String) -> Result<Option<String>> {
+    let target = PathBuf::from(&path);
+    if !target.is_file() {
+        return Ok(None);
+    }
+    state.with_access(|access| {
+        access.grant_file(&target);
+        Ok(())
+    })?;
+    Ok(Some(path))
+}
+
 /// Scan a granted folder into a tree of folders and Markdown files.
 #[tauri::command]
 pub fn read_folder_tree(state: State<'_, AppState>, path: String) -> Result<FolderTree> {
@@ -436,6 +473,8 @@ pub fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static
         reveal_path,
         pick_markdown_file,
         pick_folder,
+        reopen_folder,
+        reopen_file,
         read_folder_tree,
         read_external_file,
         write_external_file,

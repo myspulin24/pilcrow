@@ -215,6 +215,14 @@ export class TauriVault implements VaultApi {
     return call<FolderTree>('read_folder_tree', { path })
   }
 
+  reopenFolder(path: string): Promise<FolderTree | null> {
+    return call<FolderTree | null>('reopen_folder', { path })
+  }
+
+  reopenFile(path: string): Promise<string | null> {
+    return call<string | null>('reopen_file', { path })
+  }
+
   readExternalFile(path: string): Promise<NoteFile> {
     return call<NoteFile>('read_external_file', { path })
   }
