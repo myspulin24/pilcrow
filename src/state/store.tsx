@@ -89,6 +89,7 @@ import { applyTheme } from '@/lib/theme'
 
 import { AssistantProvider } from './assistant-store'
 import { GitProvider } from './git-store'
+import { ReposProvider } from './repos-store'
 import type { GitApi } from '@/git'
 
 export interface MathRequest {
@@ -624,6 +625,14 @@ export interface Actions {
   openFileFromDisk(): Promise<void>
   /** Pick a folder and show it as a tree. */
   openFolderFromDisk(): Promise<void>
+
+  /**
+   * Otevřít konkrétní složku bez dialogu.
+   *
+   * Pro výběr repozitáře: cestu zná Pilcrow sám (právě ji naklonoval nebo ji
+   * našel na disku), takže ptát se na ni podruhé by bylo jen zdržení.
+   */
+  openFolderAt(path: string): Promise<void>
   /** Re-scan the open folder, picking up files added outside the app. */
   refreshTree(): Promise<void>
   /** Open a file the explorer is showing. */
@@ -1463,6 +1472,13 @@ export function StoreProvider({
     }
   }, [loadTree, reportError])
 
+  const openFolderAt = useCallback(
+    async (path: string) => {
+      await loadTree(path)
+    },
+    [loadTree],
+  )
+
   const refreshTree = useCallback(async () => {
     const { rootPath, expanded } = stateRef.current.explorer
     if (!rootPath) return
@@ -2089,6 +2105,7 @@ export function StoreProvider({
       toggleFilesSection: () => dispatch({ type: 'toggle-files-section' }),
       openFileFromDisk,
       openFolderFromDisk,
+      openFolderAt,
       refreshTree,
       openFromTree,
       toggleTreeFolder: (path) => dispatch({ type: 'explorer-toggle-dir', path }),
@@ -2140,6 +2157,7 @@ export function StoreProvider({
       openDaily,
       openFileFromDisk,
       openFolderFromDisk,
+      openFolderAt,
       openFromTree,
       openOrCreateByTitle,
       closeSettings,
@@ -2172,7 +2190,9 @@ export function StoreProvider({
   return (
     <StoreContext.Provider value={value}>
       <AssistantProvider assistant={assistant}>
-        <GitProvider git={git}>{children}</GitProvider>
+        <GitProvider git={git}>
+          <ReposProvider>{children}</ReposProvider>
+        </GitProvider>
       </AssistantProvider>
     </StoreContext.Provider>
   )

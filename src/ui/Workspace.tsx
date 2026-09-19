@@ -19,6 +19,7 @@
 import { useRef } from 'react'
 
 import { relativePath, t } from '@/core'
+import { useRepos } from '@/state/repos-store'
 import { useActions, useAppState } from '@/state/store'
 import { Spinner } from './Feedback'
 import { FileIcon, FileTree, FolderIcon } from './FileTree'
@@ -29,6 +30,7 @@ import { Section } from './Section'
 export function Workspace() {
   const state = useAppState()
   const actions = useActions()
+  const repos = useRepos()
   const searchRef = useRef<HTMLInputElement>(null)
   const { explorer } = state
 
@@ -241,6 +243,16 @@ export function Workspace() {
         <button type="button" className="button" onClick={() => void actions.openFolderFromDisk()}>
           {t.workspace.openFolder}
         </button>
+        {repos.view.open ? null : (
+          <button
+            type="button"
+            className="button workspace__repos"
+            title={t.repos.openHint}
+            onClick={repos.actions.open}
+          >
+            {t.repos.open}
+          </button>
+        )}
       </div>
 
       {state.editor?.external && state.activePath ? (

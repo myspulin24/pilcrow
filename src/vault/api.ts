@@ -136,6 +136,13 @@ export interface VaultSettings {
   /** Naposledy otevřený samostatný soubor, když nebyla otevřená složka. */
   lastFile: string
   /**
+   * Kam se stahují repozitáře vybrané v „Otevřít repozitář“.
+   *
+   * Prázdné, dokud si uživatel složku nevybere v dialogu -- tam se zároveň
+   * udělí přístup. Je to jediné místo, kam aplikace zapisuje mimo trezor.
+   */
+  reposFolder: string
+  /**
    * Smí panel asistenta posílat text poznámky ven?
    *
    * Výchozí `false` je záměr, ne opatrnost: bez tohohle přepínače z počítače
@@ -303,6 +310,7 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   checkUpdates: true,
   lastFolder: '',
   lastFile: '',
+  reposFolder: '',
   assistantEnabled: false,
   assistantModel: '',
 }

@@ -184,6 +184,13 @@ pub struct VaultSettings {
     /// Naposledy otevřený samostatný soubor, když nebyla otevřená složka.
     #[serde(default)]
     pub last_file: String,
+    /// Kam se stahují repozitáře vybrané v „Otevřít repozitář“.
+    ///
+    /// Prázdné, dokud si uživatel složku nevybere v dialogu -- tam se zároveň
+    /// udělí přístup. Pilcrow si žádnou cestu nevymýšlí sám: tohle je jediné
+    /// místo, kam aplikace zapisuje mimo trezor.
+    #[serde(default)]
+    pub repos_folder: String,
     /// Smí panel asistenta posílat text poznámky ven?
     ///
     /// Výchozí `false` je záměr, ne opatrnost: bez tohohle přepínače z počítače
@@ -225,6 +232,7 @@ impl Default for VaultSettings {
             check_updates: true,
             last_folder: String::new(),
             last_file: String::new(),
+            repos_folder: String::new(),
             assistant_enabled: false,
             assistant_model: String::new(),
         }

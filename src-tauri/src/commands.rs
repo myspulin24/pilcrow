@@ -516,6 +516,10 @@ pub fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static
         crate::git::gh_recent_runs,
         crate::git::gh_login,
         crate::git::gh_login_cancel,
+        crate::git::gh_status,
+        crate::git::gh_repos,
+        crate::git::scan_clones,
+        crate::git::gh_clone,
         crate::git::open_url
     ]
 }

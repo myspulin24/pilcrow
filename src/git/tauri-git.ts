@@ -7,8 +7,8 @@
 
 import { Channel, invoke } from '@tauri-apps/api/core'
 
-import type { GitProbe } from '@/core'
-import type { GitApi, GitChunk, GitSink, PublishInput } from './api'
+import type { GhProbe, GitProbe } from '@/core'
+import type { CloneInput, GitApi, GitChunk, GitSink, PublishInput } from './api'
 
 /** True, když v tomhle okně běží Tauri. */
 export function isGitAvailable(): boolean {
@@ -71,5 +71,26 @@ export class TauriGit implements GitApi {
 
   openUrl(url: string): Promise<void> {
     return invoke<void>('open_url', { url })
+  }
+
+  ghStatus(): Promise<GhProbe> {
+    return invoke<GhProbe>('gh_status')
+  }
+
+  repos(): Promise<string> {
+    return invoke<string>('gh_repos')
+  }
+
+  clones(folder: string): Promise<string> {
+    return invoke<string>('scan_clones', { folder })
+  }
+
+  clone(input: CloneInput, sink: GitSink): Promise<string> {
+    return invoke<string>('gh_clone', {
+      repo: input.repo,
+      parent: input.parent,
+      folder: input.folder,
+      channel: sinkChannel(sink),
+    })
   }
 }

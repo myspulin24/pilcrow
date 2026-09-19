@@ -37,6 +37,61 @@ pub struct GitProbe {
     pub error: String,
 }
 
+/// Co Rust zjistil o GitHub CLI, bez ohledu na jakoukoli složku.
+///
+/// Výběr repozitáře se děje dřív, než je co otevřít, takže se na stav `gh`
+/// musí jít zeptat i bez cesty -- `GitProbe` to neumí, ta začíná složkou.
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GhProbe {
+    pub installed: bool,
+    pub version: String,
+    /// Surový JSON z `gh auth status --json hosts`.
+    pub auth: String,
+    pub install_command: String,
+    pub error: String,
+}
+
+/// Smí se to předat jako `vlastnik/nazev`?
+///
+/// GitHub povoluje ve jménech písmena, číslice, `-`, `_` a `.`. Tohle je
+/// poslední kontrola před tím, než se z toho stane argument příkazu, takže
+/// nestačí, že to tak přišlo z API.
+pub fn is_safe_repo_slug(slug: &str) -> bool {
+    let mut parts = slug.split('/');
+    let (Some(owner), Some(name), None) = (parts.next(), parts.next(), parts.next()) else {
+        return false;
+    };
+    [owner, name].iter().all(|part| {
+        !part.is_empty()
+            && part.len() <= 100
+            && !part.starts_with('-')
+            && !part.starts_with('.')
+            && part
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+    })
+}
+
+/// Smí to být jméno složky, do které se klonuje?
+///
+/// Jeden segment, žádné oddělovače, žádné `..` -- aby se klon nemohl objevit
+/// jinde než ve složce, kterou uživatel vybral.
+pub fn is_safe_folder_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 120
+        && name != "."
+        && name != ".."
+        && !name.starts_with('-')
+        && !name.starts_with('.')
+        && !name.ends_with('.')
+        && !name.ends_with(' ')
+        && !name
+            .chars()
+            // Raw string: jinak by se z lomítek a uvozovek staly neplatné escapy.
+            .any(|c| c.is_control() || r#"/\:*?"<>|"#.contains(c))
+}
+
 /// Kousky výstupu z `git` a `gh`. Stejný tvar jako u asistenta.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase", tag = "kind")]
@@ -228,6 +283,33 @@ mod tests {
         }
         for bad in ["", "/abs.md", "../ven.md", "docs/../../ven.md", "C:/x.md", "-flag", "a\\b.md", "a//b.md"] {
             assert!(!is_safe_repo_path(bad), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn repo_slugs_are_owner_slash_name_and_nothing_else() {
+        for ok in ["myspulin24/pilcrow", "a-b/c_d.e", "Org1/repo.js"] {
+            assert!(is_safe_repo_slug(ok), "{ok}");
+        }
+        for bad in [
+            "", "bez-lomitka", "a/b/c", "/b", "a/", "-a/b", "a/-b", ".a/b", "a b/c", "a/b c",
+            "a/b;rm -rf", "a/--flag", "a/b
+",
+        ] {
+            assert!(!is_safe_repo_slug(bad), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn clone_folder_names_stay_one_segment() {
+        for ok in ["pilcrow", "moje-docs", "a_b.c"] {
+            assert!(is_safe_folder_name(ok), "{ok}");
+        }
+        for bad in [
+            "", ".", "..", "a/b", r"a\b", "-flag", ".skryta", "konec.", "konec ", "a:b", "a*b", "a\nb",
+            "a\"b", "a|b", "a?b", "a<b",
+        ] {
+            assert!(!is_safe_folder_name(bad), "{bad:?}");
         }
     }
 

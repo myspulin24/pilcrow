@@ -14,7 +14,7 @@
  * z GitHubu. Nic víc. Běhy se nikdy nespouštějí a workflow se nemění.
  */
 
-import type { GitProbe } from '@/core'
+import type { GhProbe, GitProbe } from '@/core'
 
 /** Kus výstupu z běžícího procesu, tak jak přišel. */
 export type GitChunk =
@@ -75,6 +75,36 @@ export interface GitApi {
 
   /** Otevřít adresu v prohlížeči. Jen https; hlídá to Rust. */
   openUrl(url: string): Promise<void>
+
+  // --- výběr repozitáře ----------------------------------------------------
+  //
+  // Tahle čtveřice běží dřív, než je co otevřít, takže se neptá na složku --
+  // až na `clones` a `clone`, které pracují s tou, kam se stahuje.
+
+  /** Stav GitHub CLI bez ohledu na složku. Čte ho `ghProbeStep`. */
+  ghStatus(): Promise<GhProbe>
+
+  /** Surový JSON repozitářů z `gh api user/repos`. Čte ho `parseRepos`. */
+  repos(): Promise<string>
+
+  /** Co ve složce s repozitáři už leží: cesty a jejich `origin`. Čte `parseClones`. */
+  clones(folder: string): Promise<string>
+
+  /**
+   * Stáhnout repozitář. Vrací cílovou cestu hned, průběh chodí do `sink`.
+   *
+   * Existující složku nikdy nepřepíše -- to je chyba, ne přepis.
+   */
+  clone(input: CloneInput, sink: GitSink): Promise<string>
+}
+
+export interface CloneInput {
+  /** `vlastnik/nazev`. */
+  repo: string
+  /** Složka, do které se stahuje. */
+  parent: string
+  /** Jméno podsložky, která vznikne. */
+  folder: string
 }
 
 /** Vytáhnout z čehokoli chybovou větu, kterou jde ukázat člověku. */

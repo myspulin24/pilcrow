@@ -10,7 +10,7 @@ import { isGitAvailable, TauriGit } from './tauri-git'
 import type { GitApi } from './api'
 
 export * from './api'
-export { MemoryGit, type MemoryChange, type MemoryGitOptions } from './memory-git'
+export { MemoryGit, type MemoryChange, type MemoryGitOptions, type MemoryRepo } from './memory-git'
 export { TauriGit, isGitAvailable } from './tauri-git'
 
 export function createGit(): GitApi {

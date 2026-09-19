@@ -28,8 +28,9 @@ use tauri::{AppHandle, State};
 
 use pilcrow_core::error::{CoreError, Result};
 use pilcrow_core::git::{
-    gh_candidates, git_candidates, install_commands, is_https_url, is_safe_branch, is_safe_repo_path,
-    GitChunk, GitProbe, PublishRequest,
+    gh_candidates, git_candidates, install_commands, is_https_url, is_safe_branch,
+    is_safe_folder_name, is_safe_repo_path, is_safe_repo_slug, GhProbe, GitChunk, GitProbe,
+    PublishRequest,
 };
 
 use crate::assistant::{hide_console, home, pump, Killable};
@@ -631,6 +632,186 @@ pub fn open_url(app: AppHandle, url: String) -> Result<()> {
     app.opener()
         .open_url(url, None::<&str>)
         .map_err(|error| CoreError::Io(format!("Prohlížeč se nepodařilo otevřít: {error}")))
+}
+
+// -- výběr repozitáře -------------------------------------------------------
+
+/// Stav GitHub CLI bez ohledu na složku.
+///
+/// Repozitář se vybírá dřív, než je co otevřít, takže `git_probe` -- která
+/// začíná složkou -- se na tohle zeptat nedá.
+#[tauri::command]
+pub async fn gh_status(state: State<'_, GitState>) -> Result<GhProbe> {
+    let (_, install_command) = install_commands(cfg!(windows), cfg!(target_os = "macos"));
+    let mut probe = GhProbe {
+        install_command,
+        ..GhProbe::default()
+    };
+
+    let Some((gh, version)) = locate_gh(&state) else {
+        return Ok(probe);
+    };
+    probe.installed = true;
+    probe.version = version;
+
+    match run_in(&gh, None, &["auth", "status", "--json", "hosts"]) {
+        Ok(output) => {
+            let text = stdout_of(&output);
+            if text.is_empty() {
+                probe.error = stderr_of(&output);
+            } else {
+                probe.auth = text;
+            }
+        }
+        Err(error) => probe.error = format!("`gh auth status` selhal: {error}"),
+    }
+    Ok(probe)
+}
+
+/// Repozitáře, ke kterým má přihlášený uživatel přístup.
+///
+/// `affiliation` je schválně široké: vlastní, organizační i ty, kam je někdo
+/// přizvaný jako spolupracovník. Strop je sto -- víc by znamenalo stránkovat
+/// a seznam, ve kterém se stejně hledá, nemá cenu mít delší.
+///
+/// Čtení, nic jiného: `gh api` bez metody je GET.
+#[tauri::command]
+pub async fn gh_repos(state: State<'_, GitState>) -> Result<String> {
+    let gh = require_gh(&state)?;
+    let output = run_in(
+        &gh,
+        None,
+        &[
+            "api",
+            "user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member",
+        ],
+    )
+    .map_err(|error| CoreError::Io(format!("`gh api` se nepodařilo spustit: {error}")))?;
+
+    if !output.status.success() {
+        let details = stderr_of(&output);
+        return Err(CoreError::Io(if details.is_empty() {
+            "Seznam repozitářů se nepodařilo načíst.".into()
+        } else {
+            details
+        }));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// Projít složku s repozitáři a zjistit, co v ní už leží.
+///
+/// Vrací dvojice cesta + `origin`; párovat se pak musí podle remote, ne podle
+/// jména složky -- `things-3` klidně může být repo `Notes_MJ`.
+///
+/// Složku přitom povolí. Je z nastavení, kam se dostala výběrem v dialogu,
+/// takže je to stejná úmluva jako u [`reopen_folder`](crate::commands::reopen_folder):
+/// cestu vybral uživatel, jen v jiném spuštění.
+#[tauri::command]
+pub async fn scan_clones(
+    app: State<'_, AppState>,
+    state: State<'_, GitState>,
+    folder: String,
+) -> Result<String> {
+    let root = PathBuf::from(&folder);
+    if !root.is_dir() {
+        return Ok("[]".into());
+    }
+    app.with_access(|access| {
+        access.grant_dir(&root);
+        Ok(())
+    })?;
+    let git = require_git(&state)?;
+
+    let Ok(entries) = std::fs::read_dir(&root) else {
+        return Ok("[]".into());
+    };
+    let mut found = Vec::new();
+    for entry in entries.filter_map(std::result::Result::ok) {
+        let path = entry.path();
+        if !path.join(".git").exists() {
+            continue;
+        }
+        found.push(serde_json::json!({
+            "path": path.to_string_lossy(),
+            "remote": git_value(&git, &path, &["remote", "get-url", "origin"]),
+        }));
+    }
+
+    serde_json::to_string(&found)
+        .map_err(|error| CoreError::Io(format!("Seznam se nepodařilo sestavit: {error}")))
+}
+
+/// Stáhnout repozitář do složky, kterou uživatel vybral.
+///
+/// Cílová cesta se vrací hned; jestli se stahování povedlo, řekne kanál.
+/// `gh repo clone` schválně místo holého `git clone`: umí soukromá repa bez
+/// řešení přihlášení a u forku rovnou nastaví `upstream`.
+///
+/// Existující složku nikdy nepřepíše -- klonovat přes cizí data by byl
+/// nejdražší možný omyl.
+#[tauri::command]
+pub async fn gh_clone(
+    app: State<'_, AppState>,
+    state: State<'_, GitState>,
+    repo: String,
+    parent: String,
+    folder: String,
+    channel: Channel<GitChunk>,
+) -> Result<String> {
+    if !is_safe_repo_slug(&repo) {
+        return Err(CoreError::InvalidName(format!(
+            "{repo} není platné jméno repozitáře."
+        )));
+    }
+    if !is_safe_folder_name(&folder) {
+        return Err(CoreError::InvalidName(format!(
+            "{folder} není platné jméno složky."
+        )));
+    }
+
+    let root = PathBuf::from(&parent);
+    if !root.is_dir() {
+        return Err(CoreError::NotFound(format!(
+            "{} není složka.",
+            root.display()
+        )));
+    }
+    app.with_access(|access| {
+        access.grant_dir(&root);
+        Ok(())
+    })?;
+
+    let target = root.join(&folder);
+    if target.exists() {
+        return Err(CoreError::Duplicate(format!(
+            "{} už existuje. Buď ji přejmenuj, nebo repozitář rovnou otevři.",
+            target.display()
+        )));
+    }
+
+    let gh = require_gh(&state)?;
+    let target_text = target.to_string_lossy().to_string();
+    let label = format!("gh repo clone {repo}");
+    let clone_target = target_text.clone();
+
+    let slot = Arc::clone(&state.running);
+    if let Ok(mut held) = slot.lock() {
+        if let Some(previous) = held.as_mut() {
+            previous.kill_now();
+        }
+    }
+
+    std::thread::spawn(move || {
+        let mut command = base_command(&gh);
+        // `--progress` schválně: bez terminálu git mlčí a u velkého
+        // repozitáře by panel vypadal zaseknutě.
+        command.args(["repo", "clone", &repo, &clone_target, "--", "--progress"]);
+        if run_step(command, &label, &channel, &slot) {
+            let _ = channel.send(GitChunk::Finished);
+        }
+    });
+    Ok(target_text)
 }
 
 #[cfg(test)]

@@ -9,8 +9,18 @@
  * pushi neobjeví hned.
  */
 
-import type { GitProbe } from '@/core'
-import type { GitApi, GitChunk, GitSink, PublishInput } from './api'
+import type { GhProbe, GitProbe } from '@/core'
+import type { CloneInput, GitApi, GitChunk, GitSink, PublishInput } from './api'
+
+/** Repozitář na „GitHubu“, jak ho vrátí paměťová implementace. */
+export interface MemoryRepo {
+  fullName: string
+  description?: string
+  language?: string
+  sizeKb?: number
+  private?: boolean
+  canPush?: boolean
+}
 
 export interface MemoryChange {
   /** Cesta od kořene repa. */
@@ -40,6 +50,19 @@ export interface MemoryGitOptions {
   workflowName?: string
   /** Nechat push selhat s touhle zprávou. Dá se za běhu smazat a zkusit znovu. */
   failPush?: string
+  /** Repozitáře, které „GitHub“ vrátí ve výběru. */
+  repos?: MemoryRepo[]
+  /** Co už leží ve složce s repozitáři: cesta -> remote. */
+  clones?: Record<string, string>
+  /** Nechat stahování selhat s touhle zprávou. */
+  failClone?: string
+  /**
+   * Zastavit stahování v půlce, dokud test nezavolá `finishClone`.
+   *
+   * Bez toho se klon dokončí dřív, než se dá ukazatel průběhu vůbec vykreslit,
+   * a test by tvrdil, že ho viděl, aniž by ho viděl.
+   */
+  holdClone?: boolean
 }
 
 const STEPS = ['Set up job', 'Run actions/checkout@v4', 'Instalace závislostí', 'Testy', 'Complete job']
@@ -56,6 +79,10 @@ export class MemoryGit implements GitApi {
   readonly opened: string[] = []
   /** Poslední odeslání, k ověření v testech. */
   published: { branch: string; message: string; files: string[] } | null = null
+  /** Poslední stahování, k ověření v testech. */
+  cloned: (CloneInput & { target: string }) | null = null
+  /** Dokončit zadržené stahování. `null`, když žádné neběží. */
+  finishClone: (() => void) | null = null
   /** Zpráva, se kterou má push selhat. Prázdné = projde. */
   failPush: string
 
@@ -276,6 +303,92 @@ export class MemoryGit implements GitApi {
 
   async openUrl(url: string): Promise<void> {
     this.opened.push(url)
+  }
+
+  // -- výběr repozitáře -------------------------------------------------------
+
+  async ghStatus(): Promise<GhProbe> {
+    const installed = this.options.ghInstalled ?? true
+    return {
+      installed,
+      version: installed ? 'gh version 2.92.0' : '',
+      auth: installed
+        ? JSON.stringify({
+            hosts: this.loggedIn
+              ? {
+                  'github.com': [
+                    {
+                      state: 'success',
+                      active: true,
+                      host: 'github.com',
+                      login: this.options.login ?? 'tester',
+                      scopes: 'gist, read:org, repo, workflow',
+                    },
+                  ],
+                }
+              : {},
+          })
+        : '',
+      installCommand: 'winget install --id GitHub.cli',
+      error: '',
+    }
+  }
+
+  async repos(): Promise<string> {
+    if (!this.loggedIn) throw new Error('gh: To get started with GitHub CLI, please run: gh auth login')
+    // Tvar REST, ne ten z `gh repo list` -- stejně jako doopravdy.
+    return JSON.stringify(
+      (this.options.repos ?? []).map((repo, index) => ({
+        full_name: repo.fullName,
+        description: repo.description ?? null,
+        language: repo.language ?? null,
+        size: repo.sizeKb ?? 100,
+        default_branch: 'main',
+        updated_at: `2026-09-${String(19 - index).padStart(2, '0')}T10:00:00Z`,
+        clone_url: `https://github.com/${repo.fullName}.git`,
+        private: repo.private ?? false,
+        fork: false,
+        archived: false,
+        permissions: { admin: true, push: repo.canPush ?? true, pull: true },
+      })),
+    )
+  }
+
+  async clones(folder: string): Promise<string> {
+    const prefix = folder.replace(/[\\/]+$/, '')
+    return JSON.stringify(
+      Object.entries(this.options.clones ?? {})
+        .filter(([path]) => path.startsWith(prefix))
+        .map(([path, remote]) => ({ path, remote })),
+    )
+  }
+
+  async clone(input: CloneInput, sink: GitSink): Promise<string> {
+    const target = `${input.parent.replace(/[\\/]+$/, '')}/${input.folder}`
+    this.cloned = { ...input, target }
+    const say = (text: string) => sink({ kind: 'out', text })
+
+    say(`$ gh repo clone ${input.repo}\n`)
+    say(`Cloning into '${input.folder}'...\n`)
+    if (this.options.failClone) {
+      sink({ kind: 'failed', message: this.options.failClone })
+      return target
+    }
+    // Průběh odděluje návrat vozíku, přesně jako `git clone --progress`.
+    say('Receiving objects:   0% (1/683)\rReceiving objects:  50% (342/683)\r')
+
+    if (this.options.holdClone) {
+      this.finishClone = () => {
+        this.finishClone = null
+        say('Receiving objects: 100% (683/683), 832.29 KiB | 2.48 MiB/s, done.\r')
+        sink({ kind: 'finished' })
+      }
+      return target
+    }
+
+    say('Receiving objects: 100% (683/683), 832.29 KiB | 2.48 MiB/s, done.\r')
+    sink({ kind: 'finished' })
+    return target
   }
 }
 

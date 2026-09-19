@@ -39,6 +39,27 @@ export interface GitProbe {
   error: string
 }
 
+/**
+ * Co Rust zjistil o GitHub CLI, bez ohledu na jakoukoli složku.
+ *
+ * Repozitář se vybírá dřív, než je co otevřít, takže `GitProbe` -- která
+ * začíná složkou -- se na tohle zeptat nedá.
+ */
+export interface GhProbe {
+  installed: boolean
+  version: string
+  /** Surový JSON z `gh auth status --json hosts`; rozumí mu `parseGhAuth`. */
+  auth: string
+  installCommand: string
+  error: string
+}
+
+/** Kde stojí GitHub CLI samo o sobě, mimo kontext otevřené složky. */
+export function ghProbeStep(probe: GhProbe | null): 'install' | 'login' | 'ready' {
+  if (!probe || !probe.installed) return 'install'
+  return parseGhAuth(probe.auth)?.loggedIn ? 'ready' : 'login'
+}
+
 /** Kdo je přihlášený v GitHub CLI. */
 export interface GhAccount {
   loggedIn: boolean

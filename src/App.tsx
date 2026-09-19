@@ -9,6 +9,7 @@ import { isTypingTarget, matchesShortcut } from '@/lib/shortcuts'
 import { buildCommands } from '@/state/commands'
 import { useAssistant } from '@/state/assistant-store'
 import { useGit } from '@/state/git-store'
+import { useRepos } from '@/state/repos-store'
 import { useActions, useAppState, useStore } from '@/state/store'
 import { CommandPalette } from '@/ui/CommandPalette'
 import { ContextMenu } from '@/ui/ContextMenu'
@@ -16,6 +17,7 @@ import { ConflictView } from '@/ui/ConflictView'
 import { ErrorState, Spinner, Toasts } from '@/ui/Feedback'
 import { ConfirmModal, PromptModal } from '@/ui/Modal'
 import { AssistantPanel } from '@/ui/AssistantPanel'
+import { RepoDialog } from '@/ui/RepoDialog'
 import { SettingsDialog } from '@/ui/SettingsDialog'
 import { UpdateDialog } from '@/ui/UpdateDialog'
 import { Workspace } from '@/ui/Workspace'
@@ -28,6 +30,7 @@ export function App() {
   const actions = useActions()
   const assistant = useAssistant()
   const git = useGit()
+  const repos = useRepos()
   const openPublish = git.view.step === 'ready' && git.view.selected.length > 0 ? git.actions.openPublish : undefined
   // Modals live in the store so the sidebar, the tree and the palette can all
   // raise one without threading callbacks through every component.
@@ -50,6 +53,7 @@ export function App() {
         confirm: requestConfirm,
         toggleAssistant: assistant.actions.toggle,
         openPublish,
+        openRepos: repos.actions.open,
       })
       for (const command of commands) {
         if (!command.shortcut) continue
@@ -63,7 +67,7 @@ export function App() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [state, actions, assistant, openPublish, prompt, confirm, menu, requestPrompt, requestConfirm])
+  }, [state, actions, assistant, openPublish, repos, prompt, confirm, menu, requestPrompt, requestConfirm])
 
   // `#note/<path>` links inside the preview.
   useEffect(() => {
@@ -109,6 +113,7 @@ export function App() {
       {prompt ? <PromptModal request={prompt} onClose={actions.dismissPrompt} /> : null}
       {confirm ? <ConfirmModal request={confirm} onClose={actions.dismissConfirm} /> : null}
       {menu ? <ContextMenu request={menu} onClose={actions.closeMenu} /> : null}
+      <RepoDialog />
       <SettingsDialog />
       <ConflictView />
       <UpdateDialog />

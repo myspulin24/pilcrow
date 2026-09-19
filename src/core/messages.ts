@@ -245,6 +245,7 @@ export const t = {
 
   commands: {
     gitPublish: 'Odeslat změny do gitu…',
+    openRepo: 'Otevřít repozitář z GitHubu…',
     newNote: 'Nová poznámka',
     newNoteInFolder: 'Nová poznámka ve složce...',
     dailyNote: 'Otevřít dnešní poznámku',
@@ -500,6 +501,56 @@ export const t = {
     autoOff: 'Automatická kontrola je vypnutá (PILCROW_AUTO_UPDATE=0).',
     errorCheck: 'Aktualizace se nepodařilo zkontrolovat.',
     errorInstall: 'Aktualizaci se nepodařilo nainstalovat.',
+  },
+
+  repos: {
+    open: 'Otevřít repozitář...',
+    openHint: 'Vybrat repozitář z GitHubu a otevřít ho jako složku',
+    title: 'Otevřít repozitář',
+    search: 'Hledat repozitář',
+    checking: 'Zjišťuji stav GitHub CLI…',
+    reload: 'Načíst znovu',
+
+    unsupported: 'Repozitáře jde otevírat jen v desktopové aplikaci.',
+    install: 'Je potřeba GitHub CLI',
+    installBody:
+      'Seznam tvých repozitářů umí načíst jen GitHub CLI. Nainstaluj ho v terminálu a klikni na „Načíst znovu“.',
+    login: 'Přihlas se k GitHubu',
+    loginBody:
+      'Pilcrow se zeptá GitHub CLI, ke kterým repozitářům máš přístup. Přihlášení proběhne v prohlížeči a žádný token aplikace nevidí.',
+    loginButton: 'Přihlásit se k GitHubu',
+    account: (login: string) => `Přihlášen jako ${login}`,
+
+    empty: 'Žádné repozitáře k zobrazení.',
+    noMatches: 'Žádný repozitář neodpovídá hledání.',
+    cloned: 'na disku',
+    private: 'soukromé',
+    fork: 'fork',
+    archived: 'archivováno',
+    readOnly: 'jen ke čtení',
+    readOnlyHint: 'Do tohohle repozitáře nemáš právo zapisovat, takže odeslání změn by selhalo.',
+    openOne: 'Otevřít',
+    clone: 'Stáhnout',
+    cloning: (name: string) => `Stahuji ${name}…`,
+    phase: {
+      start: 'Navazuji spojení',
+      counting: 'Počítám objekty',
+      compressing: 'Komprimuji',
+      receiving: 'Stahuji',
+      resolving: 'Rozbaluji',
+      files: 'Zapisuji soubory',
+      done: 'Hotovo',
+    } as Record<string, string>,
+
+    folderLabel: 'Stahovat do:',
+    folderUnset: 'Složka pro repozitáře není vybraná.',
+    folderUnsetBody: 'Vyber složku, kam se mají stažené repozitáře ukládat. Zapamatuje se.',
+    pickFolder: 'Vybrat složku...',
+    changeFolder: 'Změnit',
+    pickFolderTitle: 'Kam ukládat stažené repozitáře',
+
+    failed: 'GitHub se nepodařilo oslovit.',
+    cloneFailed: 'Repozitář se nepodařilo stáhnout.',
   },
 
   git: {

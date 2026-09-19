@@ -32,6 +32,8 @@ export interface CommandContext {
   toggleAssistant?: () => void
   /** Otevřít dialog odeslání do gitu. Chybí, když není co odeslat. */
   openPublish?: () => void
+  /** Otevřít výběr repozitáře z GitHubu. */
+  openRepos?: () => void
 }
 
 export function buildCommands({
@@ -41,6 +43,7 @@ export function buildCommands({
   confirm,
   toggleAssistant,
   openPublish,
+  openRepos,
 }: CommandContext): Command[] {
   const hasNote = state.activePath !== null
   const activePath = state.activePath ?? ''
@@ -322,6 +325,13 @@ export function buildCommands({
       hint: t.settings.openHint,
       shortcut: { key: ',', mod: true },
       run: () => actions.openSettings(),
+    },
+    {
+      id: 'git.repos',
+      title: t.commands.openRepo,
+      group: t.palette.groups.explorer,
+      enabled: openRepos !== undefined,
+      run: () => openRepos?.(),
     },
     {
       id: 'git.publish',

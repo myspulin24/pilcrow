@@ -10,6 +10,30 @@ uživateli vyskočí okno s prázdnou kolonkou.
 Píše se pro toho, kdo aplikaci používá, ne pro toho, kdo ji píše: co se změní
 na obrazovce, ne které soubory se upravily. Nejnovější verze je nahoře.
 
+## 0.8.0 — nevydáno
+
+### Přidáno
+
+- **Otevřít repozitář** — nové tlačítko v levém sloupci. Přihlásíš se
+  k GitHubu, uvidíš seznam svých repozitářů s popisem, jazykem a velikostí,
+  jeden vybereš a Pilcrow ho otevře jako složku. Co už máš na disku, pozná
+  a rovnou otevře; zbytek nejdřív stáhne a ukáže u toho průběh.
+- Seznam pozná naklonovaný repozitář **podle adresy remote, ne podle jména
+  složky** — složka `things-3` se správně spáruje s repozitářem `Notes_MJ`.
+- U repozitáře, do kterého nemáš právo zapisovat, je to vidět předem. Dřív by
+  se to poznalo až tím, že odeslání změn selže na posledním kroku.
+- Složka pro stahování se vybírá jednou a pamatuje se.
+
+### Změněno
+
+- **README je přepsané** na běžnou dokumentaci produktu: přehled, instalace,
+  funkce, konfigurace a vývoj místo dosavadního dlouhého výkladu.
+
+### Opraveno
+
+- Práce s gitem byla dostupná jen tomu, kdo náhodou otevřel složku s
+  repozitářem — nikde v aplikaci nebylo vidět, že něco takového existuje.
+
 ## 0.7.0 — 2026-09-19
 
 ### Přidáno
