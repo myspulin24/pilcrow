@@ -8,14 +8,14 @@
  * `src-tauri/crates/pilcrow-core/src/explorer.rs`.
  */
 
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { App } from '@/App'
 import { StoreProvider } from '@/state/store'
 import type { VaultSettings } from '@/vault'
-import { MemoryVault } from '@/vault'
+import { MemoryVault, toIndexRecord } from '@/vault'
 
 const VAULT_NOTE = [
   '---',
@@ -349,7 +349,69 @@ describe('the explorer and the vault coexist', () => {
       expect(within(workspace()).getByRole('tree')).toBeInTheDocument()
     })
   })
-describe('pamatuje si, co bylo otevřené', () => {
+
+  describe('přesun souboru do poznámek', () => {
+    const menuItem = (name: string | RegExp) => screen.findByRole('menuitem', { name })
+
+    /**
+     * Pravé tlačítko na soubor ve stromu.
+     *
+     * Cílem je `button` uvnitř řádku, ne `li[role=treeitem]`: obsluha visí
+     * na tlačítku a události bublají nahoru, ne dolů.
+     */
+    async function rightClickFile(name: RegExp) {
+      const button = within(workspace()).getByRole('button', { name })
+      await act(async () => {
+        fireEvent.contextMenu(button, { clientX: 40, clientY: 40 })
+      })
+    }
+
+    async function moveReadme(user: ReturnType<typeof userEvent.setup>) {
+      await rightClickFile(/README.md/)
+      await user.click(await menuItem(/Přesunout do poznámek/))
+      const dialog = await screen.findByRole('alertdialog', { name: /Přesunout do poznámek/ })
+      await user.click(within(dialog).getByRole('button', { name: 'Přesunout' }))
+    }
+
+    it('přesune soubor z průzkumníku do trezoru a otevře ho jako poznámku', async () => {
+      const user = userEvent.setup()
+      await openTheFolder(user)
+      await moveReadme(user)
+
+      // Z původního místa je pryč -- tohle je přesun, ne kopie.
+      await waitFor(() => {
+        expect(vault.peekExternal('/docs/README.md')).toBeUndefined()
+      })
+      await waitFor(async () => {
+        expect((await vault.readNote('README.md')).content).toContain('Top level readme.')
+      })
+      // Ze stromu zmizel taky.
+      await waitFor(() => {
+        expect(treeRowNames()).not.toContain('README.md')
+      })
+      await waitFor(() => {
+        expect(editor().value).toContain('Top level readme.')
+      })
+    })
+
+    it('nepřepíše stejnojmennou poznámku, očísluje ji', async () => {
+      const user = userEvent.setup()
+      const mine = ['# Moje', '', 'Tohle tu bylo první.', ''].join('\n')
+      await act(async () => {
+        await vault.createNote({ path: 'README.md', content: mine, record: toIndexRecord('README.md', mine) })
+      })
+      await openTheFolder(user)
+      await moveReadme(user)
+
+      await waitFor(async () => {
+        expect((await vault.readNote('README 2.md')).content).toContain('Top level readme.')
+      })
+      // Původní poznámka je nedotčená.
+      expect((await vault.readNote('README.md')).content).toContain('Tohle tu bylo první.')
+    })
+  })
+
+  describe('pamatuje si, co bylo otevřené', () => {
     /** Zavři aplikaci a spusť ji znovu s nastavením, které po sobě nechala. */
     async function restart() {
       const settings = await vault.loadSettings()

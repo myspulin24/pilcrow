@@ -42,6 +42,7 @@ import {
   type VaultStatus,
   type WriteResult,
 } from './api'
+import { toIndexRecord } from './record'
 
 interface Entry {
   content: string
@@ -374,6 +375,25 @@ export class MemoryVault implements VaultApi {
       else ignored += 1
     }
     return { folder, file, ignored }
+  }
+
+  async moveIntoVault(path: string): Promise<string> {
+    const content = this.externalFiles.get(path)
+    if (content === undefined) throw vaultError('not-found', `${path} už neexistuje.`)
+
+    // Stejné pravidlo jako v Rustu: nikdy nepřepsat, jméno se očísluje.
+    const name = path.split(/[\/]/).pop() || 'bez-nazvu.md'
+    const dot = name.lastIndexOf('.')
+    const stem = dot > 0 ? name.slice(0, dot) : name
+    const extension = dot > 0 ? name.slice(dot) : '.md'
+    let target = `${stem}${extension}`
+    for (let attempt = 2; this.files.has(target); attempt += 1) {
+      target = `${stem} ${attempt}${extension}`
+    }
+
+    this.put(target, content, toIndexRecord(target, content))
+    this.externalFiles.delete(path)
+    return target
   }
 
   async deleteExternalFile(path: string): Promise<void> {

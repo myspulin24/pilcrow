@@ -588,6 +588,9 @@ export interface Actions {
   closeMenu(): void
   deleteFile(path: string, external: boolean): Promise<void>
 
+  /** Přesuň soubor z průzkumníku do trezoru; vrací se až po otevření nové poznámky. */
+  moveIntoVault(path: string): Promise<void>
+
   // --- modals ---------------------------------------------------------------
   promptFor(request: PromptRequest): void
   confirmFor(request: ConfirmRequest): void
@@ -1589,6 +1592,43 @@ export function StoreProvider({
   )
 
   /**
+   * Přesuň soubor z průzkumníku do poznámek.
+   *
+   * Přesun, ne kopie: smysl je, aby soubor přestal existovat na dvou místech.
+   * Kdo ho chce nechat, kde je, a jen se na něj odkázat, má na to skupiny --
+   * ty ukládají cestu, ne obsah.
+   *
+   * Cíl se vrací z backendu, protože nemusí mít stejné jméno: trezor nikdy
+   * nepřepisuje, takže se při shodě jmen očísluje.
+   */
+  const moveIntoVault = useCallback(
+    async (path: string) => {
+      const name = path.split(/[\/]/).pop() ?? path
+      try {
+        const landed = await vaultRef.current.moveIntoVault(path)
+
+        // Soubor na staré cestě už není: vyhoď ho ze skupin i z editoru.
+        const pruned = forgetPath(stateRef.current.collections, path)
+        if (JSON.stringify(pruned) !== JSON.stringify(stateRef.current.collections)) {
+          await commitCollections(pruned)
+        }
+        if (stateRef.current.activePath === path) dispatch({ type: 'close' })
+
+        await refresh()
+        if (stateRef.current.explorer.rootPath) await refreshTree()
+        await open(landed)
+        toast(
+          'success',
+          landed === name ? t.toast.movedIntoVault(landed) : t.toast.movedIntoVaultRenamed(name, landed),
+        )
+      } catch (error) {
+        reportError(error, t.errors.moveIntoVault)
+      }
+    },
+    [commitCollections, open, refresh, refreshTree, reportError, toast],
+  )
+
+  /**
    * Files or folders dropped onto the window from the OS.
    *
    * A folder wins over a file: dropping a folder with one of its files in the
@@ -2033,6 +2073,7 @@ export function StoreProvider({
       expandAllFolders,
       collapseAllFolders: () => dispatch({ type: 'explorer-set-expanded', expanded: [] }),
       setTreeFilter: (filter) => dispatch({ type: 'explorer-filter', filter }),
+      moveIntoVault,
       closeFolder: () => {
         dispatch({ type: 'explorer-close' })
         rememberExplorer('', '')
@@ -2081,6 +2122,7 @@ export function StoreProvider({
       openOrCreateByTitle,
       closeSettings,
       openSettings,
+      moveIntoVault,
       rebuildIndex,
       refresh,
       rememberExplorer,

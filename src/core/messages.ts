@@ -164,6 +164,8 @@ export const t = {
     actions: 'Akce',
     open: 'Otevřít',
     addToGroup: 'Přidat do skupiny',
+    moveIntoVault: 'Přesunout do poznámek',
+    moveIntoVaultHint: 'soubor se přesune do trezoru',
     newGroupDots: 'Nová skupina...',
     firstGroupDots: 'Vytvořit první skupinu...',
     renameDots: 'Přejmenovat...',
@@ -204,6 +206,10 @@ export const t = {
     deleteNoteMessage: (title: string) =>
       `Smazat „${title}“? Soubor zmizí z trezoru. Po smazání se dá vrátit tlačítkem v hlášce.`,
     deleteNoteShort: (title: string) => `Smazat „${title}“? Soubor zmizí z trezoru.`,
+    moveIntoVaultTitle: 'Přesunout do poznámek',
+    moveIntoVaultMessage: (path: string) =>
+      `Přesunout ${path} do poznámek? Soubor se přesune do trezoru a na původním místě už nebude. Odkaz na místě zůstane, pokud ho chceš jen propojit -- na to je „Přidat do skupiny“.`,
+    moveIntoVaultConfirm: 'Přesunout',
     deleteFileTitle: 'Smazat soubor',
     deleteFileMessage: (path: string) =>
       `Smazat ${path}? Soubor zmizí z disku, ne jen z tohoto seznamu.`,
@@ -313,6 +319,9 @@ export const t = {
     moved: (folder: string) => `Přesunuto do ${folder}.`,
     movedToRoot: 'Přesunuto do kořene trezoru.',
     deleted: (name: string) => `Smazáno: ${name}`,
+    movedIntoVault: (path: string) => `Přesunuto do poznámek: ${path}`,
+    movedIntoVaultRenamed: (from: string, to: string) =>
+      `Přesunuto do poznámek jako ${to} -- ${from} už v poznámkách bylo.`,
     restored: 'Obnoveno.',
     pinned: 'Připnuto.',
     unpinned: 'Odepnuto.',
@@ -376,6 +385,7 @@ export const t = {
     attach: 'Soubor se nepodařilo připojit.',
     search: 'Hledání selhalo.',
     deleteFile: 'Soubor se nepodařilo smazat.',
+    moveIntoVault: 'Soubor se nepodařilo přesunout do poznámek.',
     saveGroups: 'Skupiny se nepodařilo uložit.',
     drop: 'To, co jsi pustil, se nepodařilo otevřít.',
     generic: 'Trezor vrátil neočekávanou chybu.',

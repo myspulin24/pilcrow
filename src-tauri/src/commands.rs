@@ -449,6 +449,19 @@ pub fn delete_external_file(state: State<'_, AppState>, path: String) -> Result<
     vault::delete_file_at(&target)
 }
 
+/// Move a file the explorer is showing into the vault.
+///
+/// Requires access first: the only way a path gets here is that the user
+/// opened it in a dialog or dropped it on the window, and that must stay the
+/// only way. Returns the vault-relative path it landed on, which is not always
+/// the name it had -- the vault never overwrites.
+#[tauri::command]
+pub fn move_into_vault(state: State<'_, AppState>, path: String) -> Result<String> {
+    let source = PathBuf::from(&path);
+    state.with_access(|access| access.require(&source))?;
+    vault::move_into_vault(&state.vault, &source)
+}
+
 /// Everything the frontend can call.
 pub fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
     tauri::generate_handler![
@@ -482,6 +495,7 @@ pub fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static
         load_collections,
         save_collections,
         delete_external_file,
+        move_into_vault,
         crate::about::app_info,
         crate::assistant::assistant_status,
         crate::assistant::assistant_install_command,

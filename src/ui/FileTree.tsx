@@ -127,6 +127,17 @@ export function FileTree({ tree, filter }: { tree: TreeNode; filter: string }) {
       title: node.name,
       items: [
         { label: t.menu.open, onSelect: () => void actions.openFromTree(node.path) },
+        {
+          label: t.menu.moveIntoVault,
+          hint: t.menu.moveIntoVaultHint,
+          onSelect: () =>
+            actions.confirmFor({
+              title: t.dialogs.moveIntoVaultTitle,
+              message: t.dialogs.moveIntoVaultMessage(node.path),
+              confirmLabel: t.dialogs.moveIntoVaultConfirm,
+              onConfirm: () => void actions.moveIntoVault(node.path),
+            }),
+        },
         addToGroupMenu(state.collections, actions, node.path, true),
         { label: t.menu.reveal, onSelect: () => void actions.revealPath(node.path) },
         {

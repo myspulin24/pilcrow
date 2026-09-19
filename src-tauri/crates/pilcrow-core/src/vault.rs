@@ -416,6 +416,79 @@ pub fn import_folder(vault: &VaultPaths, source: &Path) -> Result<ImportResult> 
     })
 }
 
+/// Move one file from outside the vault into it, and say where it landed.
+///
+/// A move, not a copy: the point is that the file stops living in two places.
+/// The original is removed only after the copy is safely written, so a failure
+/// half-way leaves the file where it was rather than nowhere.
+///
+/// `fs::rename` is tried first because it is atomic and cheap, but it fails
+/// across volumes -- and a file opened through the explorer is very often on
+/// another drive than the vault -- so copy-then-remove is the fallback, not
+/// the exception.
+///
+/// Never overwrites: a name already taken in the vault gets ` 2`, ` 3`, ...
+/// exactly like [`import_folder`]. Nothing is added to the text; a file the
+/// user wrote elsewhere keeps its own shape, frontmatter or not.
+pub fn move_into_vault(vault: &VaultPaths, source: &Path) -> Result<String> {
+    if !source.is_file() {
+        return Err(CoreError::NotFound(format!(
+            "{} není soubor.",
+            source.display()
+        )));
+    }
+    if !is_note(source) {
+        return Err(CoreError::Io(format!(
+            "{} není Markdown, do poznámek se přesunout nedá.",
+            source.display()
+        )));
+    }
+    vault.ensure()?;
+
+    let name = source
+        .file_name()
+        .map(|value| value.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let mut relative = sanitize_segment(&name, "bez-nazvu");
+    // Sanitising can strip the extension along with the rest; a note in the
+    // vault without `.md` would be invisible to the index.
+    if !relative.to_ascii_lowercase().ends_with(".md") {
+        relative.push_str(".md");
+    }
+
+    let (stem, extension) = split_extension(&relative);
+    let mut attempt = 2;
+    while vault.resolve(&relative)?.exists() {
+        relative = format!("{stem} {attempt}{extension}");
+        attempt += 1;
+        if attempt > 100 {
+            return Err(CoreError::Io(format!(
+                "V poznámkách už je příliš mnoho souborů jménem {stem}."
+            )));
+        }
+    }
+
+    let target = vault.resolve(&relative)?;
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    if fs::rename(source, &target).is_err() {
+        fs::copy(source, &target)?;
+        if let Err(error) = fs::remove_file(source) {
+            // Kopie je na místě, originál ne. Uklidit kopii a přiznat to je
+            // lepší než tiše nechat soubor na dvou místech.
+            let _ = fs::remove_file(&target);
+            return Err(CoreError::Io(format!(
+                "{} se zkopíroval do poznámek, ale nešel odstranit z původního místa ({error}). Nic se nezměnilo.",
+                source.display()
+            )));
+        }
+    }
+
+    Ok(relative)
+}
+
 fn split_extension(path: &str) -> (String, String) {
     match path.rfind('.') {
         Some(index) if index > path.rfind('/').map(|slash| slash + 1).unwrap_or(0) => {
@@ -527,6 +600,67 @@ mod tests {
         let vault = VaultPaths::new(dir.path());
         vault.ensure().unwrap();
         (dir, vault)
+    }
+
+    #[test]
+    fn move_into_vault_takes_the_file_with_it() {
+        let (_dir, vault) = vault();
+        let outside = tempfile::tempdir().unwrap();
+        let source = outside.path().join("poznamky-odjinud.md");
+        fs::write(&source, "# Odjinud
+
+Text.
+").unwrap();
+
+        let relative = move_into_vault(&vault, &source).unwrap();
+
+        assert_eq!(relative, "poznamky-odjinud.md");
+        // Je v trezoru...
+        let landed = vault.resolve(&relative).unwrap();
+        assert_eq!(fs::read_to_string(&landed).unwrap(), "# Odjinud
+
+Text.
+");
+        // ...a na původním místě už není. To je ten rozdíl proti kopii.
+        assert!(!source.exists());
+    }
+
+    #[test]
+    fn move_into_vault_never_overwrites_an_existing_note() {
+        let (_dir, vault) = vault();
+        write_note(&vault, "zapisky.md", "původní", None).unwrap();
+
+        let outside = tempfile::tempdir().unwrap();
+        let source = outside.path().join("zapisky.md");
+        fs::write(&source, "nový").unwrap();
+
+        let relative = move_into_vault(&vault, &source).unwrap();
+
+        assert_eq!(relative, "zapisky 2.md");
+        let original = vault.resolve("zapisky.md").unwrap();
+        assert!(fs::read_to_string(&original).unwrap().contains("původní"));
+    }
+
+    #[test]
+    fn move_into_vault_refuses_anything_that_is_not_markdown() {
+        let (_dir, vault) = vault();
+        let outside = tempfile::tempdir().unwrap();
+        let source = outside.path().join("tabulka.xlsx");
+        fs::write(&source, "nic").unwrap();
+
+        assert!(move_into_vault(&vault, &source).is_err());
+        // A hlavně: soubor je pořád tam, kde byl.
+        assert!(source.exists());
+    }
+
+    #[test]
+    fn move_into_vault_reports_a_missing_file_instead_of_creating_one() {
+        let (_dir, vault) = vault();
+        let outside = tempfile::tempdir().unwrap();
+        let source = outside.path().join("tenhle-neexistuje.md");
+
+        assert!(move_into_vault(&vault, &source).is_err());
+        assert!(!vault.resolve("tenhle-neexistuje.md").unwrap().exists());
     }
 
     #[test]

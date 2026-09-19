@@ -266,6 +266,15 @@ export interface VaultApi {
   /** Delete a file the explorer is showing. */
   deleteExternalFile(path: string): Promise<void>
 
+  /**
+   * Move a file the explorer is showing into the vault, so it becomes a note.
+   *
+   * A move: the original is gone afterwards. Returns the vault-relative path
+   * it landed on, which may differ from its old name -- the vault never
+   * overwrites an existing note.
+   */
+  moveIntoVault(path: string): Promise<string>
+
   // --- collections ---------------------------------------------------------
 
   /**
