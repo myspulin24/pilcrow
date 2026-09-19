@@ -634,6 +634,84 @@ pub fn open_url(app: AppHandle, url: String) -> Result<()> {
         .map_err(|error| CoreError::Io(format!("Prohlížeč se nepodařilo otevřít: {error}")))
 }
 
+/// Workflows, které v repozitáři existují.
+///
+/// Slouží k jediné otázce: má vůbec smysl čekat na běh? Repozitář bez
+/// workflows žádný nespustí, a mlčky u toho čekat tři minuty je horší než
+/// to rovnou říct.
+#[tauri::command]
+pub async fn gh_workflows(
+    app: State<'_, AppState>,
+    state: State<'_, GitState>,
+    folder: String,
+) -> Result<String> {
+    let folder = granted_folder(&app, &folder)?;
+    let git = require_git(&state)?;
+    let root = require_root(&git, &folder)?;
+    gh_get(&state, &root, "repos/{owner}/{repo}/actions/workflows")
+}
+
+/// Založit pull request bez prohlížeče.
+///
+/// `gh pr create` vypíše na výstup adresu hotového PR; ta se vrací frontendu,
+/// aby ji mohl ukázat. Prázdný popis je v pořádku -- název je povinný.
+#[tauri::command]
+pub async fn gh_pr_create(
+    app: State<'_, AppState>,
+    state: State<'_, GitState>,
+    folder: String,
+    base: String,
+    head: String,
+    title: String,
+    body: String,
+) -> Result<String> {
+    let folder = granted_folder(&app, &folder)?;
+    let git = require_git(&state)?;
+    let root = require_root(&git, &folder)?;
+
+    if !is_safe_branch(&base) || !is_safe_branch(&head) {
+        return Err(CoreError::InvalidName(
+            "Tohle se větev jmenovat nemůže.".into(),
+        ));
+    }
+    if title.trim().is_empty() {
+        return Err(CoreError::InvalidName(
+            "Název pull requestu nemůže být prázdný.".into(),
+        ));
+    }
+
+    let gh = require_gh(&state)?;
+    let output = run_in(
+        &gh,
+        Some(&root),
+        &[
+            "pr", "create", "--base", &base, "--head", &head, "--title", title.trim(), "--body",
+            &body,
+        ],
+    )
+    .map_err(|error| CoreError::Io(format!("`gh pr create` se nepodařilo spustit: {error}")))?;
+
+    if !output.status.success() {
+        let details = stderr_of(&output);
+        return Err(CoreError::Io(if details.is_empty() {
+            "Pull request se nepodařilo založit.".into()
+        } else {
+            details
+        }));
+    }
+
+    // Adresa je poslední neprázdný řádek; `gh` před ni občas vypíše poznámku.
+    let text = stdout_of(&output);
+    let url = text
+        .lines()
+        .rev()
+        .map(str::trim)
+        .find(|line| line.starts_with("https://"))
+        .unwrap_or(&text)
+        .to_string();
+    Ok(url)
+}
+
 // -- výběr repozitáře -------------------------------------------------------
 
 /// Stav GitHub CLI bez ohledu na složku.

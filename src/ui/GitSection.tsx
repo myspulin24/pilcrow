@@ -20,6 +20,8 @@ import {
   overallOutcome,
   suggestBranch,
   suggestMessage,
+  suggestPrBody,
+  suggestPrTitle,
   t,
   type Outcome,
   type WorkflowJob,
@@ -235,8 +237,24 @@ function PublishedCard() {
         <State outcome={published.pushed ? 'success' : 'failure'} />
         <span>{published.pushed ? t.git.published(published.branch) : t.git.pushFailed(published.branch)}</span>
       </p>
+      {view.prUrl ? (
+        <p className="git__ready">
+          <State outcome="success" />
+          <span>{t.git.prReady(view.prUrl)}</span>
+        </p>
+      ) : null}
       <div className="git__actions">
-        {published.pushed && view.gh !== 'not-github' ? (
+        {view.prUrl ? (
+          <button type="button" className="button" onClick={() => void actions.openUrl(view.prUrl!)}>
+            {t.git.prOpenInBrowser}
+          </button>
+        ) : null}
+        {published.pushed && view.gh === 'ready' && !view.prUrl ? (
+          <button type="button" className="button button--primary" onClick={actions.openPr}>
+            {t.git.openPr}
+          </button>
+        ) : null}
+        {published.pushed && view.gh !== 'ready' && view.gh !== 'not-github' ? (
           <button
             type="button"
             className="button button--primary"
@@ -308,6 +326,7 @@ function CiCard() {
   const { view, actions } = useGit()
   if (!view.published?.pushed || view.gh !== 'ready') return null
   if (view.watching === 'idle' && view.runs.length === 0) return null
+  const names = view.workflows.map((workflow) => workflow.name).join(', ')
 
   return (
     <div className="git__card" aria-label={t.git.ciTitle}>
@@ -316,9 +335,20 @@ function CiCard() {
         {view.runs.length > 0 ? <State outcome={overallOutcome(view.runs)} /> : null}
       </h4>
       {view.watching === 'waiting' ? <Spinner label={t.git.ciWaiting} /> : null}
+      {view.watching === 'none' ? (
+        <>
+          {/* Tohle jde vědět hned, ne až po třech minutách čekání. */}
+          <p className="git__muted">{t.git.ciNoWorkflows}</p>
+          <div className="git__actions">
+            <button type="button" className="button" onClick={() => void actions.openActions()}>
+              {t.git.ciOpenActions}
+            </button>
+          </div>
+        </>
+      ) : null}
       {view.watching === 'timeout' ? (
         <>
-          <p className="git__muted">{t.git.ciTimeout}</p>
+          <p className="git__muted">{names ? t.git.ciNoRunForBranch(names) : t.git.ciTimeout}</p>
           <div className="git__actions">
             <button type="button" className="button" onClick={() => void actions.openActions()}>
               {t.git.ciOpenActions}
@@ -457,6 +487,81 @@ function PublishDialog() {
   )
 }
 
+function PrDialog() {
+  const { view, actions } = useGit()
+  const [title, setTitle] = useState(() => suggestPrTitle(view.lastMessage))
+  const [body, setBody] = useState(() => suggestPrBody(view.lastMessage))
+  const [error, setError] = useState<string | null>(null)
+  const labelId = useId()
+  useEscape(actions.closePr)
+
+  useEffect(() => {
+    document.getElementById(`${labelId}-title`)?.focus()
+  }, [labelId])
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!title.trim()) {
+      setError(t.git.prTitleEmpty)
+      return
+    }
+    void actions.createPr(title.trim(), body)
+  }
+
+  return (
+    <Backdrop onClose={actions.closePr}>
+      <form className="modal git__dialog" onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby={labelId}>
+        <h2 className="modal__title" id={labelId}>
+          {t.git.openPrTitle}
+        </h2>
+        <p className="modal__body">
+          {t.git.openPrBody(view.published?.branch ?? '', view.published?.base ?? '')}
+        </p>
+
+        <label className="modal__label" htmlFor={`${labelId}-title`}>
+          {t.git.prTitleLabel}
+        </label>
+        <input
+          id={`${labelId}-title`}
+          className="modal__input"
+          value={title}
+          onChange={(event) => {
+            setTitle(event.target.value)
+            setError(null)
+          }}
+          aria-invalid={error ? 'true' : 'false'}
+        />
+
+        <label className="modal__label" htmlFor={`${labelId}-body`}>
+          {t.git.prBodyLabel}
+        </label>
+        <textarea
+          id={`${labelId}-body`}
+          className="modal__input git__message"
+          rows={4}
+          value={body}
+          placeholder={t.git.prBodyPlaceholder}
+          onChange={(event) => setBody(event.target.value)}
+        />
+
+        {error ? (
+          <p className="modal__error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <div className="modal__actions">
+          <button type="button" className="button" onClick={actions.closePr}>
+            {t.common.cancel}
+          </button>
+          <button type="submit" className="button button--primary">
+            {t.git.prCreate}
+          </button>
+        </div>
+      </form>
+    </Backdrop>
+  )
+}
+
 // -- sekce ------------------------------------------------------------------
 
 export function GitSection() {
@@ -526,6 +631,7 @@ export function GitSection() {
         </div>
       </Section>
       {view.publishOpen ? <PublishDialog /> : null}
+      {view.prOpen ? <PrDialog /> : null}
     </>
   )
 }

@@ -254,9 +254,24 @@ describe('odeslání', () => {
     )
     expect(within(ci).getByText('ci')).toBeInTheDocument()
 
-    // PR se zakládá na GitHubu, ne tady: tlačítko otevře stránku compare.
+    // PR se zakládá rovnou tady, prohlížeč se neotevírá.
     await user.click(within(gitBody()).getByRole('button', { name: 'Otevřít PR' }))
-    expect(git.opened).toEqual(['https://github.com/tester/docs/compare/main...docs/test?expand=1'])
+    const prDialog = await screen.findByRole('dialog', { name: 'Založit pull request' })
+    expect(within(prDialog).getByLabelText('Název')).toHaveValue('Dokumentace: README.md')
+    await user.click(within(prDialog).getByRole('button', { name: 'Založit' }))
+
+    await waitFor(() => {
+      expect(git.createdPr).toEqual({
+        folder: '/repo/docs',
+        base: 'main',
+        head: 'docs/test',
+        title: 'Dokumentace: README.md',
+        body: '',
+      })
+    })
+    expect(await within(gitBody()).findByText(/Pull request je založený/)).toBeInTheDocument()
+    // Do prohlížeče se nic neposlalo.
+    expect(git.opened).toEqual([])
   })
 
   it('dokud se běh neobjeví, říká, že čeká -- není to chyba', async () => {
@@ -301,6 +316,20 @@ describe('odeslání', () => {
     await user.click(within(gitBody()).getByRole('button', { name: 'Zkusit push znovu' }))
     expect(await within(gitBody()).findByText('Větev docs/test je odeslaná.')).toBeInTheDocument()
     expect(within(gitBody()).queryByRole('alert')).toBeNull()
+  })
+
+  it('repozitář bez workflows to řekne hned, místo aby čekal', async () => {
+    const user = userEvent.setup()
+    await renderApp({ changes: [{ path: 'docs/guide.md', xy: ' M' }], workflowCount: 0 })
+    await openTheFolder(user)
+    await waitForGit()
+    await user.click(within(await changesList()).getByRole('checkbox', { name: /guide.md/ }))
+    await publish(user)
+
+    const ci = await within(gitBody()).findByLabelText('Běh Actions')
+    expect(within(ci).getByText(/nemá žádný workflow/)).toBeInTheDocument()
+    // Žádné čekání: ukazatel „čekám na běh“ se vůbec neukáže.
+    expect(within(ci).queryByText(/Čekám, až se běh/)).toBeNull()
   })
 
   it('neúspěšný běh ukáže, který krok spadl', async () => {

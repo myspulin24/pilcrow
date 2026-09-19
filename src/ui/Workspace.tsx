@@ -25,6 +25,7 @@ import { Spinner } from './Feedback'
 import { FileIcon, FileTree, FolderIcon } from './FileTree'
 import { GitSection } from './GitSection'
 import { NoteList } from './NoteList'
+import { ResizeHandle } from './ResizeHandle'
 import { Section } from './Section'
 
 export function Workspace() {
@@ -263,6 +264,8 @@ export function Workspace() {
           </span>
         </div>
       ) : null}
+
+      <ResizeHandle />
 
       {state.dropActive ? (
         <div className="workspace__drop" aria-hidden="true">

@@ -1,6 +1,6 @@
 [package]
 name = "pilcrow"
-version = "0.8.0"
+version = "0.8.1"
 description = "Pilcrow - local-first Markdown reader with a file explorer"
 authors = ["Michal Jašek"]
 edition = "2021"

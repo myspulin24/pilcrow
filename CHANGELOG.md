@@ -10,6 +10,26 @@ uživateli vyskočí okno s prázdnou kolonkou.
 Píše se pro toho, kdo aplikaci používá, ne pro toho, kdo ji píše: co se změní
 na obrazovce, ne které soubory se upravily. Nejnovější verze je nahoře.
 
+## 0.8.1 — 2026-09-19
+
+### Přidáno
+
+- **Pull request se zakládá přímo v aplikaci.** Tlačítko „Otevřít PR“ už
+  neotevírá prohlížeč — ukáže dialog s předvyplněným názvem a popisem podle
+  commitu, PR založí a rovnou ukáže jeho číslo. Do prohlížeče se dá přejít,
+  ale nemusí se.
+- **Levý sloupec se dá roztáhnout.** Chytni pravou hranu a táhni; šířka se
+  pamatuje. Jde to i z klávesnice šipkami, dvojklik vrátí výchozí šířku.
+
+### Opraveno
+
+- **Když repozitář nemá žádný workflow, aplikace to řekne hned.** Dosud tři
+  minuty mlčky čekala na běh, který nemohl přijít. Když workflows existují,
+  ale žádný se nespustil, vypíše jejich jména — obvyklá příčina je, že se
+  spouštějí jen na tagy, ne na push do větve.
+- **Odsazení sekce „Poslední běhy“.** Lepila se na levý okraj sloupce místo
+  aby byla zarovnaná s kartami nad sebou.
+
 ## 0.8.0 — 2026-09-19
 
 ### Přidáno

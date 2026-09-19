@@ -65,6 +65,17 @@ export interface GitApi {
   recentRuns(folder: string): Promise<string>
 
   /**
+   * Co v repozitáři vůbec za workflows je. Čte to `parseWorkflows`.
+   *
+   * Bez tohohle se nedá poznat rozdíl mezi „běh se ještě neobjevil“
+   * a „nikdy se neobjeví, protože tu žádný workflow není“.
+   */
+  workflows(folder: string): Promise<string>
+
+  /** Založit pull request. Vrací adresu hotového PR. */
+  createPr(input: CreatePrInput): Promise<string>
+
+  /**
    * Přihlásit GitHub CLI přes prohlížeč.
    *
    * Do `sink` přijde jednorázový kód, který uživatel opíše na github.com.
@@ -96,6 +107,16 @@ export interface GitApi {
    * Existující složku nikdy nepřepíše -- to je chyba, ne přepis.
    */
   clone(input: CloneInput, sink: GitSink): Promise<string>
+}
+
+export interface CreatePrInput {
+  folder: string
+  /** Do které větve se sloučí. */
+  base: string
+  /** Která větev se slučuje. */
+  head: string
+  title: string
+  body: string
 }
 
 export interface CloneInput {

@@ -10,7 +10,7 @@
  */
 
 import type { GhProbe, GitProbe } from '@/core'
-import type { CloneInput, GitApi, GitChunk, GitSink, PublishInput } from './api'
+import type { CloneInput, CreatePrInput, GitApi, GitChunk, GitSink, PublishInput } from './api'
 
 /** Repozitář na „GitHubu“, jak ho vrátí paměťová implementace. */
 export interface MemoryRepo {
@@ -54,6 +54,13 @@ export interface MemoryGitOptions {
   repos?: MemoryRepo[]
   /** Co už leží ve složce s repozitáři: cesta -> remote. */
   clones?: Record<string, string>
+  /**
+   * Kolik workflows repozitář má. `0` je poctivý stav, ne chyba: takový
+   * repozitář žádný běh nespustí a nemá smysl na něj čekat.
+   */
+  workflowCount?: number
+  /** Nechat založení PR selhat s touhle zprávou. */
+  failPr?: string
   /** Nechat stahování selhat s touhle zprávou. */
   failClone?: string
   /**
@@ -79,6 +86,8 @@ export class MemoryGit implements GitApi {
   readonly opened: string[] = []
   /** Poslední odeslání, k ověření v testech. */
   published: { branch: string; message: string; files: string[] } | null = null
+  /** Poslední založené PR, k ověření v testech. */
+  createdPr: CreatePrInput | null = null
   /** Poslední stahování, k ověření v testech. */
   cloned: (CloneInput & { target: string }) | null = null
   /** Dokončit zadržené stahování. `null`, když žádné neběží. */
@@ -276,6 +285,27 @@ export class MemoryGit implements GitApi {
         },
       ],
     })
+  }
+
+  async workflows(): Promise<string> {
+    if (!this.loggedIn) throw new Error('gh: To get started with GitHub CLI, please run: gh auth login')
+    const count = this.options.workflowCount ?? 1
+    return JSON.stringify({
+      total_count: count,
+      workflows: Array.from({ length: count }, (_, index) => ({
+        id: 900 + index,
+        name: index === 0 ? (this.options.workflowName ?? 'ci') : `workflow-${index}`,
+        state: 'active',
+        path: `.github/workflows/w${index}.yml`,
+      })),
+    })
+  }
+
+  async createPr(input: CreatePrInput): Promise<string> {
+    if (!this.loggedIn) throw new Error('gh: To get started with GitHub CLI, please run: gh auth login')
+    if (this.options.failPr) throw new Error(this.options.failPr)
+    this.createdPr = { ...input }
+    return 'https://github.com/tester/docs/pull/7'
   }
 
   async recentRuns(): Promise<string> {

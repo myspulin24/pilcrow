@@ -424,6 +424,56 @@ export function parseJobs(json: string): WorkflowJob[] {
   }))
 }
 
+export interface Workflow {
+  id: number
+  name: string
+  /** `active` | `disabled_manually` | `disabled_inactivity` */
+  state: string
+  path: string
+}
+
+/**
+ * `repos/{o}/{r}/actions/workflows` -> co v repozitáři vůbec existuje.
+ *
+ * Odpovídá na otázku, kterou jinak nejde zodpovědět jinak než čekáním: má
+ * smysl vyhlížet běh? Repozitář bez workflows žádný nespustí a workflow
+ * spouštěné jen na tagy se po pushi do větve neozve.
+ */
+export function parseWorkflows(json: string): Workflow[] {
+  return parseList(json, 'workflows').map((entry) => ({
+    id: num(entry, 'id'),
+    name: str(entry, 'name'),
+    state: str(entry, 'state'),
+    path: str(entry, 'path'),
+  }))
+}
+
+export function activeWorkflows(workflows: Workflow[]): Workflow[] {
+  return workflows.filter((workflow) => workflow.state === 'active')
+}
+
+// -- pull request -------------------------------------------------------------
+
+/**
+ * Název PR z jediného commitu.
+ *
+ * Když má commit víc řádků, bere se první -- to je shodou okolností přesně
+ * konvence gitu i GitHubu.
+ */
+export function suggestPrTitle(commitMessage: string): string {
+  return (commitMessage.split('\n')[0] ?? '').trim()
+}
+
+/** Zbytek zprávy commitu jako popis PR. Prázdný popis je v pořádku. */
+export function suggestPrBody(commitMessage: string): string {
+  return commitMessage.split('\n').slice(1).join('\n').trim()
+}
+
+/** Adresa hotového PR, tak jak ji vypíše `gh pr create`. */
+export function isPrUrl(value: string): boolean {
+  return /^https:\/\/[^\s]+\/pull\/\d+$/.test(value.trim())
+}
+
 /** Všechny běhy doběhly -- není na co čekat. */
 export function runsSettled(runs: WorkflowRun[]): boolean {
   return runs.length > 0 && runs.every((run) => run.status === 'completed')

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   actionsUrl,
+  activeWorkflows,
   compareUrl,
   currentPublishStep,
   findDeviceCode,
@@ -17,8 +18,12 @@ import {
   parseJobs,
   parseRemote,
   parseRuns,
+  parseWorkflows,
   runsSettled,
+  isPrUrl,
   suggestBranch,
+  suggestPrBody,
+  suggestPrTitle,
   suggestMessage,
   toRepoRelative,
   type GitProbe,
@@ -355,5 +360,50 @@ describe('přihlášení a průběh', () => {
     expect(currentPublishStep('$ git checkout -b docs/x\nSwitched to a new branch\n$ git add -- a.md\n')).toBe(
       'git add -- a.md',
     )
+  })
+})
+
+describe('workflows', () => {
+  const json = JSON.stringify({
+    total_count: 2,
+    workflows: [
+      { id: 1, name: 'release', state: 'active', path: '.github/workflows/release.yml' },
+      { id: 2, name: 'starý', state: 'disabled_manually', path: '.github/workflows/old.yml' },
+    ],
+  })
+
+  it('čte seznam a pozná vypnuté', () => {
+    const all = parseWorkflows(json)
+    expect(all).toHaveLength(2)
+    expect(all[0]).toEqual({ id: 1, name: 'release', state: 'active', path: '.github/workflows/release.yml' })
+    expect(activeWorkflows(all).map((w) => w.name)).toEqual(['release'])
+  })
+
+  it('repozitář bez workflows vrátí prázdno, ne pád', () => {
+    // Přesně případ, kdy nemá smysl čekat na běh: `total_count` je 0.
+    expect(parseWorkflows('{"total_count":0,"workflows":[]}')).toEqual([])
+    expect(parseWorkflows('')).toEqual([])
+    expect(parseWorkflows('{"workflows":"ne"}')).toEqual([])
+    expect(activeWorkflows([])).toEqual([])
+  })
+})
+
+describe('pull request', () => {
+  it('název je první řádek commitu, popis zbytek', () => {
+    expect(suggestPrTitle('Dokumentace: README.md')).toBe('Dokumentace: README.md')
+    expect(suggestPrBody('Dokumentace: README.md')).toBe('')
+
+    const multi = 'Dokumentace: README.md\n\nUpřesnil jsem instalaci.\nA opravil překlep.'
+    expect(suggestPrTitle(multi)).toBe('Dokumentace: README.md')
+    expect(suggestPrBody(multi)).toBe('Upřesnil jsem instalaci.\nA opravil překlep.')
+    expect(suggestPrTitle('')).toBe('')
+  })
+
+  it('pozná adresu hotového PR', () => {
+    expect(isPrUrl('https://github.com/myspulin24/Notes_MJ/pull/1')).toBe(true)
+    expect(isPrUrl('  https://github.com/a/b/pull/42  ')).toBe(true)
+    expect(isPrUrl('https://github.com/a/b/compare/main...x')).toBe(false)
+    expect(isPrUrl('Warning: something\nhttps://github.com/a/b/pull/1')).toBe(false)
+    expect(isPrUrl('')).toBe(false)
   })
 })

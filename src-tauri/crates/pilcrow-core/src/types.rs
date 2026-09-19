@@ -184,6 +184,9 @@ pub struct VaultSettings {
     /// Naposledy otevřený samostatný soubor, když nebyla otevřená složka.
     #[serde(default)]
     pub last_file: String,
+    /// Šířka levého sloupce v bodech. Uživatel si ji roztahuje myší.
+    #[serde(default = "default_workspace_width")]
+    pub workspace_width: i64,
     /// Kam se stahují repozitáře vybrané v „Otevřít repozitář“.
     ///
     /// Prázdné, dokud si uživatel složku nevybere v dialogu -- tam se zároveň
@@ -215,6 +218,9 @@ fn default_font_size() -> i64 {
 fn default_view_mode() -> String {
     "split".to_string()
 }
+fn default_workspace_width() -> i64 {
+    300
+}
 fn default_true() -> bool {
     true
 }
@@ -232,6 +238,7 @@ impl Default for VaultSettings {
             check_updates: true,
             last_folder: String::new(),
             last_file: String::new(),
+            workspace_width: default_workspace_width(),
             repos_folder: String::new(),
             assistant_enabled: false,
             assistant_model: String::new(),

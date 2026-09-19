@@ -28,6 +28,7 @@ import {
 
 import {
   actionsUrl,
+  activeWorkflows,
   compareUrl,
   currentPublishStep,
   findDeviceCode,
@@ -39,6 +40,7 @@ import {
   parseJobs,
   parseRemote,
   parseRuns,
+  parseWorkflows,
   runsSettled,
   t,
   toRepoRelative,
@@ -48,6 +50,7 @@ import {
   type GitProbe,
   type GitRemote,
   type GitStep,
+  type Workflow,
   type WorkflowJob,
   type WorkflowRun,
 } from '@/core'
@@ -59,7 +62,7 @@ import { useStore } from './store'
 export type GitBusy = 'probe' | 'status' | 'login' | 'publish' | 'push' | null
 
 /** Kde je sledování běhu. */
-export type Watching = 'idle' | 'waiting' | 'running' | 'done' | 'timeout'
+export type Watching = 'idle' | 'waiting' | 'running' | 'done' | 'timeout' | 'none'
 
 export interface Published {
   branch: string
@@ -95,6 +98,14 @@ export interface GitView {
   runs: WorkflowRun[]
   jobs: Record<number, WorkflowJob[]>
   watching: Watching
+  /** Co v repozitáři za workflows je. Prázdné pole = žádný běh nepřijde. */
+  workflows: Workflow[]
+  /** Dialog založení pull requestu. */
+  prOpen: boolean
+  /** Adresa hotového PR, jakmile vznikne. */
+  prUrl: string | null
+  /** Zpráva posledního commitu -- předvyplní název a popis PR. */
+  lastMessage: string
   /** `null` = zatím nenačteno. */
   recent: WorkflowRun[] | null
   recentError: string | null
@@ -119,6 +130,9 @@ export interface GitActions {
   openActions(): Promise<void>
   openUrl(url: string): Promise<void>
   loadRecent(): Promise<void>
+  openPr(): void
+  closePr(): void
+  createPr(title: string, body: string): Promise<void>
 }
 
 interface GitValue {
@@ -152,6 +166,10 @@ const initialView = (supported: boolean): GitView => ({
   runs: [],
   jobs: {},
   watching: 'idle',
+  workflows: [],
+  prOpen: false,
+  prUrl: null,
+  lastMessage: '',
   recent: null,
   recentError: null,
   deviceCode: null,
@@ -340,6 +358,19 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
     }
     const remote = probe ? parseRemote(probe.remoteUrl) : current.remote
     const gh = probe ? ghStep(probe, remote) : current.gh
+
+    // Než se začne vyhlížet běh: existuje vůbec nějaký workflow? Repozitář
+    // bez nich žádný nespustí a mlčky u toho čekat tři minuty je horší, než
+    // to rovnou říct.
+    let workflows: Workflow[] = []
+    if (gh === 'ready') {
+      try {
+        workflows = activeWorkflows(parseWorkflows(await api.workflows(current.folder)))
+      } catch {
+        /* nepodařilo se zjistit; čeká se jako dřív */
+      }
+    }
+
     update((view) => ({
       ...view,
       busy: null,
@@ -352,7 +383,9 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
         : null,
       runs: [],
       jobs: {},
-      watching: gh === 'ready' && probe?.headSha ? 'waiting' : 'idle',
+      workflows,
+      watching:
+        gh !== 'ready' || !probe?.headSha ? 'idle' : workflows.length === 0 ? 'none' : 'waiting',
     }))
     await refreshChanges()
   }, [api, refreshChanges, update])
@@ -402,6 +435,8 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
         error: null,
         publishOpen: false,
         published: { branch, base: current.probe.branch, sha: '', pushed: false, retryable: false },
+        lastMessage: message,
+        prUrl: null,
         runs: [],
         jobs: {},
         watching: 'idle',
@@ -432,7 +467,16 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
   }, [api, patch])
 
   const dismissPublished = useCallback(() => {
-    patch({ published: null, runs: [], jobs: {}, watching: 'idle', transcript: '', error: null })
+    patch({
+      published: null,
+      runs: [],
+      jobs: {},
+      workflows: [],
+      watching: 'idle',
+      transcript: '',
+      error: null,
+      prUrl: null,
+    })
   }, [patch])
 
   // -- sledování běhu --------------------------------------------------------
@@ -560,6 +604,33 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
     await openUrl(actionsUrl(remote))
   }, [openUrl])
 
+  /**
+   * Založit pull request bez prohlížeče.
+   *
+   * Dělá to `gh pr create`, takže se nikam neotevírá okno a adresa hotového
+   * PR se vrátí rovnou do panelu.
+   */
+  const createPr = useCallback(
+    async (title: string, body: string) => {
+      const current = viewRef.current
+      if (!current.folder || !current.published || current.busy) return
+      patch({ busy: 'publish', error: null, prOpen: false })
+      try {
+        const url = await api.createPr({
+          folder: current.folder,
+          base: current.published.base,
+          head: current.published.branch,
+          title,
+          body,
+        })
+        patch({ busy: null, prUrl: url })
+      } catch (error) {
+        patch({ busy: null, prOpen: true, error: gitMessage(error, t.git.prFailed) })
+      }
+    },
+    [api, patch],
+  )
+
   const actions = useMemo<GitActions>(
     () => ({
       refresh,
@@ -579,10 +650,14 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
       openActions,
       openUrl,
       loadRecent,
+      openPr: () => patch({ prOpen: true }),
+      closePr: () => patch({ prOpen: false }),
+      createPr,
     }),
     [
       cancel,
       cancelLogin,
+      createPr,
       dismissPublished,
       loadRecent,
       login,

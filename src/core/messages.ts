@@ -104,6 +104,8 @@ export const t = {
     closeFileHint: 'Zavřít tenhle soubor',
     folderContents: 'Obsah složky',
     partialScan: 'neúplné',
+    resize: 'Šířka levého sloupce',
+    resizeHint: 'Táhni myší, nebo šipkami. Dvojklik vrátí výchozí šířku.',
     files_: (count: number) => withCount(count, 'soubor', 'soubory', 'souborů'),
   },
 
@@ -619,6 +621,22 @@ export const t = {
     publishFailed: 'Odeslání se nepovedlo.',
     cancelled: 'Zrušeno.',
 
+    openPrTitle: 'Založit pull request',
+    openPrBody: (head: string, base: string) =>
+      `Sloučí větev ${head} do ${base}. Založí se rovnou tady, prohlížeč není potřeba.`,
+    prTitleLabel: 'Název',
+    prBodyLabel: 'Popis',
+    prBodyPlaceholder: 'Nepovinné. Co a proč se mění.',
+    prTitleEmpty: 'Název pull requestu nemůže být prázdný.',
+    prCreate: 'Založit',
+    prCreating: 'Zakládám pull request…',
+    prReady: (url: string) => `Pull request je založený: ${url.split('/').pop() ? '#' + url.split('/').pop() : ''}`,
+    prOpenInBrowser: 'Otevřít na GitHubu',
+    prFailed: 'Pull request se nepodařilo založit.',
+
+    ciNoWorkflows: 'Repozitář nemá žádný workflow, takže se žádný běh nespustí.',
+    ciNoRunForBranch: (names: string) =>
+      `Běh se neobjevil. V repozitáři je ${names} -- zřejmě se na push do větve nespouští.`,
     ciTitle: 'Běh Actions',
     ciWaiting: 'Čekám, až se běh na GitHubu objeví…',
     ciTimeout: 'Běh se neobjevil. Možná se workflow na tuhle větev nespouští.',

@@ -135,6 +135,8 @@ export interface VaultSettings {
   lastFolder: string
   /** Naposledy otevřený samostatný soubor, když nebyla otevřená složka. */
   lastFile: string
+  /** Šířka levého sloupce v bodech. Uživatel si ji roztahuje myší. */
+  workspaceWidth: number
   /**
    * Kam se stahují repozitáře vybrané v „Otevřít repozitář“.
    *
@@ -310,6 +312,7 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   checkUpdates: true,
   lastFolder: '',
   lastFile: '',
+  workspaceWidth: 300,
   reposFolder: '',
   assistantEnabled: false,
   assistantModel: '',
