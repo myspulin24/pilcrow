@@ -20,8 +20,8 @@ import { describe, expect, it } from 'vitest'
 const ROOT = process.cwd()
 
 /** Všechny soubory frontendu, ve kterých se může volat `invoke`. */
-function sourceFiles(dir: string): string[] {
-  const out: string[] = []
+function sourceFiles(dir) {
+  const out = []
   for (const entry of readdirSync(dir)) {
     const path = join(dir, entry)
     if (statSync(path).isDirectory()) {
@@ -34,8 +34,8 @@ function sourceFiles(dir: string): string[] {
 }
 
 /** Jména příkazů, která frontend volá. */
-function invokedCommands(): Set<string> {
-  const found = new Set<string>()
+function invokedCommands() {
+  const found = new Set()
   for (const file of sourceFiles(join(ROOT, 'src'))) {
     const text = readFileSync(file, 'utf8')
     for (const match of text.matchAll(/\binvoke\s*(?:<[^>]*>)?\s*\(\s*'([^']+)'/g)) {
@@ -46,7 +46,7 @@ function invokedCommands(): Set<string> {
 }
 
 /** Jména příkazů, která Rust registruje. */
-function registeredCommands(): Set<string> {
+function registeredCommands() {
   const text = readFileSync(join(ROOT, 'src-tauri/src/commands.rs'), 'utf8')
   const block = /generate_handler!\[([\s\S]*?)\n\s*\]/.exec(text)?.[1]
   if (!block) throw new Error('V commands.rs není seznam generate_handler!')
