@@ -49,6 +49,24 @@ jobs:
       - name: Ikony
         run: npm run icons
 
+      # Zahoditelný klíč pro podpis aktualizací.
+      #
+      # `createUpdaterArtifacts` je zapnuté, takže bundler chce balíček
+      # podepsat minisignem a bez klíče skončí chybou -- i když je .app i
+      # tarball hotový. Skutečný klíč sem ale nepatří: ověřuje se podpis od
+      # Apple, ne ten aktualizační, a tenhle běh se pouští i nad cizími
+      # příspěvky. Klíč vyrobený tady a zahozený s během stačí a nechává
+      # návratový kód něco znamenat.
+      - name: Zahoditelný klíč pro updater
+        run: |
+          set -euo pipefail
+          npx tauri signer generate --ci --force \
+            -w "$RUNNER_TEMP/updater.key" -p zahodit
+          {
+            echo "TAURI_SIGNING_PRIVATE_KEY=$RUNNER_TEMP/updater.key"
+            echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=zahodit"
+          } >> "$GITHUB_ENV"
+
       # Stejný cíl jako u vydání, ať se ověřuje to, co se opravdu rozesílá.
       # `--bundles app` vynechá .dmg, které pro podpis samotné aplikace nehraje
       # roli a jen by prodlužovalo běh.
