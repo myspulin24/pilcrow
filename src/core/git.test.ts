@@ -5,17 +5,21 @@ import {
   activeWorkflows,
   compareUrl,
   currentPublishStep,
+  defaultMergeMethod,
   findDeviceCode,
   ghStep,
   gitStep,
   isCommittable,
   isGitHub,
   isValidBranchName,
+  mergeBlocker,
   outcome,
   overallOutcome,
   parseGhAuth,
   parseGitStatus,
   parseJobs,
+  parseMergeMethods,
+  parsePullRequest,
   parseRemote,
   parseRuns,
   parseWorkflows,
@@ -406,5 +410,72 @@ describe('pull request', () => {
     expect(isPrUrl('https://github.com/a/b/compare/main...x')).toBe(false)
     expect(isPrUrl('Warning: something\nhttps://github.com/a/b/pull/1')).toBe(false)
     expect(isPrUrl('')).toBe(false)
+  })
+})
+
+describe('sloučení pull requestu', () => {
+  const PR = JSON.stringify([
+    {
+      number: 2,
+      title: 'Dokumentace: README.md',
+      url: 'https://github.com/myspulin24/Notes_MJ/pull/2',
+      state: 'OPEN',
+      isDraft: false,
+      mergeable: 'MERGEABLE',
+      mergeStateStatus: 'CLEAN',
+      baseRefName: 'main',
+      headRefName: 'docs/2026-09-19-1632',
+    },
+  ])
+
+  it('přečte otevřený PR přesně tak, jak ho vrací gh', () => {
+    expect(parsePullRequest(PR)).toEqual({
+      number: 2,
+      title: 'Dokumentace: README.md',
+      url: 'https://github.com/myspulin24/Notes_MJ/pull/2',
+      state: 'OPEN',
+      isDraft: false,
+      mergeable: 'MERGEABLE',
+      mergeStateStatus: 'CLEAN',
+      baseRefName: 'main',
+      headRefName: 'docs/2026-09-19-1632',
+    })
+  })
+
+  it('prázdný seznam i smetí jsou null, ne pád', () => {
+    expect(parsePullRequest('[]')).toBeNull()
+    expect(parsePullRequest('')).toBeNull()
+    expect(parsePullRequest('[{"title":"bez čísla"}]')).toBeNull()
+  })
+
+  it('mergeBlocker pojmenuje, proč sloučit nejde', () => {
+    const pr = parsePullRequest(PR)!
+    expect(mergeBlocker(pr)).toBeNull()
+    expect(mergeBlocker(null)).toBe('none')
+    expect(mergeBlocker({ ...pr, state: 'MERGED' })).toBe('closed')
+    expect(mergeBlocker({ ...pr, isDraft: true })).toBe('draft')
+    expect(mergeBlocker({ ...pr, mergeable: 'CONFLICTING' })).toBe('conflict')
+    expect(mergeBlocker({ ...pr, mergeStateStatus: 'DIRTY' })).toBe('conflict')
+    expect(mergeBlocker({ ...pr, mergeStateStatus: 'BLOCKED' })).toBe('blocked')
+    // Neprošlé kontroly sloučení nebrání -- GitHub je jen označí.
+    expect(mergeBlocker({ ...pr, mergeStateStatus: 'UNSTABLE' })).toBeNull()
+  })
+
+  it('čte povolené způsoby sloučení a vybírá výchozí', () => {
+    const all = parseMergeMethods('{"allow_merge_commit":true,"allow_squash_merge":true,"allow_rebase_merge":true}')
+    expect(all).toEqual({ merge: true, squash: true, rebase: true })
+    expect(defaultMergeMethod(all)).toBe('squash')
+
+    const noSquash = parseMergeMethods('{"allow_merge_commit":true,"allow_squash_merge":false,"allow_rebase_merge":true}')
+    expect(noSquash.squash).toBe(false)
+    expect(defaultMergeMethod(noSquash)).toBe('merge')
+    expect(defaultMergeMethod({ merge: false, squash: false, rebase: true })).toBe('rebase')
+  })
+
+  it('když se nastavení repozitáře přečíst nedá, nabídnou se všechny', () => {
+    // Lepší než nenabídnout nic: nepovolený způsob odmítne GitHub a uživatel
+    // uvidí proč.
+    expect(parseMergeMethods('')).toEqual({ merge: true, squash: true, rebase: true })
+    expect(parseMergeMethods('nesmysl')).toEqual({ merge: true, squash: true, rebase: true })
   })
 })

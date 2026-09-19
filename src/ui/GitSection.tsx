@@ -15,7 +15,9 @@ import { useEffect, useId, useState } from 'react'
 import {
   currentPublishStep,
   isCommittable,
+  defaultMergeMethod,
   isValidBranchName,
+  mergeBlocker,
   outcome,
   overallOutcome,
   SECTION_GIT,
@@ -25,6 +27,7 @@ import {
   suggestPrBody,
   suggestPrTitle,
   t,
+  type MergeMethod,
   type Outcome,
   type WorkflowJob,
   type WorkflowRun,
@@ -232,32 +235,67 @@ function Changes() {
 function PublishedCard() {
   const { view, actions } = useGit()
   const published = view.published
-  if (!published || view.busy === 'publish' || view.busy === 'push') return null
+  // Karta patří i tam, kde se v tomhle sezení nic neodesílalo: otevřený
+  // pull request pro aktuální větev může pocházet z minulého spuštění nebo
+  // z prohlížeče, a sloučit se má dát i tak.
+  if (!published && !view.pr && !view.mergedNumber) return null
+  if (view.busy === 'publish' || view.busy === 'push') return null
+
+  const label = published
+    ? published.pushed
+      ? t.git.published(published.branch)
+      : t.git.pushFailed(published.branch)
+    : t.git.prOpenState(view.pr?.number ?? 0)
 
   return (
-    <div className="git__card" aria-label={published.pushed ? t.git.published(published.branch) : t.git.pushFailed(published.branch)}>
-      <p className="git__ready">
-        <State outcome={published.pushed ? 'success' : 'failure'} />
-        <span>{published.pushed ? t.git.published(published.branch) : t.git.pushFailed(published.branch)}</span>
-      </p>
-      {view.prUrl ? (
+    <div className="git__card" aria-label={label}>
+      {published ? (
+        <p className="git__ready">
+          <State outcome={published.pushed ? 'success' : 'failure'} />
+          <span>{published.pushed ? t.git.published(published.branch) : t.git.pushFailed(published.branch)}</span>
+        </p>
+      ) : null}
+      {view.mergedNumber ? (
+        <p className="git__ready">
+          <State outcome="success" />
+          <span>{t.git.merged(view.mergedNumber)}</span>
+        </p>
+      ) : view.pr ? (
+        <p className="git__ready">
+          <State outcome="success" />
+          <span>{t.git.prOpenState(view.pr.number)}</span>
+        </p>
+      ) : view.prUrl ? (
         <p className="git__ready">
           <State outcome="success" />
           <span>{t.git.prReady(view.prUrl)}</span>
         </p>
       ) : null}
+      {/* Proč sloučit nejde, když nejde -- ať se nehádá s šedým tlačítkem. */}
+      {view.pr && mergeBlocker(view.pr) ? (
+        <p className="git__muted">{t.git.mergeBlocked[mergeBlocker(view.pr) ?? 'none']}</p>
+      ) : null}
       <div className="git__actions">
-        {view.prUrl ? (
-          <button type="button" className="button" onClick={() => void actions.openUrl(view.prUrl!)}>
+        {view.pr && !mergeBlocker(view.pr) ? (
+          <button type="button" className="button button--primary" onClick={actions.openMerge}>
+            {t.git.merge}
+          </button>
+        ) : null}
+        {view.pr?.url || view.prUrl ? (
+          <button
+            type="button"
+            className="button"
+            onClick={() => void actions.openUrl(view.pr?.url ?? view.prUrl!)}
+          >
             {t.git.prOpenInBrowser}
           </button>
         ) : null}
-        {published.pushed && view.gh === 'ready' && !view.prUrl ? (
+        {published?.pushed && view.gh === 'ready' && !view.prUrl && !view.pr && !view.mergedNumber ? (
           <button type="button" className="button button--primary" onClick={actions.openPr}>
             {t.git.openPr}
           </button>
         ) : null}
-        {published.pushed && view.gh !== 'ready' && view.gh !== 'not-github' ? (
+        {published?.pushed && view.gh !== 'ready' && view.gh !== 'not-github' ? (
           <button
             type="button"
             className="button button--primary"
@@ -267,7 +305,7 @@ function PublishedCard() {
             {t.git.openPr}
           </button>
         ) : null}
-        {!published.pushed && published.retryable ? (
+        {published && !published.pushed && published.retryable ? (
           <button type="button" className="button button--primary" onClick={() => void actions.retryPush()}>
             {t.git.retryPush}
           </button>
@@ -589,6 +627,82 @@ function PrDialog() {
   )
 }
 
+function MergeDialog() {
+  const { view, actions } = useGit()
+  const [method, setMethod] = useState<MergeMethod>(() => defaultMergeMethod(view.mergeMethods))
+  const [deleteBranch, setDeleteBranch] = useState(true)
+  const labelId = useId()
+  const busy = view.busy === 'merge'
+  useEscape(actions.closeMerge)
+
+  const pr = view.pr
+  if (!pr) return null
+
+  const allowed: MergeMethod[] = (['squash', 'merge', 'rebase'] as const).filter(
+    (one) => view.mergeMethods[one],
+  )
+
+  return (
+    <Backdrop onClose={actions.closeMerge}>
+      <div className="modal git__dialog" role="alertdialog" aria-modal="true" aria-labelledby={labelId}>
+        <h2 className="modal__title" id={labelId}>
+          {t.git.mergeTitle}
+        </h2>
+        <p className="modal__body">{t.git.mergeBody(pr.number, pr.headRefName, pr.baseRefName)}</p>
+        <p className="git__muted">{t.git.mergeAfter(pr.baseRefName)}</p>
+
+        <fieldset className="git__methods">
+          <legend className="modal__label">{t.git.mergeMethodLabel}</legend>
+          {allowed.map((one) => (
+            <label key={one} className="git__method">
+              <input
+                type="radio"
+                name={`${labelId}-method`}
+                value={one}
+                checked={method === one}
+                disabled={busy}
+                onChange={() => setMethod(one)}
+              />
+              <span>{t.git.mergeMethod[one]}</span>
+            </label>
+          ))}
+        </fieldset>
+
+        <label className="git__method">
+          <input
+            type="checkbox"
+            checked={deleteBranch}
+            disabled={busy}
+            onChange={(event) => setDeleteBranch(event.target.checked)}
+          />
+          <span>{t.git.mergeDelete}</span>
+        </label>
+
+        {view.prError ? (
+          <p className="modal__error" role="alert">
+            {view.prError}
+          </p>
+        ) : null}
+        <Transcript text={busy || view.prError ? view.transcript : ''} />
+
+        <div className="modal__actions">
+          <button type="button" className="button" onClick={actions.closeMerge} disabled={busy}>
+            {t.common.cancel}
+          </button>
+          <button
+            type="button"
+            className="button button--primary"
+            disabled={busy}
+            onClick={() => void actions.mergePr(method, deleteBranch)}
+          >
+            {busy ? t.git.merging : t.git.mergeConfirm}
+          </button>
+        </div>
+      </div>
+    </Backdrop>
+  )
+}
+
 // -- sekce ------------------------------------------------------------------
 
 export function GitSection() {
@@ -660,6 +774,7 @@ export function GitSection() {
       </Section>
       {view.publishOpen ? <PublishDialog /> : null}
       {view.prOpen ? <PrDialog /> : null}
+      {view.mergeOpen ? <MergeDialog /> : null}
     </>
   )
 }

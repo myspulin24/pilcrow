@@ -269,7 +269,8 @@ describe('odeslání', () => {
         body: '',
       })
     })
-    expect(await within(gitBody()).findByText(/Pull request je založený/)).toBeInTheDocument()
+    // Karta ukazuje živý stav PR, ne jednorázovou hlášku o založení.
+    expect(await within(gitBody()).findByText(/Pull request #7 je otevřený/)).toBeInTheDocument()
     // Do prohlížeče se nic neposlalo.
     expect(git.opened).toEqual([])
   })
@@ -390,8 +391,100 @@ describe('odeslání', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Založit' }))
 
     // Po založení je karta pořád tam, jen s číslem PR místo tlačítka.
-    expect(await within(gitBody()).findByText(/Pull request je založený/)).toBeInTheDocument()
+    // Karta ukazuje živý stav PR, ne jednorázovou hlášku o založení.
+    expect(await within(gitBody()).findByText(/Pull request #7 je otevřený/)).toBeInTheDocument()
     expect(within(gitBody()).getByText('Větev docs/test je odeslaná.')).toBeInTheDocument()
+  })
+
+  /** Odeslat, založit PR a vrátit tělo sekce připravené ke sloučení. */
+  async function publishAndOpenPr(user: User) {
+    await user.click(within(await changesList()).getByRole('checkbox', { name: /guide.md/ }))
+    await publish(user)
+    await within(gitBody()).findByText('Větev docs/test je odeslaná.')
+    await user.click(within(gitBody()).getByRole('button', { name: 'Otevřít PR' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Založit pull request' })
+    await user.click(within(dialog).getByRole('button', { name: 'Založit' }))
+    await within(gitBody()).findByText(/Pull request #7 je otevřený/)
+  }
+
+  it('sloučí pull request a uklidí po něm', async () => {
+    const user = userEvent.setup()
+    await renderApp({ changes: [{ path: 'docs/guide.md', xy: ' M' }] })
+    await openTheFolder(user)
+    await waitForGit()
+    await publishAndOpenPr(user)
+
+    await user.click(within(gitBody()).getByRole('button', { name: 'Sloučit…' }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Sloučit pull request' })
+    // Je vidět, co přesně se stane -- sloučení je nevratné.
+    expect(within(dialog).getByText(/sloučí větev docs\/test do main/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/Potom se přepne na main/)).toBeInTheDocument()
+    // Squash je výchozí, když ho repozitář povoluje.
+    expect(within(dialog).getByRole('radio', { name: /Squash/ })).toBeChecked()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Sloučit' }))
+
+    await waitFor(() => {
+      expect(git.merged).toEqual({
+        folder: '/repo/docs',
+        number: 7,
+        method: 'squash',
+        base: 'main',
+        head: 'docs/test',
+        deleteBranch: true,
+      })
+    })
+    expect(await within(gitBody()).findByText(/Pull request #7 je sloučený/)).toBeInTheDocument()
+    // Do prohlížeče se kvůli tomu nic neposílalo.
+    expect(git.opened).toEqual([])
+  })
+
+  it('nabídne jen ty způsoby sloučení, které repozitář povoluje', async () => {
+    const user = userEvent.setup()
+    await renderApp({
+      changes: [{ path: 'docs/guide.md', xy: ' M' }],
+      mergeMethods: { squash: false, rebase: false },
+    })
+    await openTheFolder(user)
+    await waitForGit()
+    await publishAndOpenPr(user)
+
+    await user.click(within(gitBody()).getByRole('button', { name: 'Sloučit…' }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Sloučit pull request' })
+    expect(within(dialog).getAllByRole('radio')).toHaveLength(1)
+    expect(within(dialog).getByRole('radio', { name: /Merge/ })).toBeChecked()
+  })
+
+  it('konflikt sloučit nenabídne a řekne proč', async () => {
+    const user = userEvent.setup()
+    await renderApp({
+      changes: [{ path: 'docs/guide.md', xy: ' M' }],
+      prState: { mergeable: 'CONFLICTING' },
+    })
+    await openTheFolder(user)
+    await waitForGit()
+    await publishAndOpenPr(user)
+
+    expect(within(gitBody()).getByText(/má konflikty/)).toBeInTheDocument()
+    expect(within(gitBody()).queryByRole('button', { name: 'Sloučit…' })).toBeNull()
+  })
+
+  it('neúspěšné sloučení to řekne v dialogu a nechá ho otevřený', async () => {
+    const user = userEvent.setup()
+    await renderApp({
+      changes: [{ path: 'docs/guide.md', xy: ' M' }],
+      failMerge: 'Pull request is not mergeable',
+    })
+    await openTheFolder(user)
+    await waitForGit()
+    await publishAndOpenPr(user)
+
+    await user.click(within(gitBody()).getByRole('button', { name: 'Sloučit…' }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Sloučit pull request' })
+    await user.click(within(dialog).getByRole('button', { name: 'Sloučit' }))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('not mergeable')
+    expect(screen.getByRole('alertdialog', { name: 'Sloučit pull request' })).toBeInTheDocument()
   })
 
   it('repozitář bez workflows to řekne hned, místo aby čekal', async () => {
@@ -477,5 +570,35 @@ describe('GitHub CLI', () => {
     await publish(user)
     expect(await within(gitBody()).findByText('Větev docs/test je odeslaná.')).toBeInTheDocument()
     expect(within(gitBody()).queryByRole('button', { name: 'Otevřít PR' })).toBeNull()
+  })
+})
+
+describe('pull request z minulého spuštění', () => {
+  it('sekce ho najde podle větve a nabídne sloučení, i když se v tomhle sezení nic neodesílalo', async () => {
+    // Přesně situace po restartu aplikace: PR vznikl minule (nebo
+    // v prohlížeči) a aplikace o něm z paměti nic neví.
+    const user = userEvent.setup()
+    await renderApp({
+      branch: 'docs/vcerejsi',
+      existingPr: { number: 42, branch: 'docs/vcerejsi', base: 'main' },
+    })
+    await openTheFolder(user)
+    await waitForGit()
+
+    expect(await within(gitBody()).findByText(/Pull request #42 je otevřený/)).toBeInTheDocument()
+    expect(within(gitBody()).getByRole('button', { name: 'Sloučit…' })).toBeInTheDocument()
+  })
+
+  it('na hlavní větvi žádný pull request nenabízí', async () => {
+    const user = userEvent.setup()
+    await renderApp({ existingPr: { number: 42, branch: 'docs/vcerejsi', base: 'main' } })
+    await openTheFolder(user)
+    await waitForGit()
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 30))
+    })
+
+    expect(within(gitBody()).queryByText(/je otevřený/)).toBeNull()
+    expect(within(gitBody()).queryByRole('button', { name: 'Sloučit…' })).toBeNull()
   })
 })

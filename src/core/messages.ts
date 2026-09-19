@@ -637,6 +637,33 @@ export const t = {
     prOpenInBrowser: 'Otevřít na GitHubu',
     prFailed: 'Pull request se nepodařilo založit.',
 
+    prOpenState: (n: number) => `Pull request #${n} je otevřený.`,
+    merge: 'Sloučit…',
+    mergeTitle: 'Sloučit pull request',
+    mergeBody: (n: number, head: string, base: string) =>
+      `Pull request #${n} sloučí větev ${head} do ${base}. Sloučení proběhne na GitHubu a nedá se vzít zpět.`,
+    mergeAfter: (base: string) =>
+      `Potom se přepne na ${base} a stáhne se, aby další odeslání vycházelo z aktuálního stavu.`,
+    mergeMethodLabel: 'Způsob sloučení',
+    mergeMethod: {
+      squash: 'Squash — jeden commit',
+      merge: 'Merge — zachovat commity',
+      rebase: 'Rebase — přenést commity',
+    } as Record<string, string>,
+    mergeDelete: 'Smazat větev po sloučení',
+    mergeConfirm: 'Sloučit',
+    merging: 'Slučuji…',
+    merged: (n: number) => `Pull request #${n} je sloučený.`,
+    mergeFailed: 'Pull request se nepodařilo sloučit.',
+    prLoadFailed: 'Stav pull requestu se nepodařilo zjistit.',
+    mergeBlocked: {
+      draft: 'Pull request je koncept. Označ ho na GitHubu jako připravený.',
+      conflict: 'Pull request má konflikty. Vyřeš je a zkus to znovu.',
+      blocked: 'GitHub sloučení blokuje — chybí schválení nebo neprošly kontroly.',
+      closed: 'Pull request už není otevřený.',
+      none: '',
+    } as Record<string, string>,
+
     ciNoWorkflows: 'Repozitář nemá žádný workflow, takže se žádný běh nespustí.',
     ciNoRunForBranch: (names: string) =>
       `Běh se neobjevil. V repozitáři je ${names} -- zřejmě se na push do větve nespouští.`,

@@ -14,7 +14,7 @@
  * z GitHubu. Nic víc. Běhy se nikdy nespouštějí a workflow se nemění.
  */
 
-import type { GhProbe, GitProbe } from '@/core'
+import type { GhProbe, GitProbe, MergeMethod } from '@/core'
 
 /** Kus výstupu z běžícího procesu, tak jak přišel. */
 export type GitChunk =
@@ -75,6 +75,20 @@ export interface GitApi {
   /** Založit pull request. Vrací adresu hotového PR. */
   createPr(input: CreatePrInput): Promise<string>
 
+  /** Otevřený PR pro danou větev. Surový JSON; čte ho `parsePullRequest`. */
+  pullRequest(folder: string, branch: string): Promise<string>
+
+  /** Co repozitář povoluje za způsoby sloučení. Čte `parseMergeMethods`. */
+  mergeMethods(folder: string): Promise<string>
+
+  /**
+   * Sloučit pull request a uklidit po něm: přepnout na cílovou větev,
+   * stáhnout ji a smazat tu sloučenou. Průběh chodí do `sink`.
+   *
+   * Sloučení je nevratné a děje se na GitHubu -- volá se jen po potvrzení.
+   */
+  mergePr(input: MergePrInput, sink: GitSink): Promise<void>
+
   /**
    * Přihlásit GitHub CLI přes prohlížeč.
    *
@@ -117,6 +131,16 @@ export interface CreatePrInput {
   head: string
   title: string
   body: string
+}
+
+export interface MergePrInput {
+  folder: string
+  number: number
+  method: MergeMethod
+  base: string
+  head: string
+  /** Smazat sloučenou větev lokálně i na GitHubu. */
+  deleteBranch: boolean
 }
 
 export interface CloneInput {

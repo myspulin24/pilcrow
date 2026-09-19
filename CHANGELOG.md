@@ -10,6 +10,23 @@ uživateli vyskočí okno s prázdnou kolonkou.
 Píše se pro toho, kdo aplikaci používá, ne pro toho, kdo ji píše: co se změní
 na obrazovce, ne které soubory se upravily. Nejnovější verze je nahoře.
 
+## 0.9.0 — 2026-09-19
+
+### Přidáno
+
+- **Pull request se dá sloučit přímo v aplikaci.** Sekce Git ukáže, že je PR
+  otevřený, a tlačítkem **Sloučit…** ho dokončíš — vybereš způsob (squash,
+  merge, rebase; nabídnou se jen ty, které repozitář povoluje) a jestli se má
+  větev smazat. Po sloučení se aplikace přepne na hlavní větev a stáhne ji,
+  takže další odeslání vychází z aktuálního stavu.
+- Sloučení je nevratné, takže je za potvrzovacím dialogem, ve kterém je
+  vypsané, co přesně se stane.
+- **Když sloučit nejde, je napsáno proč** — konflikty, koncept, chybějící
+  schválení nebo zavřený PR. Tlačítko se v takovém případě nenabídne.
+- Sekce si otevřený pull request najde **podle větve**, ne podle čísla
+  zapamatovaného v paměti. Pozná ho tedy i po restartu aplikace, a i když
+  vznikl v prohlížeči.
+
 ## 0.8.3 — 2026-09-19
 
 ### Opraveno

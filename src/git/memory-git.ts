@@ -10,7 +10,15 @@
  */
 
 import type { GhProbe, GitProbe } from '@/core'
-import type { CloneInput, CreatePrInput, GitApi, GitChunk, GitSink, PublishInput } from './api'
+import type {
+  CloneInput,
+  CreatePrInput,
+  GitApi,
+  GitChunk,
+  GitSink,
+  MergePrInput,
+  PublishInput,
+} from './api'
 
 /** Repozitář na „GitHubu“, jak ho vrátí paměťová implementace. */
 export interface MemoryRepo {
@@ -63,6 +71,19 @@ export interface MemoryGitOptions {
   workflowCount?: number
   /** Nechat založení PR selhat s touhle zprávou. */
   failPr?: string
+  /**
+   * Otevřený PR, který na GitHubu existoval, ještě než se aplikace spustila.
+   *
+   * Modeluje situaci po restartu: uživatel odeslal a založil PR minule,
+   * aplikace o tom nic neví a musí si ho najít podle větve.
+   */
+  existingPr?: { number: number; branch: string; base?: string; title?: string }
+  /** Stav PR, který „GitHub“ hlásí pro odeslanou větev. */
+  prState?: { mergeable?: string; mergeStateStatus?: string; isDraft?: boolean; state?: string }
+  /** Které způsoby sloučení repozitář povoluje. */
+  mergeMethods?: { merge?: boolean; squash?: boolean; rebase?: boolean }
+  /** Nechat sloučení selhat s touhle zprávou. */
+  failMerge?: string
   /** Nechat stahování selhat s touhle zprávou. */
   failClone?: string
   /**
@@ -90,6 +111,8 @@ export class MemoryGit implements GitApi {
   published: { branch: string; message: string; files: string[] } | null = null
   /** Poslední založené PR, k ověření v testech. */
   createdPr: CreatePrInput | null = null
+  /** Poslední sloučení, k ověření v testech. */
+  merged: MergePrInput | null = null
   /** Poslední stahování, k ověření v testech. */
   cloned: (CloneInput & { target: string }) | null = null
   /** Dokončit zadržené stahování. `null`, když žádné neběží. */
@@ -309,6 +332,64 @@ export class MemoryGit implements GitApi {
     if (this.options.failPr) throw new Error(this.options.failPr)
     this.createdPr = { ...input }
     return 'https://github.com/tester/docs/pull/7'
+  }
+
+  async pullRequest(_folder: string, branch: string): Promise<string> {
+    if (!this.loggedIn) throw new Error('gh: To get started with GitHub CLI, please run: gh auth login')
+    if (this.merged) return '[]'
+    const existing = this.options.existingPr
+    const found =
+      this.createdPr && this.createdPr.head === branch
+        ? { number: 7, title: this.createdPr.title, base: this.createdPr.base, head: branch }
+        : existing && existing.branch === branch
+          ? {
+              number: existing.number,
+              title: existing.title ?? 'Dokumentace',
+              base: existing.base ?? 'main',
+              head: branch,
+            }
+          : null
+    if (!found) return '[]'
+
+    const s = this.options.prState ?? {}
+    return JSON.stringify([
+      {
+        number: found.number,
+        title: found.title,
+        url: `https://github.com/tester/docs/pull/${found.number}`,
+        state: s.state ?? 'OPEN',
+        isDraft: s.isDraft ?? false,
+        mergeable: s.mergeable ?? 'MERGEABLE',
+        mergeStateStatus: s.mergeStateStatus ?? 'CLEAN',
+        baseRefName: found.base,
+        headRefName: found.head,
+      },
+    ])
+  }
+
+  async mergeMethods(): Promise<string> {
+    const m = this.options.mergeMethods ?? {}
+    return JSON.stringify({
+      allow_merge_commit: m.merge ?? true,
+      allow_squash_merge: m.squash ?? true,
+      allow_rebase_merge: m.rebase ?? true,
+    })
+  }
+
+  async mergePr(input: MergePrInput, sink: GitSink): Promise<void> {
+    const say = (text: string) => sink({ kind: 'out', text })
+    say(`$ gh pr merge ${input.number} --${input.method}\n`)
+    if (this.options.failMerge) {
+      sink({ kind: 'failed', message: this.options.failMerge })
+      return
+    }
+    this.merged = { ...input }
+    say(`✓ Merged pull request #${input.number}\n`)
+    say(`$ git checkout ${input.base}\n`)
+    this.branch = input.base
+    say('$ git pull --ff-only\n')
+    if (input.deleteBranch) say(`$ git push origin --delete ${input.head}\n`)
+    sink({ kind: 'finished' })
   }
 
   async recentRuns(): Promise<string> {

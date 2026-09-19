@@ -8,7 +8,15 @@
 import { Channel, invoke } from '@tauri-apps/api/core'
 
 import type { GhProbe, GitProbe } from '@/core'
-import type { CloneInput, CreatePrInput, GitApi, GitChunk, GitSink, PublishInput } from './api'
+import type {
+  CloneInput,
+  CreatePrInput,
+  GitApi,
+  GitChunk,
+  GitSink,
+  MergePrInput,
+  PublishInput,
+} from './api'
 
 /** True, když v tomhle okně běží Tauri. */
 export function isGitAvailable(): boolean {
@@ -72,6 +80,26 @@ export class TauriGit implements GitApi {
       head: input.head,
       title: input.title,
       body: input.body,
+    })
+  }
+
+  pullRequest(folder: string, branch: string): Promise<string> {
+    return invoke<string>('gh_pr_for_branch', { folder, branch })
+  }
+
+  mergeMethods(folder: string): Promise<string> {
+    return invoke<string>('gh_merge_methods', { folder })
+  }
+
+  mergePr(input: MergePrInput, sink: GitSink): Promise<void> {
+    return invoke<void>('gh_pr_merge', {
+      folder: input.folder,
+      number: input.number,
+      method: input.method,
+      base: input.base,
+      head: input.head,
+      deleteBranch: input.deleteBranch,
+      channel: sinkChannel(sink),
     })
   }
 

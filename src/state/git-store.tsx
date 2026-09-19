@@ -38,6 +38,8 @@ import {
   parseGhAuth,
   parseGitStatus,
   parseJobs,
+  parseMergeMethods,
+  parsePullRequest,
   parseRemote,
   parseRuns,
   parseWorkflows,
@@ -50,6 +52,9 @@ import {
   type GitProbe,
   type GitRemote,
   type GitStep,
+  type MergeMethod,
+  type MergeMethods,
+  type PullRequest,
   type Workflow,
   type WorkflowJob,
   type WorkflowRun,
@@ -59,7 +64,7 @@ import { createGit, gitMessage, type GitApi, type GitChunk } from '@/git'
 import { useStore } from './store'
 
 /** Co zrovna běží. Nikdy dvě věci naráz. */
-export type GitBusy = 'probe' | 'status' | 'login' | 'publish' | 'push' | 'pr' | null
+export type GitBusy = 'probe' | 'status' | 'login' | 'publish' | 'push' | 'pr' | 'merge' | null
 
 /** Kde je sledování běhu. */
 export type Watching = 'idle' | 'waiting' | 'running' | 'done' | 'timeout' | 'none'
@@ -106,8 +111,16 @@ export interface GitView {
   prUrl: string | null
   /** Zpráva posledního commitu -- předvyplní název a popis PR. */
   lastMessage: string
-  /** Proč se PR nepodařilo založit. Ukazuje se v dialogu, ne v panelu. */
+  /** Proč se PR nepodařilo založit nebo sloučit. Ukazuje se v dialogu. */
   prError: string | null
+  /** Otevřený PR pro odeslanou větev. Hledá se podle větve, ne podle čísla. */
+  pr: PullRequest | null
+  /** Co repozitář povoluje za způsoby sloučení. */
+  mergeMethods: MergeMethods
+  /** Dialog sloučení. */
+  mergeOpen: boolean
+  /** PR se povedlo sloučit. */
+  mergedNumber: number | null
   /** `null` = zatím nenačteno. */
   recent: WorkflowRun[] | null
   recentError: string | null
@@ -135,6 +148,9 @@ export interface GitActions {
   openPr(): void
   closePr(): void
   createPr(title: string, body: string, base: string): Promise<void>
+  openMerge(): void
+  closeMerge(): void
+  mergePr(method: MergeMethod, deleteBranch: boolean): Promise<void>
 }
 
 interface GitValue {
@@ -173,6 +189,10 @@ const initialView = (supported: boolean): GitView => ({
   prUrl: null,
   lastMessage: '',
   prError: null,
+  pr: null,
+  mergeMethods: { merge: true, squash: true, rebase: true },
+  mergeOpen: false,
+  mergedNumber: null,
   recent: null,
   recentError: null,
   deviceCode: null,
@@ -249,6 +269,28 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
 
   // -- stav ------------------------------------------------------------------
 
+  const loadPullRequest = useCallback(
+    async (folder: string, branch: string) => {
+      // Složka i větev se předávají, netahají se z `viewRef`: ten se mezi
+      // dotazem na stav a touhle funkcí stihne přepsat, a načítalo by se
+      // pro složku, která už není otevřená -- nebo pro žádnou.
+      if (!folder || !branch || viewRef.current.gh !== 'ready') return
+      try {
+        const [raw, methods] = await Promise.all([
+          api.pullRequest(folder, branch),
+          api.mergeMethods(folder).catch(() => ''),
+        ])
+        patch({ pr: parsePullRequest(raw), mergeMethods: parseMergeMethods(methods) })
+      } catch (error) {
+        // Do panelu, ne do ticha: bez tohohle se prostě neukáže tlačítko
+        // sloučit a nikdo se nedozví proč.
+        patch({ pr: null, error: gitMessage(error, t.git.prLoadFailed) })
+      }
+    },
+    [api, patch],
+  )
+
+
   /**
    * Zjistit, jak na tom git a gh jsou, a hned načíst změny.
    *
@@ -285,12 +327,17 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
         touched,
         error: probe.error || null,
       })
-      if (gitStep(probe, true) === 'ready') await refreshChanges()
+      if (gitStep(probe, true) === 'ready') {
+        await refreshChanges()
+        // I po restartu aplikace: otevřený PR pro aktuální větev se najde
+        // podle ní, ne podle čísla, které si pamatuje jen běžící sezení.
+        void loadPullRequest(target, probe.branch)
+      }
     } catch (error) {
       if (viewRef.current.folder !== target) return
       patch({ busy: null, probed: true, error: gitMessage(error, t.git.failed) })
     }
-  }, [api, patch, refreshChanges, touchedAbsolute])
+  }, [api, loadPullRequest, patch, refreshChanges, touchedAbsolute])
 
   // Nová složka = nový začátek. Všechno, co platilo k té staré, se zahodí.
   useEffect(() => {
@@ -349,6 +396,12 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
 
   // -- odeslání --------------------------------------------------------------
 
+  /**
+   * Zjistit, jestli pro odeslanou větev existuje otevřený PR.
+   *
+   * Hledá se podle větve, ne podle čísla, které si zapamatovala aplikace:
+   * PR mohl vzniknout i v prohlížeči a po restartu by o něm jinak nevěděla.
+   */
   /** Po úspěšném pushi: nový stav repa, a začít hlídat běh. */
   const afterPush = useCallback(async () => {
     const current = viewRef.current
@@ -391,7 +444,8 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
         gh !== 'ready' || !probe?.headSha ? 'idle' : workflows.length === 0 ? 'none' : 'waiting',
     }))
     await refreshChanges()
-  }, [api, refreshChanges, update])
+    void loadPullRequest(current.folder, viewRef.current.published?.branch ?? '')
+  }, [api, loadPullRequest, refreshChanges, update])
 
   /** Obsluha kousků výstupu pro odeslání i opakovaný push. */
   const publishSink = useCallback(
@@ -488,6 +542,8 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
       transcript: '',
       error: null,
       prUrl: null,
+      pr: null,
+      mergedNumber: null,
     })
   }, [patch])
 
@@ -617,6 +673,56 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
   }, [openUrl])
 
   /**
+   * Sloučit pull request a uklidit po něm.
+   *
+   * Nevratné a děje se to na GitHubu, takže se sem jde jen přes tlačítko
+   * a potvrzovací dialog, kde je vypsané, co přesně se stane.
+   */
+  const mergePr = useCallback(
+    async (method: MergeMethod, deleteBranch: boolean) => {
+      const current = viewRef.current
+      if (!current.folder || !current.pr || current.busy) return
+      patch({ busy: 'merge', prError: null, transcript: '' })
+
+      let transcript = ''
+      try {
+        await api.mergePr(
+          {
+            folder: current.folder,
+            number: current.pr.number,
+            method,
+            base: current.pr.baseRefName,
+            head: current.pr.headRefName,
+            deleteBranch,
+          },
+          (chunk) => {
+            if (chunk.kind === 'out') {
+              transcript += chunk.text
+              patch({ transcript })
+              return
+            }
+            if (chunk.kind === 'failed') {
+              patch({ busy: null, prError: chunk.message || t.git.mergeFailed })
+              return
+            }
+            patch({
+              busy: null,
+              mergeOpen: false,
+              mergedNumber: current.pr?.number ?? null,
+              pr: null,
+            })
+            // Po sloučení stojí repozitář jinde: nová větev, nové změny.
+            void refresh()
+          },
+        )
+      } catch (error) {
+        patch({ busy: null, prError: gitMessage(error, t.git.mergeFailed) })
+      }
+    },
+    [api, patch, refresh],
+  )
+
+  /**
    * Založit pull request bez prohlížeče.
    *
    * Dělá to `gh pr create`, takže se nikam neotevírá okno a adresa hotového
@@ -636,12 +742,13 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
           body,
         })
         patch({ busy: null, prOpen: false, prUrl: url, prError: null })
+        void loadPullRequest(current.folder, current.published.branch)
       } catch (error) {
         // Chyba patří do dialogu, ne do panelu za ním -- tam ji nikdo nevidí.
         patch({ busy: null, prError: gitMessage(error, t.git.prFailed) })
       }
     },
-    [api, patch],
+    [api, loadPullRequest, patch],
   )
 
   const actions = useMemo<GitActions>(
@@ -666,12 +773,16 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
       openPr: () => patch({ prOpen: true, prError: null }),
       closePr: () => patch({ prOpen: false, prError: null }),
       createPr,
+      openMerge: () => patch({ mergeOpen: true, prError: null }),
+      closeMerge: () => patch({ mergeOpen: false, prError: null }),
+      mergePr,
     }),
     [
       cancel,
       cancelLogin,
       createPr,
       dismissPublished,
+      mergePr,
       loadRecent,
       login,
       openActions,

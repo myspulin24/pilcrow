@@ -718,6 +718,150 @@ pub async fn gh_pr_create(
     Ok(url)
 }
 
+/// Otevřený pull request pro danou větev.
+///
+/// Hledá se podle větve, ne podle čísla: PR mohl vzniknout i jinde a po
+/// restartu aplikace by o něm jinak nevěděla.
+#[tauri::command]
+pub async fn gh_pr_for_branch(
+    app: State<'_, AppState>,
+    state: State<'_, GitState>,
+    folder: String,
+    branch: String,
+) -> Result<String> {
+    let folder = granted_folder(&app, &folder)?;
+    let git = require_git(&state)?;
+    let root = require_root(&git, &folder)?;
+    if !is_safe_branch(&branch) {
+        return Err(CoreError::InvalidName(
+            "Tohle se větev jmenovat nemůže.".into(),
+        ));
+    }
+
+    let gh = require_gh(&state)?;
+    let output = run_in(
+        &gh,
+        Some(&root),
+        &[
+            "pr", "list", "--head", &branch, "--state", "open", "--limit", "1", "--json",
+            "number,title,url,state,isDraft,mergeable,mergeStateStatus,baseRefName,headRefName",
+        ],
+    )
+    .map_err(|error| CoreError::Io(format!("`gh pr list` se nepodařilo spustit: {error}")))?;
+
+    if !output.status.success() {
+        let details = stderr_of(&output);
+        return Err(CoreError::Io(if details.is_empty() {
+            "Pull requesty se nepodařilo načíst.".into()
+        } else {
+            details
+        }));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// Které způsoby sloučení repozitář povoluje.
+#[tauri::command]
+pub async fn gh_merge_methods(
+    app: State<'_, AppState>,
+    state: State<'_, GitState>,
+    folder: String,
+) -> Result<String> {
+    let folder = granted_folder(&app, &folder)?;
+    let git = require_git(&state)?;
+    let root = require_root(&git, &folder)?;
+    gh_get(&state, &root, "repos/{owner}/{repo}")
+}
+
+/// Sloučit pull request a uklidit po něm.
+///
+/// Čtyři kroky, každý vidět v panelu: sloučit, přepnout na cílovou větev,
+/// stáhnout ji a smazat tu sloučenou. Poslední dva jsou úklid -- bez nich by
+/// uživatel zůstal stát na větvi, která už je zmergovaná, a další odeslání
+/// by z ní odbočilo.
+///
+/// Sloučení je nevratné a děje se na GitHubu, takže se sem smí dostat jen
+/// přes tlačítko a potvrzení; tenhle příkaz se sám o nic neptá.
+#[tauri::command]
+pub async fn gh_pr_merge(
+    app: State<'_, AppState>,
+    state: State<'_, GitState>,
+    folder: String,
+    number: u64,
+    method: String,
+    base: String,
+    head: String,
+    delete_branch: bool,
+    channel: Channel<GitChunk>,
+) -> Result<()> {
+    let folder = granted_folder(&app, &folder)?;
+    let git = require_git(&state)?;
+    let root = require_root(&git, &folder)?;
+
+    let flag = match method.as_str() {
+        "merge" => "--merge",
+        "squash" => "--squash",
+        "rebase" => "--rebase",
+        other => {
+            return Err(CoreError::InvalidName(format!(
+                "{other} není způsob sloučení."
+            )))
+        }
+    };
+    if !is_safe_branch(&base) || !is_safe_branch(&head) {
+        return Err(CoreError::InvalidName(
+            "Tohle se větev jmenovat nemůže.".into(),
+        ));
+    }
+
+    let gh = require_gh(&state)?;
+    let slot = Arc::clone(&state.running);
+    if let Ok(mut held) = slot.lock() {
+        if let Some(previous) = held.as_mut() {
+            previous.kill_now();
+        }
+    }
+
+    std::thread::spawn(move || {
+        let number = number.to_string();
+
+        let mut merge = base_command(&gh);
+        merge.current_dir(&root).args(["pr", "merge", &number, flag]);
+        if !run_step(merge, &format!("gh pr merge {number} {flag}"), &channel, &slot) {
+            return;
+        }
+
+        // Úklid. Selhání tady už nemění to, že sloučení proběhlo, takže se
+        // hlásí, ale nepovažuje za pád celé akce.
+        let mut checkout = base_command(&git);
+        checkout.current_dir(&root).args(["checkout", &base]);
+        if run_step(checkout, &format!("git checkout {base}"), &channel, &slot) {
+            let mut pull = base_command(&git);
+            pull.current_dir(&root).args(["pull", "--ff-only"]);
+            let _ = run_step(pull, "git pull --ff-only", &channel, &slot);
+
+            if delete_branch {
+                let mut local = base_command(&git);
+                local.current_dir(&root).args(["branch", "-d", &head]);
+                let _ = run_step(local, &format!("git branch -d {head}"), &channel, &slot);
+
+                let mut remote = base_command(&git);
+                remote
+                    .current_dir(&root)
+                    .args(["push", "origin", "--delete", &head]);
+                let _ = run_step(
+                    remote,
+                    &format!("git push origin --delete {head}"),
+                    &channel,
+                    &slot,
+                );
+            }
+        }
+        let _ = channel.send(GitChunk::Finished);
+    });
+    Ok(())
+}
+
 // -- výběr repozitáře -------------------------------------------------------
 
 /// Stav GitHub CLI bez ohledu na složku.

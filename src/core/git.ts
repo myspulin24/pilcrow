@@ -482,6 +482,96 @@ export function isPrUrl(value: string): boolean {
   return /^https:\/\/[^\s]+\/pull\/\d+$/.test(value.trim())
 }
 
+/** Otevřený pull request pro danou větev. */
+export interface PullRequest {
+  number: number
+  title: string
+  url: string
+  /** `OPEN` | `MERGED` | `CLOSED` */
+  state: string
+  isDraft: boolean
+  /** `MERGEABLE` | `CONFLICTING` | `UNKNOWN` */
+  mergeable: string
+  /** `CLEAN` | `BLOCKED` | `BEHIND` | `DIRTY` | `UNSTABLE` | … */
+  mergeStateStatus: string
+  baseRefName: string
+  headRefName: string
+}
+
+/**
+ * `gh pr list --head <větev> --json …` -> první otevřený PR, nebo `null`.
+ *
+ * Hledá se podle větve, ne podle čísla, které si zapamatovala aplikace:
+ * PR mohl vzniknout i jinde a po restartu aplikace o něm jinak neví.
+ */
+export function parsePullRequest(json: string): PullRequest | null {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(json)
+  } catch {
+    return null
+  }
+  const first = Array.isArray(parsed) ? parsed[0] : parsed
+  if (!isRecord(first)) return null
+  const number = num(first, 'number')
+  if (number === 0) return null
+
+  return {
+    number,
+    title: str(first, 'title'),
+    url: str(first, 'url'),
+    state: str(first, 'state'),
+    isDraft: first.isDraft === true,
+    mergeable: str(first, 'mergeable'),
+    mergeStateStatus: str(first, 'mergeStateStatus'),
+    baseRefName: str(first, 'baseRefName'),
+    headRefName: str(first, 'headRefName'),
+  }
+}
+
+/** Způsoby sloučení, které repozitář povoluje. */
+export interface MergeMethods {
+  merge: boolean
+  squash: boolean
+  rebase: boolean
+}
+
+export type MergeMethod = 'merge' | 'squash' | 'rebase'
+
+export function parseMergeMethods(json: string): MergeMethods {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(json)
+  } catch {
+    // Když se to nepodaří zjistit, nabídnou se všechny; GitHub ten nepovolený
+    // odmítne a chybu uvidí uživatel. Lepší než nenabídnout nic.
+    return { merge: true, squash: true, rebase: true }
+  }
+  if (!isRecord(parsed)) return { merge: true, squash: true, rebase: true }
+  return {
+    merge: parsed.allow_merge_commit !== false,
+    squash: parsed.allow_squash_merge !== false,
+    rebase: parsed.allow_rebase_merge !== false,
+  }
+}
+
+/** První povolený způsob, v pořadí, ve kterém dávají smysl pro dokumentaci. */
+export function defaultMergeMethod(methods: MergeMethods): MergeMethod {
+  if (methods.squash) return 'squash'
+  if (methods.merge) return 'merge'
+  return 'rebase'
+}
+
+/** Proč se PR nedá sloučit. `null`, když se dá. */
+export function mergeBlocker(pr: PullRequest | null): 'none' | 'draft' | 'conflict' | 'blocked' | 'closed' | null {
+  if (!pr) return 'none'
+  if (pr.state !== 'OPEN') return 'closed'
+  if (pr.isDraft) return 'draft'
+  if (pr.mergeable === 'CONFLICTING' || pr.mergeStateStatus === 'DIRTY') return 'conflict'
+  if (pr.mergeStateStatus === 'BLOCKED') return 'blocked'
+  return null
+}
+
 /** Všechny běhy doběhly -- není na co čekat. */
 export function runsSettled(runs: WorkflowRun[]): boolean {
   return runs.length > 0 && runs.every((run) => run.status === 'completed')

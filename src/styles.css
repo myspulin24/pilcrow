@@ -3759,3 +3759,23 @@ body.is-resizing-v {
 .git__recent-list.is-sized {
   overflow-y: auto;
 }
+
+/* -- sloučení pull requestu ------------------------------------------------ */
+
+.git__methods {
+  margin: 0 0 8px;
+  padding: 0;
+  border: 0;
+}
+.git__method {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.git__method input {
+  margin: 0;
+  accent-color: var(--accent);
+}
