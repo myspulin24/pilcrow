@@ -12,7 +12,12 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { App } from '@/App'
-import { WORKSPACE_WIDTH_DEFAULT, WORKSPACE_WIDTH_MAX, WORKSPACE_WIDTH_MIN } from '@/core'
+import {
+  SECTION_HEIGHT_MIN,
+  WORKSPACE_WIDTH_DEFAULT,
+  WORKSPACE_WIDTH_MAX,
+  WORKSPACE_WIDTH_MIN,
+} from '@/core'
 import { StoreProvider } from '@/state/store'
 import { MemoryVault, type VaultSettings } from '@/vault'
 
@@ -132,5 +137,64 @@ describe('roztahování levého sloupce', () => {
     // Nastavení se dá upravit ručně i přenést z jiného počítače.
     await renderApp({ workspaceWidth: 0 })
     expect(workspace().style.width).toBe(`${WORKSPACE_WIDTH_DEFAULT}px`)
+  })
+})
+
+describe('výšky jednotlivých bloků', () => {
+  const sectionHandle = (name: RegExp) =>
+    within(workspace()).getByRole('button', { name })
+
+  async function dragSection(name: RegExp, dy: number) {
+    await act(async () => {
+      fireEvent.pointerDown(sectionHandle(name), { clientY: 400 })
+      fireEvent.pointerMove(window, { clientY: 400 + dy })
+      fireEvent.pointerUp(window)
+    })
+  }
+
+  it('blok bez uložené výšky roste obsahem', async () => {
+    await renderApp()
+    const body = document.getElementById('ws-notes-body') as HTMLElement
+    expect(body.style.height).toBe('')
+    expect(body.className).not.toContain('is-sized')
+  })
+
+  it('uložená výška se na blok promítne i s vnitřním posuvníkem', async () => {
+    await renderApp({ sectionHeights: { notes: 240 } })
+    const body = document.getElementById('ws-notes-body') as HTMLElement
+    expect(body.style.height).toBe('240px')
+    expect(body.className).toContain('is-sized')
+  })
+
+  it('tažení uloží výšku jen tomu bloku, za který se táhne', async () => {
+    await renderApp({ sectionHeights: { notes: 200 } })
+    await dragSection(/Výška bloku Poznámky/, 120)
+
+    await waitFor(async () => {
+      expect((await vault.loadSettings()).sectionHeights).toEqual({ notes: 320 })
+    })
+    // Šířka sloupce se tím nedotkla.
+    expect((await vault.loadSettings()).workspaceWidth).toBe(WORKSPACE_WIDTH_DEFAULT)
+  })
+
+  it('dvojklik pevnou výšku zruší a blok se vrátí k obsahu', async () => {
+    await renderApp({ sectionHeights: { notes: 240 } })
+    const body = document.getElementById('ws-notes-body') as HTMLElement
+    expect(body.style.height).toBe('240px')
+
+    await act(async () => {
+      fireEvent.doubleClick(sectionHandle(/Výška bloku Poznámky/))
+    })
+    await waitFor(async () => {
+      expect((await vault.loadSettings()).sectionHeights).toEqual({})
+    })
+    expect(body.style.height).toBe('')
+    expect(body.className).not.toContain('is-sized')
+  })
+
+  it('poškozená výška v nastavení blok nezmenší pod minimum', async () => {
+    await renderApp({ sectionHeights: { notes: 5 } })
+    const body = document.getElementById('ws-notes-body') as HTMLElement
+    expect(body.style.height).toBe(`${SECTION_HEIGHT_MIN}px`)
   })
 })

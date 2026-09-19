@@ -18,6 +18,8 @@ import {
   isValidBranchName,
   outcome,
   overallOutcome,
+  SECTION_GIT,
+  SECTION_RUNS,
   suggestBranch,
   suggestMessage,
   suggestPrBody,
@@ -30,6 +32,7 @@ import {
 import { useGit } from '@/state/git-store'
 import { useAppState } from '@/state/store'
 import { Spinner } from './Feedback'
+import { SectionResize } from './SectionResize'
 import { Backdrop, useEscape } from './Modal'
 import { Section } from './Section'
 
@@ -380,6 +383,7 @@ function Recent() {
         <p className="git__muted">{t.git.recentEmpty}</p>
       ) : null}
       {view.recent && view.recent.length > 0 ? (
+        <>
         <ul className="git__recent-list">
           {view.recent.map((run) => (
             <li key={run.id} className="git__recent-item">
@@ -394,6 +398,8 @@ function Recent() {
             </li>
           ))}
         </ul>
+        <SectionResize sectionKey={SECTION_RUNS} label={t.git.recent} />
+        </>
       ) : null}
     </details>
   )
@@ -592,6 +598,7 @@ export function GitSection() {
         meta={meta}
         open={open}
         onToggle={() => setOpen((value) => !value)}
+        resize={{ key: SECTION_GIT, label: t.git.section }}
         actions={
           <button
             type="button"

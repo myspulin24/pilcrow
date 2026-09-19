@@ -26,3 +26,55 @@ export function clampWorkspaceWidth(value: number): number {
   if (!Number.isFinite(value) || value === 0) return WORKSPACE_WIDTH_DEFAULT
   return Math.min(WORKSPACE_WIDTH_MAX, Math.max(WORKSPACE_WIDTH_MIN, Math.round(value)))
 }
+
+// -- výšky jednotlivých bloků -------------------------------------------------
+
+/**
+ * Bloky v levém sloupci, kterým jde nastavit výška.
+ *
+ * Klíče jdou do nastavení, takže se nesmí měnit -- uživateli by se tím
+ * ztratilo, co si nastavil. Přidávat nové je v pořádku.
+ */
+export const SECTION_NOTES = 'notes'
+export const SECTION_FILES = 'files'
+export const SECTION_GIT = 'git'
+export const SECTION_RUNS = 'runs'
+
+export const SECTION_HEIGHT_MIN = 80
+export const SECTION_HEIGHT_MAX = 1200
+
+/**
+ * Výška jednoho bloku, nebo `0` pro „podle obsahu“.
+ *
+ * Nula je plnohodnotná hodnota, ne chybějící: znamená, že si blok výšku
+ * neurčuje a roste podle toho, co v něm je -- tak se aplikace chovala vždycky
+ * a tak se chová, dokud za okraj nikdo nezatáhne. Proto se nedá říct „nula
+ * je nesmysl, dej výchozí“ jako u šířky sloupce.
+ */
+export function clampSectionHeight(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) return 0
+  return Math.min(SECTION_HEIGHT_MAX, Math.max(SECTION_HEIGHT_MIN, Math.round(value)))
+}
+
+/** Uložená výška bloku. `0` = podle obsahu. */
+export function sectionHeight(heights: Record<string, number> | undefined, key: string): number {
+  return clampSectionHeight(heights?.[key] ?? 0)
+}
+
+/**
+ * Nastavení s novou výškou bloku.
+ *
+ * Vrací nový objekt; nula klíč rovnou vyhodí, aby se v nastavení nehromadily
+ * bloky, kterým uživatel výšku zrušil.
+ */
+export function withSectionHeight(
+  heights: Record<string, number> | undefined,
+  key: string,
+  value: number,
+): Record<string, number> {
+  const next = { ...(heights ?? {}) }
+  const height = clampSectionHeight(value)
+  if (height === 0) delete next[key]
+  else next[key] = height
+  return next
+}

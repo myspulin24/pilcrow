@@ -7,6 +7,8 @@
 
 import type { ReactNode } from 'react'
 
+import { SectionResize } from './SectionResize'
+
 export function Section({
   id,
   title,
@@ -14,6 +16,7 @@ export function Section({
   open,
   onToggle,
   actions,
+  resize,
   children,
 }: {
   id: string
@@ -22,6 +25,8 @@ export function Section({
   open: boolean
   onToggle: () => void
   actions?: ReactNode
+  /** Klíč a popis bloku, kterému jde nastavit výška. Bez toho roste obsahem. */
+  resize?: { key: string; label: string }
   children: ReactNode
 }) {
   return (
@@ -45,9 +50,12 @@ export function Section({
         {actions ? <span className="ws-section__actions">{actions}</span> : null}
       </div>
       {open ? (
-        <div className="ws-section__body" id={`${id}-body`}>
-          {children}
-        </div>
+        <>
+          <div className="ws-section__body" id={`${id}-body`}>
+            {children}
+          </div>
+          {resize ? <SectionResize sectionKey={resize.key} label={resize.label} /> : null}
+        </>
       ) : null}
     </section>
   )

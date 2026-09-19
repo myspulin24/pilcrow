@@ -138,6 +138,12 @@ export interface VaultSettings {
   /** Šířka levého sloupce v bodech. Uživatel si ji roztahuje myší. */
   workspaceWidth: number
   /**
+   * Výšky jednotlivých bloků v levém sloupci, klíč -> body.
+   *
+   * Chybějící klíč znamená „podle obsahu“, což je výchozí chování.
+   */
+  sectionHeights: Record<string, number>
+  /**
    * Kam se stahují repozitáře vybrané v „Otevřít repozitář“.
    *
    * Prázdné, dokud si uživatel složku nevybere v dialogu -- tam se zároveň
@@ -313,6 +319,7 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   lastFolder: '',
   lastFile: '',
   workspaceWidth: 300,
+  sectionHeights: {},
   reposFolder: '',
   assistantEnabled: false,
   assistantModel: '',

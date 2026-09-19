@@ -10,6 +10,16 @@ uživateli vyskočí okno s prázdnou kolonkou.
 Píše se pro toho, kdo aplikaci používá, ne pro toho, kdo ji píše: co se změní
 na obrazovce, ne které soubory se upravily. Nejnovější verze je nahoře.
 
+## 0.8.2 — 2026-09-19
+
+### Přidáno
+
+- **Každý blok v levém sloupci si drží vlastní výšku.** Poznámky, otevřená
+  složka, Git i Poslední běhy — chytni spodní hranu bloku a táhni. Blok
+  dostane vnitřní posuvník, ostatní zůstanou, jak byly. Výšky se pamatují,
+  jdou nastavit i šipkami z klávesnice a dvojklik pevnou výšku zruší, takže
+  se blok zase řídí obsahem.
+
 ## 0.8.1 — 2026-09-19
 
 ### Přidáno

@@ -3,6 +3,8 @@
 //! All of them serialise as camelCase so the TypeScript definitions in
 //! `src/vault/api.ts` and `src/core/types.ts` match field-for-field.
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 /// A note file exactly as it exists on disk.
@@ -187,6 +189,12 @@ pub struct VaultSettings {
     /// Šířka levého sloupce v bodech. Uživatel si ji roztahuje myší.
     #[serde(default = "default_workspace_width")]
     pub workspace_width: i64,
+    /// Výšky jednotlivých bloků v levém sloupci, klíč -> body.
+    ///
+    /// Chybějící klíč znamená „podle obsahu“, což je výchozí chování. Mapa,
+    /// ne čtyři pole: bloků může přibýt a stará nastavení musí dál fungovat.
+    #[serde(default)]
+    pub section_heights: HashMap<String, i64>,
     /// Kam se stahují repozitáře vybrané v „Otevřít repozitář“.
     ///
     /// Prázdné, dokud si uživatel složku nevybere v dialogu -- tam se zároveň
@@ -239,6 +247,7 @@ impl Default for VaultSettings {
             last_folder: String::new(),
             last_file: String::new(),
             workspace_width: default_workspace_width(),
+            section_heights: HashMap::new(),
             repos_folder: String::new(),
             assistant_enabled: false,
             assistant_model: String::new(),

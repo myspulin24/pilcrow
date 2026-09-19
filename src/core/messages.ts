@@ -105,6 +105,8 @@ export const t = {
     folderContents: 'Obsah složky',
     partialScan: 'neúplné',
     resize: 'Šířka levého sloupce',
+    resizeSection: (name: string) => `Výška bloku ${name}`,
+    resizeSectionHint: 'Táhni myší, nebo šipkami nahoru a dolů. Dvojklik zruší pevnou výšku.',
     resizeHint: 'Táhni myší, nebo šipkami. Dvojklik vrátí výchozí šířku.',
     files_: (count: number) => withCount(count, 'soubor', 'soubory', 'souborů'),
   },

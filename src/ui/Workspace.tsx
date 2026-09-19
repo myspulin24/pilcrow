@@ -18,7 +18,7 @@
 
 import { useRef } from 'react'
 
-import { relativePath, t } from '@/core'
+import { relativePath, SECTION_FILES, SECTION_NOTES, t } from '@/core'
 import { useRepos } from '@/state/repos-store'
 import { useActions, useAppState } from '@/state/store'
 import { Spinner } from './Feedback'
@@ -114,6 +114,7 @@ export function Workspace() {
           meta={`${state.notes.length}`}
           open={state.notesSectionOpen}
           onToggle={() => actions.toggleNotesSection()}
+          resize={{ key: SECTION_NOTES, label: t.workspace.notes }}
         >
           <NoteList />
         </Section>
@@ -154,6 +155,7 @@ export function Workspace() {
             }
             open={state.filesSectionOpen}
             onToggle={() => actions.toggleFilesSection()}
+            resize={{ key: SECTION_FILES, label: folderName }}
             actions={
               <>
                 <button
