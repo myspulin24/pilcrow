@@ -10,7 +10,7 @@ uživateli vyskočí okno s prázdnou kolonkou.
 Píše se pro toho, kdo aplikaci používá, ne pro toho, kdo ji píše: co se změní
 na obrazovce, ne které soubory se upravily. Nejnovější verze je nahoře.
 
-## 0.7.0 — nevydáno
+## 0.7.0 — 2026-09-19
 
 ### Přidáno
 
