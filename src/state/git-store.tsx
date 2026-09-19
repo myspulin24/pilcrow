@@ -59,7 +59,7 @@ import { createGit, gitMessage, type GitApi, type GitChunk } from '@/git'
 import { useStore } from './store'
 
 /** Co zrovna běží. Nikdy dvě věci naráz. */
-export type GitBusy = 'probe' | 'status' | 'login' | 'publish' | 'push' | null
+export type GitBusy = 'probe' | 'status' | 'login' | 'publish' | 'push' | 'pr' | null
 
 /** Kde je sledování běhu. */
 export type Watching = 'idle' | 'waiting' | 'running' | 'done' | 'timeout' | 'none'
@@ -106,6 +106,8 @@ export interface GitView {
   prUrl: string | null
   /** Zpráva posledního commitu -- předvyplní název a popis PR. */
   lastMessage: string
+  /** Proč se PR nepodařilo založit. Ukazuje se v dialogu, ne v panelu. */
+  prError: string | null
   /** `null` = zatím nenačteno. */
   recent: WorkflowRun[] | null
   recentError: string | null
@@ -132,7 +134,7 @@ export interface GitActions {
   loadRecent(): Promise<void>
   openPr(): void
   closePr(): void
-  createPr(title: string, body: string): Promise<void>
+  createPr(title: string, body: string, base: string): Promise<void>
 }
 
 interface GitValue {
@@ -170,6 +172,7 @@ const initialView = (supported: boolean): GitView => ({
   prOpen: false,
   prUrl: null,
   lastMessage: '',
+  prError: null,
   recent: null,
   recentError: null,
   deviceCode: null,
@@ -434,7 +437,16 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
         transcript: '',
         error: null,
         publishOpen: false,
-        published: { branch, base: current.probe.branch, sha: '', pushed: false, retryable: false },
+        // Základ PR je **výchozí větev repozitáře**, ne ta, na které uživatel
+        // stojí. Po prvním odeslání stojí na `docs/…`; tu pak zmerguje,
+        // GitHub ji smaže a PR z druhého kola by neměl kam mířit.
+        published: {
+          branch,
+          base: current.probe.defaultBranch || current.probe.branch,
+          sha: '',
+          pushed: false,
+          retryable: false,
+        },
         lastMessage: message,
         prUrl: null,
         runs: [],
@@ -611,21 +623,22 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
    * PR se vrátí rovnou do panelu.
    */
   const createPr = useCallback(
-    async (title: string, body: string) => {
+    async (title: string, body: string, base: string) => {
       const current = viewRef.current
       if (!current.folder || !current.published || current.busy) return
-      patch({ busy: 'publish', error: null, prOpen: false })
+      patch({ busy: 'pr', prError: null })
       try {
         const url = await api.createPr({
           folder: current.folder,
-          base: current.published.base,
+          base,
           head: current.published.branch,
           title,
           body,
         })
-        patch({ busy: null, prUrl: url })
+        patch({ busy: null, prOpen: false, prUrl: url, prError: null })
       } catch (error) {
-        patch({ busy: null, prOpen: true, error: gitMessage(error, t.git.prFailed) })
+        // Chyba patří do dialogu, ne do panelu za ním -- tam ji nikdo nevidí.
+        patch({ busy: null, prError: gitMessage(error, t.git.prFailed) })
       }
     },
     [api, patch],
@@ -650,8 +663,8 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
       openActions,
       openUrl,
       loadRecent,
-      openPr: () => patch({ prOpen: true }),
-      closePr: () => patch({ prOpen: false }),
+      openPr: () => patch({ prOpen: true, prError: null }),
+      closePr: () => patch({ prOpen: false, prError: null }),
       createPr,
     }),
     [

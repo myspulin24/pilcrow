@@ -28,6 +28,12 @@ pub struct GitProbe {
     /// Kořen repozitáře, ve kterém otevřená složka leží. Prázdné = není v repu.
     pub repo_root: String,
     pub branch: String,
+    /// Výchozí větev repozitáře (`main`, `master`, …).
+    ///
+    /// Do ní míří pull requesty. Nesmí se plést s `branch`: ta říká, kde
+    /// uživatel právě stojí, a po prvním odeslání to je ta `docs/…` větev,
+    /// kterou pak zmerguje a GitHub smaže -- PR by neměl kam mířit.
+    pub default_branch: String,
     pub head_sha: String,
     pub remote_url: String,
     pub user_name: String,

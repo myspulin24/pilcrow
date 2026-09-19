@@ -10,6 +10,22 @@ uživateli vyskočí okno s prázdnou kolonkou.
 Píše se pro toho, kdo aplikaci používá, ne pro toho, kdo ji píše: co se změní
 na obrazovce, ne které soubory se upravily. Nejnovější verze je nahoře.
 
+## 0.8.3 — 2026-09-19
+
+### Opraveno
+
+- **Pull request se zakládá do hlavní větve.** Druhý a každý další PR mířil
+  do té `docs/…` větve, na které jsi zrovna stál — jenže tu jsi mezitím
+  zmergoval a GitHub ji smazal, takže GitHub PR odmítl. Cílem je teď výchozí
+  větev repozitáře a v dialogu ji je vidět a jde změnit.
+- **Chyba při zakládání PR je vidět.** Vypisovala se do panelu *za* dialogem,
+  takže po kliknutí na „Založit“ to vypadalo, že se neděje nic. Teď je
+  v dialogu, který zůstane otevřený, aby šlo cíl opravit.
+- **Karta odeslání během zakládání PR nezmizí.** Ukazovala se místo ní stará
+  hláška z pushe.
+- **Zarovnání sekce Git.** Nadpis změn, řádky souborů, tlačítka a Poslední
+  běhy měly čtyři různé levé okraje.
+
 ## 0.8.2 — 2026-09-19
 
 ### Přidáno

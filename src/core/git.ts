@@ -28,6 +28,14 @@ export interface GitProbe {
   /** Kořen repozitáře, ve kterém otevřená složka leží. Prázdné = není v repu. */
   repoRoot: string
   branch: string
+  /**
+   * Výchozí větev repozitáře. Do ní míří pull requesty.
+   *
+   * Nesmí se plést s `branch`: ta říká, kde uživatel právě stojí, a po
+   * prvním odeslání to je ta `docs/…` větev, kterou pak zmerguje a GitHub
+   * smaže -- PR by neměl kam mířit.
+   */
+  defaultBranch: string
   headSha: string
   /** Adresa `origin`. Prázdná, když repo žádný remote nemá. */
   remoteUrl: string

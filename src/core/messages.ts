@@ -627,6 +627,7 @@ export const t = {
     openPrBody: (head: string, base: string) =>
       `Sloučí větev ${head} do ${base}. Založí se rovnou tady, prohlížeč není potřeba.`,
     prTitleLabel: 'Název',
+    prBaseLabel: 'Sloučit do větve',
     prBodyLabel: 'Popis',
     prBodyPlaceholder: 'Nepovinné. Co a proč se mění.',
     prTitleEmpty: 'Název pull requestu nemůže být prázdný.',

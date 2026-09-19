@@ -43,6 +43,7 @@ const probe = (patch: Partial<GitProbe> = {}): GitProbe => ({
   }),
   repoRoot: 'C:/Users/micha/dev/pilcrow',
   branch: 'main',
+  defaultBranch: 'main',
   headSha: '9b4ab0e7fba8fcc617c64f47f0a5ae5ab0bbb5ee',
   remoteUrl: 'https://github.com/myspulin24/pilcrow.git',
   userName: 'Jasek-Michal',

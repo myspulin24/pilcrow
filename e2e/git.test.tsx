@@ -318,6 +318,82 @@ describe('odeslání', () => {
     expect(within(gitBody()).queryByRole('alert')).toBeNull()
   })
 
+  it('druhý pull request míří do výchozí větve, ne do té předchozí', async () => {
+    // Tohle je ta chyba z používání: po prvním odeslání stojí uživatel na
+    // `docs/…`. Když se ta větev stane základem druhého PR, GitHub ho
+    // odmítne -- ta větev už je zmergovaná a smazaná.
+    const user = userEvent.setup()
+    await renderApp({ changes: [{ path: 'docs/guide.md', xy: ' M' }], defaultBranch: 'main' })
+    await openTheFolder(user)
+    await waitForGit()
+    await user.click(within(await changesList()).getByRole('checkbox', { name: /guide.md/ }))
+    await publish(user, 'docs/prvni')
+    await within(gitBody()).findByText('Větev docs/prvni je odeslaná.')
+
+    // Druhé kolo: aplikace teď stojí na `docs/prvni`.
+    await act(async () => {
+      git.markChanged('docs/README.md')
+    })
+    // Tlačítko ↻ je v záhlaví sekce, ne v jejím těle.
+    await user.click(within(workspace()).getByRole('button', { name: 'Zkontrolovat znovu' }))
+    await waitFor(() => expect(gitToggle()).toHaveTextContent('docs/prvni'))
+    await user.click(await within(gitBody()).findByRole('checkbox', { name: /README.md/ }))
+    await publish(user, 'docs/druha')
+    await within(gitBody()).findByText('Větev docs/druha je odeslaná.')
+
+    await user.click(within(gitBody()).getByRole('button', { name: 'Otevřít PR' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Založit pull request' })
+    // Cílem je výchozí větev, ne `docs/prvni`.
+    expect(within(dialog).getByLabelText('Sloučit do větve')).toHaveValue('main')
+
+    await user.click(within(dialog).getByRole('button', { name: 'Založit' }))
+    await waitFor(() => {
+      expect(git.createdPr?.base).toBe('main')
+      expect(git.createdPr?.head).toBe('docs/druha')
+    })
+  })
+
+  it('když se PR nepodaří založit, chyba je vidět v dialogu', async () => {
+    // Dřív šla do panelu za dialogem, takže ji nikdo neviděl a vypadalo to,
+    // že se po kliknutí neděje nic.
+    const user = userEvent.setup()
+    await renderApp({
+      changes: [{ path: 'docs/guide.md', xy: ' M' }],
+      failPr: 'pull request create failed: Base ref must be a branch',
+    })
+    await openTheFolder(user)
+    await waitForGit()
+    await user.click(within(await changesList()).getByRole('checkbox', { name: /guide.md/ }))
+    await publish(user)
+    await within(gitBody()).findByText('Větev docs/test je odeslaná.')
+
+    await user.click(within(gitBody()).getByRole('button', { name: 'Otevřít PR' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Založit pull request' })
+    await user.click(within(dialog).getByRole('button', { name: 'Založit' }))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Base ref must be a branch')
+    // Dialog zůstane otevřený, ať se dá cíl opravit.
+    expect(screen.getByRole('dialog', { name: 'Založit pull request' })).toBeInTheDocument()
+  })
+
+  it('karta odeslání nezmizí, zatímco se PR zakládá', async () => {
+    const user = userEvent.setup()
+    await renderApp({ changes: [{ path: 'docs/guide.md', xy: ' M' }] })
+    await openTheFolder(user)
+    await waitForGit()
+    await user.click(within(await changesList()).getByRole('checkbox', { name: /guide.md/ }))
+    await publish(user)
+    await within(gitBody()).findByText('Větev docs/test je odeslaná.')
+
+    await user.click(within(gitBody()).getByRole('button', { name: 'Otevřít PR' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Založit pull request' })
+    await user.click(within(dialog).getByRole('button', { name: 'Založit' }))
+
+    // Po založení je karta pořád tam, jen s číslem PR místo tlačítka.
+    expect(await within(gitBody()).findByText(/Pull request je založený/)).toBeInTheDocument()
+    expect(within(gitBody()).getByText('Větev docs/test je odeslaná.')).toBeInTheDocument()
+  })
+
   it('repozitář bez workflows to řekne hned, místo aby čekal', async () => {
     const user = userEvent.setup()
     await renderApp({ changes: [{ path: 'docs/guide.md', xy: ' M' }], workflowCount: 0 })

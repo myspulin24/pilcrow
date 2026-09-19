@@ -198,6 +198,12 @@ pub async fn git_probe(
     if let Some(root) = repo_root(&git, &folder) {
         probe.repo_root = root.to_string_lossy().to_string();
         probe.branch = git_value(&git, &root, &["rev-parse", "--abbrev-ref", "HEAD"]);
+        // `origin/HEAD` ukazuje na výchozí větev; `git remote set-head` ji
+        // umí doplnit, ale klon ji nastavuje sám, takže tu skoro vždycky je.
+        probe.default_branch = git_value(&git, &root, &["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
+            .strip_prefix("origin/")
+            .unwrap_or_default()
+            .to_string();
         probe.head_sha = git_value(&git, &root, &["rev-parse", "HEAD"]);
         probe.remote_url = git_value(&git, &root, &["remote", "get-url", "origin"]);
         probe.user_name = git_value(&git, &root, &["config", "user.name"]);

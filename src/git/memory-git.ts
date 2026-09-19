@@ -38,6 +38,8 @@ export interface MemoryGitOptions {
   /** `null` = žádná složka není v repu. Výchozí: otevřená složka je kořen repa. */
   repoRoot?: string | null
   branch?: string
+  /** Výchozí větev repozitáře; do ní míří PR. Prázdná = nezjištěná. */
+  defaultBranch?: string
   remoteUrl?: string
   /** `false` = git nezná jméno a e-mail. */
   identity?: boolean
@@ -160,6 +162,7 @@ export class MemoryGit implements GitApi {
         : '',
       repoRoot: gitInstalled ? repoRoot : '',
       branch: gitInstalled && repoRoot ? this.branch : '',
+      defaultBranch: gitInstalled && repoRoot ? (this.options.defaultBranch ?? 'main') : '',
       headSha: gitInstalled && repoRoot ? this.headSha : '',
       remoteUrl: gitInstalled && repoRoot ? (this.options.remoteUrl ?? 'https://github.com/tester/docs.git') : '',
       userName: identity ? 'Tester' : '',

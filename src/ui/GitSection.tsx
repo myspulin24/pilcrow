@@ -497,7 +497,9 @@ function PrDialog() {
   const { view, actions } = useGit()
   const [title, setTitle] = useState(() => suggestPrTitle(view.lastMessage))
   const [body, setBody] = useState(() => suggestPrBody(view.lastMessage))
+  const [base, setBase] = useState(() => view.published?.base ?? '')
   const [error, setError] = useState<string | null>(null)
+  const busy = view.busy === 'pr'
   const labelId = useId()
   useEscape(actions.closePr)
 
@@ -511,7 +513,11 @@ function PrDialog() {
       setError(t.git.prTitleEmpty)
       return
     }
-    void actions.createPr(title.trim(), body)
+    if (!isValidBranchName(base.trim())) {
+      setError(t.git.branchInvalid)
+      return
+    }
+    void actions.createPr(title.trim(), body, base.trim())
   }
 
   return (
@@ -521,7 +527,7 @@ function PrDialog() {
           {t.git.openPrTitle}
         </h2>
         <p className="modal__body">
-          {t.git.openPrBody(view.published?.branch ?? '', view.published?.base ?? '')}
+          {t.git.openPrBody(view.published?.branch ?? '', base)}
         </p>
 
         <label className="modal__label" htmlFor={`${labelId}-title`}>
@@ -538,6 +544,20 @@ function PrDialog() {
           aria-invalid={error ? 'true' : 'false'}
         />
 
+        <label className="modal__label" htmlFor={`${labelId}-base`}>
+          {t.git.prBaseLabel}
+        </label>
+        <input
+          id={`${labelId}-base`}
+          className="modal__input"
+          value={base}
+          spellCheck={false}
+          onChange={(event) => {
+            setBase(event.target.value)
+            setError(null)
+          }}
+        />
+
         <label className="modal__label" htmlFor={`${labelId}-body`}>
           {t.git.prBodyLabel}
         </label>
@@ -550,17 +570,18 @@ function PrDialog() {
           onChange={(event) => setBody(event.target.value)}
         />
 
-        {error ? (
+        {/* Chyba z gitu patří sem, ne do panelu za dialogem. */}
+        {error || view.prError ? (
           <p className="modal__error" role="alert">
-            {error}
+            {error ?? view.prError}
           </p>
         ) : null}
         <div className="modal__actions">
-          <button type="button" className="button" onClick={actions.closePr}>
+          <button type="button" className="button" onClick={actions.closePr} disabled={busy}>
             {t.common.cancel}
           </button>
-          <button type="submit" className="button button--primary">
-            {t.git.prCreate}
+          <button type="submit" className="button button--primary" disabled={busy}>
+            {busy ? t.git.prCreating : t.git.prCreate}
           </button>
         </div>
       </form>

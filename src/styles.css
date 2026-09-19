@@ -3119,8 +3119,14 @@ textarea:focus-visible,
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 2px 0 6px;
+  /* Jeden levý okraj pro všechno uvnitř. Bez něj měla sekce pět různých:
+     nadpis změn 0, řádky souborů 6, karty 11, hlášky 12. */
+  padding: 2px 12px 8px;
   font-size: 12.5px;
+}
+/* Hlášky mají odsazení od svého okolí jinde ve sloupci; tady už ho má sekce. */
+.git .workspace__note {
+  margin: 2px 0;
 }
 .git__branch {
   font-family: var(--mono);
@@ -3241,6 +3247,7 @@ textarea:focus-visible,
 .git__file {
   display: flex;
   flex-direction: column;
+  margin: 0 -6px;
   padding: 4px 6px;
   border-radius: 6px;
 }
@@ -3286,7 +3293,7 @@ textarea:focus-visible,
   color: var(--danger);
 }
 .git__hint {
-  padding-left: 24px;
+  padding-left: 30px;
   font-size: 11px;
   color: var(--text-muted);
 }
@@ -3413,10 +3420,8 @@ textarea:focus-visible,
    tenhle blok neměl žádné a lepil se na levý okraj sloupce. */
 .git__recent {
   font-size: 12px;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-raised);
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
 }
 .git__recent summary {
   cursor: pointer;
@@ -3428,9 +3433,7 @@ textarea:focus-visible,
   color: var(--text);
 }
 .git__recent[open] summary {
-  margin-bottom: 6px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
 }
 .git__recent-list {
   list-style: none;
@@ -3444,7 +3447,8 @@ textarea:focus-visible,
   align-items: center;
   gap: 8px;
   min-width: 0;
-  padding: 5px 4px;
+  margin: 0 -6px;
+  padding: 5px 6px;
   border-radius: 6px;
 }
 .git__recent-item:hover {
