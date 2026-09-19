@@ -18,9 +18,12 @@ GitHub, jestli vyšla novější verze — a i ten se dá vypnout. Tvoje poznám
 soubory `.md`; všechno ostatní je jen mezipaměť, která se z nich dá kdykoli
 postavit znovu.
 
-Jedna výjimka existuje a je vypnutá, dokud ji sám nezapneš: [asistent
+Dvě výjimky existují a obě se dějí jen na tvůj pokyn: [asistent
 Claude](#asistent-claude) umí odpovídat na otázky k otevřené poznámce a k tomu
-její text odešle Anthropicu. Bez zapnutí se z počítače nepokouší odejít nic.
+její text odešle Anthropicu — je vypnutý, dokud ho sám nezapneš. A [sekce
+Git](#sekce-git) umí upravenou dokumentaci poslat commitem na tvůj vlastní
+remote — jen když klikneš na „Odeslat“. Bez toho se z počítače nepokouší
+odejít nic.
 
 ```
 ┌──────────────┬─────────────────────┬──────────────────────────┐
@@ -404,6 +407,43 @@ máš otevřený, dostaneš pohled na konflikt místo přepsání.
 
 ---
 
+## Sekce Git
+
+Když otevřená složka leží v repozitáři gitu, objeví se pod stromem souborů
+třetí sekce. Je na jednu věc: **upravil jsem dokumentaci, chci ji vrátit do
+gitu a vidět, jestli prošla CI.** Není to git klient a nechce být.
+
+| | |
+| --- | --- |
+| **Změny** | Soubory `.md` v otevřené složce, které se liší od posledního commitu. Ty, které jsi upravil v Pilcrow, jsou zaškrtnuté; cizí rozdělaná práce v repu se ukáže, ale sama se nevybere. |
+| **Odeslat do gitu…** | Zaškrtnuté soubory půjdou v novém commitu na **novou větev** (`docs/2026-09-19-1030`, jde přepsat) a na remote. Do větve, na které jsi byl, se nesahá. |
+| **Otevřít PR** | Otevře stránku GitHubu s předvyplněným PR z té větve. Založíš ho tam — Pilcrow žádný PR nezakládá ani neslučuje. |
+| **Běh Actions** | Po pushi se sekce ptá GitHubu na běh pro *tvůj* commit a ukazuje úlohy a kroky, jak přibývají. Než se běh objeví, poctivě říká, že čeká; to není chyba, GitHub ho zakládá s prodlevou. |
+| **Poslední běhy** | Posledních deset běhů v repu, k nahlédnutí. |
+
+Co k tomu potřebuješ: `git`. Pro běhy Actions a tlačítko PR navíc [GitHub
+CLI](https://cli.github.com) (`gh`), přihlášené — přihlásit se dá přímo ze
+sekce: ukáže jednorázový kód, zbytek proběhne v prohlížeči. Bez `gh` commit
+a push fungují a sekce řekne, co chybí. Mimo GitHub (GitLab, vlastní server)
+funguje commit a push; běhy a PR ne. Bez `git` se sekce neukáže vůbec — bez
+něj se nedá zjistit ani to, jestli složka v repu je.
+
+Tři pravidla, která sekce hlídá v Rustu, ne v UI:
+
+- **Do commitu jde jen to, co je zaškrtnuté, a jen z otevřené složky.** I když
+  kořen repa leží výš, soubor mimo složku se přidat nedá. Nikdy `git add -A`.
+- **Z GitHubu se jen čte.** `gh api` se volá jen na běhy a úlohy, bez metody,
+  tedy GET. Spustit běh nebo změnit workflow odsud nejde.
+- **Git ani `gh` nikdy nedostanou terminál.** Místo čekání na heslo, které
+  nikdo nezadá, skončí chybou, kterou uvidíš. Přihlášení k pushi si git půjčí
+  od `gh` jen pro ten jeden příkaz (`-c credential.helper`); do tvé globální
+  konfigurace gitu se nesahá.
+
+Když push selže — chráněná větev, výpadek sítě — commit zůstane na nové větvi
+a sekce nabídne **Zkusit push znovu**. Nic se neztratí a nic se nepřepíše.
+
+---
+
 ## Hlavní smyčka
 
 **Piš.** Poznámky jsou Markdown. Štítkuj přes `#napad` nebo
@@ -682,10 +722,12 @@ Neříká si o **žádná oznámení, žádnou schránku, žádné spouštění 
 Viz `src-tauri/capabilities/default.json` — ten soubor je úplný seznam
 a Tauri ho vynucuje za běhu.
 
-Jediný proces, který Pilcrow spouští, je `claude` — a jen když si [asistenta](#asistent-claude)
-zapneš. Neděje se to přes plugin shellu (ten v oprávněních není): spouští se
-konkrétní program s konkrétními argumenty z Rustu, takže webview nemůže sestavit
-žádný vlastní příkaz.
+Procesy, které Pilcrow spouští, jsou tři a všechny na tvůj pokyn: `claude`, když
+si [asistenta](#asistent-claude) zapneš, a `git` s `gh`, když otevřeš složku
+v repozitáři a pracuješ se [sekcí Git](#sekce-git). Nic z toho nejde přes plugin
+shellu (ten v oprávněních není): spouští se konkrétní program s konkrétními
+argumenty z Rustu, takže webview nemůže sestavit žádný vlastní příkaz. Stránku
+PR nebo běhu otevírá v prohlížeči taky Rust, a jen `https://`.
 
 Na síť sahá sám od sebe jedinou věcí: kontrolou aktualizací na `github.com`. Ta se navíc
 neděje ve webview, ale v Rustu — politika obsahu (`src-tauri/tauri.conf.json`)
@@ -833,17 +875,22 @@ nahlásí všechno, co je rozbité:
    limity), registr přístupů, který rozhoduje, co se vůbec smí číst, ukládání
    skupin a rozhodování kolem Claude Code: kde hledat `claude`, jaký příkaz
    ukáže instalace a jak se skládají vícebajtové znaky z kousků, které přijdou
-   z roury rozdělené
+   z roury rozdělené; a kolem gitu: kde hledat `git` a `gh`, co smí být jméno
+   větve a cesta v repu, než se z nich stane argument příkazu, a že se
+   v prohlížeči otevře jen `https://`
 3. **Jádro** — `vitest run`: obousměrný převod frontmatteru, vytahování štítků
    a odkazů `[[...]]`, renderer Markdownu a jeho escapování, bezpečné názvy
    souborů, rozbor vyhledávacích dotazů, diff, SHA-256, zplošťování stromu
    souborů, rozbalování a sbalování, filtrování, operace nad skupinami,
    přechody mezi režimy zobrazení, přepínání značek v liště formátování,
    sázení vzorců, čtení odpovědí Clauda (NDJSON po kouscích, stav přihlášení,
-   skládání zprávy s poznámkou) a celý český katalog textů včetně tvarů
-   množného čísla
+   skládání zprávy s poznámkou), čtení gitu a GitHubu (`git status -z`
+   s mezerami a přejmenováním, JSON běhů a úloh z `gh api`, stav přihlášení
+   `gh`, adresy PR, návrh větve a zprávy commitu, kdy je běh hotový) a celý
+   český katalog textů včetně tvarů množného čísla
 4. **End-to-end** — `vitest run --config vitest.e2e.config.ts`: průchod
-   poznámkami, strom souborů, skupiny, aktualizace, lišta, vzorce a asistent
+   poznámkami, strom souborů, skupiny, aktualizace, lišta, vzorce, asistent
+   a sekce Git
 
 Jednotlivé fáze: `npm test -- rust`, `npm test -- unit`, `npm test -- e2e`.
 
@@ -890,7 +937,32 @@ navíc, odpověď se skládá po kouscích; selhání se ukáže u odpovědi mí
 vypnutí zahodí rozhovor a vrátí souhlas; v prohlížeči neslibuje něco, co tam
 nejde spustit.
 
-Souborový systém pod všemi šesti pokrývá sada v Rustu.
+`git` projde sekci Git nad paměťovým gitem, který vrací výstup ve stejném
+tvaru jako skutečné nástroje: sekce se ukáže jen u složky v repu a jen
+s gitem; repo bez remote a git bez jména ukážou jeden krok; cizí změna zůstane
+nezaškrtnutá, soubor uložený v Pilcrow se zaškrtne sám a odškrtnutí přežije
+další uložení; dialog je předvyplněný, neplatnou větev nepustí; po odeslání
+je větev na remote, běh se objeví, kroky doběhnou jménem a PR se otevře
+na správné adrese; dokud se běh neobjeví, sekce čeká a nehlásí chybu;
+selhaný push nechá commit a nabídne push znovu; neúspěšný běh ukáže, který
+krok spadl; bez přihlášení ukáže kód a po něm začne sledovat; bez `gh` se
+dá odeslat i otevřít PR; mimo GitHub se PR ani běhy nenabízí.
+
+Souborový systém pod všemi sedmi pokrývá sada v Rustu.
+
+Jedna sada stojí mimo `npm test`, protože potřebuje celý crate aplikace
+a s ním na Linuxu i systémové knihovny webview:
+
+```bash
+cargo test --manifest-path src-tauri/Cargo.toml -p pilcrow git::tests
+```
+
+Jede proti **skutečnému gitu** v dočasné složce s bare remotem vedle: najde
+kořen repa z podsložky, omezí `git status` na otevřenou složku i s mezerou
+a diakritikou ve jméně, a projde ostrou sekvenci checkout → add → commit →
+push. Ověří, že na remote dorazil jen vybraný soubor, `main` se nehnul,
+frontend viděl každý krok, a že neúspěšný krok ohlásí chybu a zastaví se.
+Paměťové testy dokazují, co udělá UI; tohle dokazuje, co udělá git.
 
 Obě implementace SHA-256 (TypeScript pro editor, Rust pro souborovou vrstvu)
 se testují proti stejným zveřejněným vektorům, protože detekce konfliktů
@@ -917,7 +989,9 @@ předpoklad, že tvoje poznámky jsou jen soubory na tvém disku:
   jestli vyšla novější verze. Neposílá při něm nic o tobě ani o tvých
   poznámkách a vypíná se jedním řádkem v `.env`. [Asistent](#asistent-claude)
   je z tohohle pravidla vědomá výjimka — proto je vypnutý, proto se zapíná
-  jedním kliknutím a proto je nad ním napsané, co přesně odejde.
+  jedním kliknutím a proto je nad ním napsané, co přesně odejde. [Sekce
+  Git](#sekce-git) je druhá: commit a push jdou na tvůj vlastní remote, jen
+  na klik, a z GitHubu se jen čte.
 - **Vlastní účet pro AI, vlastní klíč, vlastní fakturace.** Asistent nemá svou
   bránu ani svůj klíč. Mluví s Claudem přes Claude Code, který na tvém počítači
   už přihlášený je; Pilcrow se tvého tokenu ani hesla nedotkne.

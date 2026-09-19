@@ -1,0 +1,531 @@
+/**
+ * Sekce Git v levém sloupci: změny v otevřené složce, odeslání na větev,
+ * a průběh běhu Actions po pushi.
+ *
+ * Ukazuje se jen u složky, která leží v repozitáři. Stejně jako u asistenta
+ * vždycky jen jeden krok: chybí git? Jak ho nainstalovat, a nic víc. Je,
+ * ale repo nemá remote? Jen to. Teprve když je všechno, ukáže se seznam změn.
+ *
+ * GitHub CLI je bokem: bez něj commit a push fungují, jen se nesledují běhy
+ * a nezakládá PR -- a sekce to řekne, místo aby ta tlačítka schovala.
+ */
+
+import { useEffect, useId, useState } from 'react'
+
+import {
+  currentPublishStep,
+  isCommittable,
+  isValidBranchName,
+  outcome,
+  overallOutcome,
+  suggestBranch,
+  suggestMessage,
+  t,
+  type Outcome,
+  type WorkflowJob,
+  type WorkflowRun,
+} from '@/core'
+import { useGit } from '@/state/git-store'
+import { useAppState } from '@/state/store'
+import { Spinner } from './Feedback'
+import { Backdrop, useEscape } from './Modal'
+import { Section } from './Section'
+
+// -- drobnosti --------------------------------------------------------------
+
+function GitIcon() {
+  return (
+    <svg className="ws-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+      <circle cx="4" cy="3" r="1.6" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <circle cx="4" cy="13" r="1.6" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <circle cx="12" cy="6" r="1.6" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M4 4.6v6.8M12 7.6c0 2.4-2.5 3-5 3.4" fill="none" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  )
+}
+
+/** Semafor: jeden znak a barva podle stavu, jméno stavu pro čtečku. */
+function State({ outcome: state, small = false }: { outcome: Outcome; small?: boolean }) {
+  const glyph: Record<Outcome, string> = {
+    queued: '○',
+    running: '◐',
+    success: '✓',
+    failure: '✕',
+    cancelled: '⊘',
+    skipped: '–',
+    unknown: '?',
+  }
+  return (
+    <span
+      className={`git__state git__state--${state} ${small ? 'git__state--small' : ''}`}
+      role="img"
+      aria-label={t.git.outcome[state] ?? state}
+    >
+      {glyph[state]}
+    </span>
+  )
+}
+
+/** Výstup gitu. Ne dekorace: tady se pozná, co selhalo. */
+function Transcript({ text }: { text: string }) {
+  if (!text.trim()) return null
+  return (
+    <details className="git__output">
+      <summary>{t.git.output}</summary>
+      <pre>{text}</pre>
+    </details>
+  )
+}
+
+function SetupCard({ title, body, command }: { title: string; body: string; command?: string }) {
+  const { actions, view } = useGit()
+  return (
+    <div className="git__card git__setup">
+      <h4>{title}</h4>
+      <p>{body}</p>
+      {command ? <pre className="git__command">{command}</pre> : null}
+      <div className="git__actions">
+        <button type="button" className="button" onClick={() => void actions.refresh()} disabled={view.busy === 'probe'}>
+          {t.git.recheck}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// -- GitHub CLI -------------------------------------------------------------
+
+function GhNotice() {
+  const { view, actions } = useGit()
+  if (view.gh !== 'install' && view.gh !== 'login') return null
+  const busy = view.busy === 'login'
+
+  if (view.gh === 'install') {
+    return (
+      <div className="git__card git__notice">
+        <h4>{t.git.ghInstall}</h4>
+        <p>{t.git.ghInstallBody}</p>
+        {view.probe?.ghInstallCommand ? <pre className="git__command">{view.probe.ghInstallCommand}</pre> : null}
+      </div>
+    )
+  }
+
+  return (
+    <div className="git__card git__notice">
+      <h4>{t.git.ghLogin}</h4>
+      <p>{t.git.ghLoginBody}</p>
+      {busy ? (
+        <>
+          {view.deviceCode ? (
+            <>
+              <p className="git__label">{t.git.deviceCodeHint}</p>
+              <p className="git__device-code" aria-label={t.git.deviceCodeLabel}>
+                {view.deviceCode}
+              </p>
+            </>
+          ) : (
+            <p className="git__muted">{t.git.loggingIn}</p>
+          )}
+          <div className="git__actions">
+            <button type="button" className="button" onClick={() => void actions.cancelLogin()}>
+              {t.git.loginCancel}
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="git__actions">
+          <button type="button" className="button button--primary" onClick={() => void actions.login()}>
+            {t.git.login}
+          </button>
+        </div>
+      )}
+      <Transcript text={busy ? view.transcript : ''} />
+    </div>
+  )
+}
+
+// -- změny ------------------------------------------------------------------
+
+function Changes() {
+  const { view, actions } = useGit()
+  const publishing = view.busy === 'publish' || view.busy === 'push'
+  const touched = new Set(view.touched)
+  const display = (path: string) =>
+    view.under && path.startsWith(`${view.under}/`) ? path.slice(view.under.length + 1) : path
+
+  if (view.changes.length === 0 && !publishing) {
+    return <p className="workspace__note">{t.git.noChanges}</p>
+  }
+
+  return (
+    <div className="git__changes-block">
+      {view.changes.length > 0 ? (
+        <>
+          <div className="git__changes-head">
+            <span className="git__muted">{t.git.changes(view.changes.length)}</span>
+            <span className="git__changes-tools">
+              <button type="button" className="workspace__link" onClick={actions.selectAll} disabled={publishing}>
+                {t.git.selectAll}
+              </button>
+              <button type="button" className="workspace__link" onClick={actions.selectNone} disabled={publishing}>
+                {t.git.selectNone}
+              </button>
+            </span>
+          </div>
+          <ul className="git__changes" aria-label={t.git.changesLabel}>
+            {view.changes.map((file) => {
+              const committable = isCommittable(file)
+              const own = touched.has(file.path)
+              return (
+                <li key={file.path} className={`git__file ${own ? 'git__file--own' : ''}`}>
+                  <label className="git__file-label" title={file.path}>
+                    <input
+                      type="checkbox"
+                      checked={view.selected.includes(file.path)}
+                      disabled={!committable || publishing}
+                      onChange={() => actions.toggleFile(file.path)}
+                    />
+                    <span className="git__file-name">{display(file.path)}</span>
+                    <span className={`git__badge git__badge--${file.kind}`}>{t.git.kind[file.kind] ?? file.kind}</span>
+                  </label>
+                  <span className={`git__hint ${own ? 'git__hint--own' : ''}`}>
+                    {!committable ? t.git.conflictedHint : own ? t.git.touchedHint : t.git.foreignHint}
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        </>
+      ) : null}
+
+      {publishing ? (
+        <div className="git__progress" role="status">
+          <Spinner label={t.git.step(currentPublishStep(view.transcript) ?? t.git.publishing)} />
+          <button type="button" className="button" onClick={() => void actions.cancel()}>
+            {t.git.cancel}
+          </button>
+        </div>
+      ) : (
+        <div className="git__actions">
+          <button
+            type="button"
+            className="button button--primary"
+            disabled={view.selected.length === 0}
+            onClick={actions.openPublish}
+          >
+            {t.git.publish}
+          </button>
+        </div>
+      )}
+      <Transcript text={publishing || view.error ? view.transcript : ''} />
+    </div>
+  )
+}
+
+// -- po odeslání ------------------------------------------------------------
+
+function PublishedCard() {
+  const { view, actions } = useGit()
+  const published = view.published
+  if (!published || view.busy === 'publish' || view.busy === 'push') return null
+
+  return (
+    <div className="git__card" aria-label={published.pushed ? t.git.published(published.branch) : t.git.pushFailed(published.branch)}>
+      <p className="git__ready">
+        <State outcome={published.pushed ? 'success' : 'failure'} />
+        <span>{published.pushed ? t.git.published(published.branch) : t.git.pushFailed(published.branch)}</span>
+      </p>
+      <div className="git__actions">
+        {published.pushed && view.gh !== 'not-github' ? (
+          <button
+            type="button"
+            className="button button--primary"
+            title={t.git.openPrHint}
+            onClick={() => void actions.openCompare()}
+          >
+            {t.git.openPr}
+          </button>
+        ) : null}
+        {!published.pushed && published.retryable ? (
+          <button type="button" className="button button--primary" onClick={() => void actions.retryPush()}>
+            {t.git.retryPush}
+          </button>
+        ) : null}
+        <button type="button" className="button" onClick={actions.dismissPublished}>
+          {t.git.dismiss}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function Job({ job }: { job: WorkflowJob }) {
+  return (
+    <div className="git__job">
+      <div className="git__job-head">
+        <State outcome={outcome(job.status, job.conclusion)} small />
+        <span>{job.name}</span>
+      </div>
+      {job.steps.length > 0 ? (
+        <ol className="git__steps" aria-label={job.name}>
+          {job.steps.map((step) => {
+            const state = outcome(step.status, step.conclusion)
+            return (
+              <li key={step.number} className={`git__step git__step--${state}`}>
+                <State outcome={state} small />
+                <span>{step.name}</span>
+              </li>
+            )
+          })}
+        </ol>
+      ) : null}
+    </div>
+  )
+}
+
+function Run({ run, jobs }: { run: WorkflowRun; jobs: WorkflowJob[] }) {
+  const { actions } = useGit()
+  return (
+    <div className="git__run">
+      <div className="git__run-head">
+        <State outcome={outcome(run.status, run.conclusion)} />
+        <strong>{run.name}</strong>
+        <span className="git__muted">{t.git.runNumber(run.runNumber)}</span>
+        {run.url ? (
+          <button type="button" className="workspace__link" onClick={() => void actions.openUrl(run.url)}>
+            {t.git.ciOpen}
+          </button>
+        ) : null}
+      </div>
+      {jobs.map((job) => (
+        <Job key={job.id} job={job} />
+      ))}
+    </div>
+  )
+}
+
+function CiCard() {
+  const { view, actions } = useGit()
+  if (!view.published?.pushed || view.gh !== 'ready') return null
+  if (view.watching === 'idle' && view.runs.length === 0) return null
+
+  return (
+    <div className="git__card" aria-label={t.git.ciTitle}>
+      <h4 className="git__card-title">
+        <span>{t.git.ciTitle}</span>
+        {view.runs.length > 0 ? <State outcome={overallOutcome(view.runs)} /> : null}
+      </h4>
+      {view.watching === 'waiting' ? <Spinner label={t.git.ciWaiting} /> : null}
+      {view.watching === 'timeout' ? (
+        <>
+          <p className="git__muted">{t.git.ciTimeout}</p>
+          <div className="git__actions">
+            <button type="button" className="button" onClick={() => void actions.openActions()}>
+              {t.git.ciOpenActions}
+            </button>
+          </div>
+        </>
+      ) : null}
+      {view.runs.map((run) => (
+        <Run key={run.id} run={run} jobs={view.jobs[run.id] ?? []} />
+      ))}
+    </div>
+  )
+}
+
+function Recent() {
+  const { view, actions } = useGit()
+  if (view.gh !== 'ready') return null
+
+  return (
+    <details
+      className="git__recent"
+      onToggle={(event) => {
+        if (event.currentTarget.open && view.recent === null) void actions.loadRecent()
+      }}
+    >
+      <summary>{t.git.recent}</summary>
+      {view.recentError ? <p className="git__muted">{view.recentError}</p> : null}
+      {view.recent && view.recent.length === 0 && !view.recentError ? (
+        <p className="git__muted">{t.git.recentEmpty}</p>
+      ) : null}
+      {view.recent && view.recent.length > 0 ? (
+        <ul className="git__recent-list">
+          {view.recent.map((run) => (
+            <li key={run.id} className="git__recent-item">
+              <State outcome={outcome(run.status, run.conclusion)} small />
+              <span className="git__recent-name">{run.name}</span>
+              <span className="git__muted">{run.branch}</span>
+              {run.url ? (
+                <button type="button" className="workspace__link" onClick={() => void actions.openUrl(run.url)}>
+                  {t.git.ciOpen}
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </details>
+  )
+}
+
+// -- dialog odeslání --------------------------------------------------------
+
+function PublishDialog() {
+  const { view, actions } = useGit()
+  const files = view.changes.filter((file) => view.selected.includes(file.path))
+  const [message, setMessage] = useState(() => suggestMessage(files))
+  const [branch, setBranch] = useState(() => suggestBranch(new Date()))
+  const [error, setError] = useState<string | null>(null)
+  const labelId = useId()
+  useEscape(actions.closePublish)
+
+  useEffect(() => {
+    document.getElementById(`${labelId}-message`)?.focus()
+  }, [labelId])
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!message.trim()) {
+      setError(t.git.messageEmpty)
+      return
+    }
+    if (!isValidBranchName(branch.trim())) {
+      setError(t.git.branchInvalid)
+      return
+    }
+    void actions.publish(message.trim(), branch.trim())
+  }
+
+  return (
+    <Backdrop onClose={actions.closePublish}>
+      <form className="modal git__dialog" onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby={labelId}>
+        <h2 className="modal__title" id={labelId}>
+          {t.git.publishTitle}
+        </h2>
+        <p className="modal__body">{t.git.publishBody(files.length, view.probe?.branch ?? '')}</p>
+        <ul className="git__summary">
+          {files.map((file) => (
+            <li key={file.path}>{file.path}</li>
+          ))}
+        </ul>
+
+        <label className="modal__label" htmlFor={`${labelId}-message`}>
+          {t.git.messageLabel}
+        </label>
+        <textarea
+          id={`${labelId}-message`}
+          className="modal__input git__message"
+          rows={3}
+          value={message}
+          onChange={(event) => {
+            setMessage(event.target.value)
+            setError(null)
+          }}
+        />
+
+        <label className="modal__label" htmlFor={`${labelId}-branch`}>
+          {t.git.branchLabel}
+        </label>
+        <input
+          id={`${labelId}-branch`}
+          className="modal__input"
+          value={branch}
+          spellCheck={false}
+          onChange={(event) => {
+            setBranch(event.target.value)
+            setError(null)
+          }}
+          aria-invalid={error ? 'true' : 'false'}
+        />
+
+        {error ? (
+          <p className="modal__error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <div className="modal__actions">
+          <button type="button" className="button" onClick={actions.closePublish}>
+            {t.common.cancel}
+          </button>
+          <button type="submit" className="button button--primary">
+            {t.git.send}
+          </button>
+        </div>
+      </form>
+    </Backdrop>
+  )
+}
+
+// -- sekce ------------------------------------------------------------------
+
+export function GitSection() {
+  const state = useAppState()
+  const { view, actions } = useGit()
+  const [open, setOpen] = useState(true)
+
+  // Jen u otevřené složky, a jen když je v repu. Prohlížeč bez Tauri, počítač
+  // bez gitu a složka mimo repo sekci vůbec nedostanou: bez gitu se nedá
+  // zjistit ani to, jestli složka v repu je, a nabízet instalaci gitu každé
+  // otevřené složce by otravovalo i toho, kdo git nikdy nechtěl.
+  if (!state.explorer.tree || !state.explorer.rootPath) return null
+  if (!view.probed) return null
+  if (view.step === 'unsupported' || view.step === 'install-git' || view.step === 'not-repo') return null
+
+  const meta = view.probe?.branch ? <span className="git__branch">{view.probe.branch}</span> : null
+
+  return (
+    <>
+      <Section
+        id="ws-git"
+        title={
+          <>
+            <GitIcon />
+            <span className="ws-section__label">{t.git.section}</span>
+          </>
+        }
+        meta={meta}
+        open={open}
+        onToggle={() => setOpen((value) => !value)}
+        actions={
+          <button
+            type="button"
+            className="ws-icon-button"
+            title={t.git.recheckHint}
+            aria-label={t.git.recheck}
+            disabled={view.busy !== null}
+            onClick={() => void actions.refresh()}
+          >
+            {'↻'}
+          </button>
+        }
+      >
+        <div className="git">
+          {view.busy === 'probe' && !view.probe ? <Spinner label={t.git.checking} /> : null}
+
+          {view.step === 'no-remote' ? <SetupCard title={t.git.noRemote} body={t.git.noRemoteBody} /> : null}
+          {view.step === 'identity' ? (
+            <SetupCard title={t.git.identity} body={t.git.identityBody} command={t.git.identityCommands} />
+          ) : null}
+
+          {view.step === 'ready' ? (
+            <>
+              <GhNotice />
+              <Changes />
+              <PublishedCard />
+              <CiCard />
+              <Recent />
+            </>
+          ) : null}
+
+          {view.error ? (
+            <p className="git__error" role="alert">
+              {view.error}
+            </p>
+          ) : null}
+        </div>
+      </Section>
+      {view.publishOpen ? <PublishDialog /> : null}
+    </>
+  )
+}

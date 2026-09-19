@@ -1,0 +1,94 @@
+/**
+ * Hranice gitu a GitHub CLI.
+ *
+ * Stejný vzor jako `VaultApi` a `AssistantApi`: jedno rozhraní, dvě skutečné
+ * implementace.
+ *
+ *   - `TauriGit`  - opravdová: spustí na tvém počítači `git` a `gh`.
+ *   - `MemoryGit` - stejná sémantika bez procesů, pro `npm run dev:web`
+ *     a pro testy. Vrací výstup ve stejném tvaru jako skutečné nástroje
+ *     (`git status -z`, JSON z `gh api`), takže testy procházejí stejnými
+ *     parsery jako aplikace.
+ *
+ * Co odchází z počítače: commit a push na *tvůj* remote, a čtení běhů Actions
+ * z GitHubu. Nic víc. Běhy se nikdy nespouštějí a workflow se nemění.
+ */
+
+import type { GitProbe } from '@/core'
+
+/** Kus výstupu z běžícího procesu, tak jak přišel. */
+export type GitChunk =
+  | { kind: 'out'; text: string }
+  | { kind: 'finished' }
+  | { kind: 'failed'; message: string }
+
+export type GitSink = (chunk: GitChunk) => void
+
+export interface PublishInput {
+  /** Otevřená složka -- ta, ke které je udělený přístup. */
+  folder: string
+  /** Cesty od kořene repa, s lomítky, tak jak je hlásí `git status`. */
+  files: string[]
+  message: string
+  branch: string
+}
+
+export interface GitApi {
+  /** `false` v prohlížeči: procesy jdou spouštět jen z desktopové aplikace. */
+  readonly available: boolean
+
+  /** Jak často se ptát GitHubu na běh. Testy to stáhnou na pár desítek ms. */
+  readonly pollMs: number
+
+  /** Co je na počítači a v jakém repu složka leží. */
+  probe(folder: string): Promise<GitProbe>
+
+  /** Surový `git status --porcelain=v1 -z` omezený na složku. Čte ho `parseGitStatus`. */
+  status(folder: string): Promise<string>
+
+  /** Nová větev, add, commit, push. Průběh chodí do `sink`. */
+  publish(input: PublishInput, sink: GitSink): Promise<void>
+
+  /** Jen push -- když ten první selhal a commit už je. */
+  push(folder: string, branch: string, sink: GitSink): Promise<void>
+
+  /** Zastavit rozběhnuté odeslání. */
+  cancel(): Promise<void>
+
+  /** Surový JSON běhů pro daný commit. Čte ho `parseRuns`. */
+  runs(folder: string, headSha: string): Promise<string>
+
+  /** Surový JSON úloh a kroků jednoho běhu. Čte ho `parseJobs`. */
+  jobs(folder: string, runId: number): Promise<string>
+
+  /** Posledních pár běhů v repu. */
+  recentRuns(folder: string): Promise<string>
+
+  /**
+   * Přihlásit GitHub CLI přes prohlížeč.
+   *
+   * Do `sink` přijde jednorázový kód, který uživatel opíše na github.com.
+   * Pilcrow ho jen ukáže; token si `gh` uloží do klíčenky sám.
+   */
+  login(sink: GitSink): Promise<void>
+  loginCancel(): Promise<void>
+
+  /** Otevřít adresu v prohlížeči. Jen https; hlídá to Rust. */
+  openUrl(url: string): Promise<void>
+}
+
+/** Vytáhnout z čehokoli chybovou větu, kterou jde ukázat člověku. */
+export function gitMessage(error: unknown, fallback: string): string {
+  if (typeof error === 'string' && error.trim()) return error
+  if (error instanceof Error && error.message) return error.message
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error &&
+    typeof (error as { message: unknown }).message === 'string' &&
+    (error as { message: string }).message.trim()
+  ) {
+    return (error as { message: string }).message
+  }
+  return fallback
+}

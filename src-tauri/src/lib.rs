@@ -16,6 +16,7 @@
 mod about;
 mod assistant;
 mod commands;
+mod git;
 mod state;
 mod watcher;
 
@@ -71,6 +72,9 @@ pub fn run() {
             // Asistent nemá s trezorem nic společného a hlavně nesmí bránit
             // startu: drží si jen cestu ke `claude` a rozpracované procesy.
             app.manage(assistant::AssistantState::default());
+            // Git a GitHub CLI: totéž -- cesty k nástrojům a rozběhnuté procesy,
+            // nic, co by trezor potřeboval nebo co by ho mohlo zdržet.
+            app.manage(git::GitState::default());
 
             match AppState::new(root.clone()) {
                 Ok(state) => {

@@ -8,6 +8,7 @@ import { t } from '@/core'
 import { isTypingTarget, matchesShortcut } from '@/lib/shortcuts'
 import { buildCommands } from '@/state/commands'
 import { useAssistant } from '@/state/assistant-store'
+import { useGit } from '@/state/git-store'
 import { useActions, useAppState, useStore } from '@/state/store'
 import { CommandPalette } from '@/ui/CommandPalette'
 import { ContextMenu } from '@/ui/ContextMenu'
@@ -26,6 +27,8 @@ export function App() {
   const { state } = useStore()
   const actions = useActions()
   const assistant = useAssistant()
+  const git = useGit()
+  const openPublish = git.view.step === 'ready' && git.view.selected.length > 0 ? git.actions.openPublish : undefined
   // Modals live in the store so the sidebar, the tree and the palette can all
   // raise one without threading callbacks through every component.
   const { prompt, confirm, menu } = state
@@ -46,6 +49,7 @@ export function App() {
         prompt: requestPrompt,
         confirm: requestConfirm,
         toggleAssistant: assistant.actions.toggle,
+        openPublish,
       })
       for (const command of commands) {
         if (!command.shortcut) continue
@@ -59,7 +63,7 @@ export function App() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [state, actions, assistant, prompt, confirm, menu, requestPrompt, requestConfirm])
+  }, [state, actions, assistant, openPublish, prompt, confirm, menu, requestPrompt, requestConfirm])
 
   // `#note/<path>` links inside the preview.
   useEffect(() => {

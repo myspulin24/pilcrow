@@ -17,11 +17,11 @@ use std::io::{Read, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::{Arc, Mutex};
 
-use tauri::ipc::Channel;
+use tauri::ipc::{Channel, IpcResponse};
 
 use pilcrow_core::assistant::{
     claude_candidates, install_command, take_decodable, AskRequest, AssistantChunk, AssistantProbe,
-    INSTALL_URL_UNIX, INSTALL_URL_WINDOWS,
+    StreamChunk, INSTALL_URL_UNIX, INSTALL_URL_WINDOWS,
 };
 use pilcrow_core::error::{CoreError, Result};
 
@@ -50,7 +50,7 @@ struct LoginSession {
 
 // -- hledání ----------------------------------------------------------------
 
-fn home() -> Option<std::path::PathBuf> {
+pub(crate) fn home() -> Option<std::path::PathBuf> {
     std::env::var_os("USERPROFILE")
         .or_else(|| std::env::var_os("HOME"))
         .map(std::path::PathBuf::from)
@@ -65,7 +65,7 @@ fn run(program: &str, args: &[&str]) -> std::io::Result<std::process::Output> {
 }
 
 /// Na Windows by se jinak při každém spuštění mihlo okno konzole.
-fn hide_console(command: &mut Command) {
+pub(crate) fn hide_console(command: &mut Command) {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -160,10 +160,13 @@ pub fn assistant_install_command() -> String {
 
 // -- proudové čtení ---------------------------------------------------------
 
-/// Číst standardní výstup potomka a posílat ho po kouscích, jak vzniká.
-fn pump(
+/// Číst výstup potomka a posílat ho po kouscích, jak vzniká.
+///
+/// Generické přes typ kousku: totéž čerpadlo slouží asistentovi i gitu,
+/// každý si jen nese svůj enum pro frontend.
+pub(crate) fn pump<C: StreamChunk + IpcResponse>(
     mut source: impl Read,
-    channel: &Channel<AssistantChunk>,
+    channel: &Channel<C>,
     slot: Arc<Mutex<Option<impl Killable>>>,
 ) -> bool {
     let mut buffer = [0_u8; 4096];
@@ -174,9 +177,7 @@ fn pump(
             Ok(0) => break,
             Ok(count) => count,
             Err(error) => {
-                let _ = channel.send(AssistantChunk::Failed {
-                    message: format!("Čtení odpovědi selhalo: {error}"),
-                });
+                let _ = channel.send(C::failed(format!("Čtení výstupu selhalo: {error}")));
                 return false;
             }
         };
@@ -186,7 +187,7 @@ fn pump(
             continue;
         };
 
-        if channel.send(AssistantChunk::Out { text }).is_err() {
+        if channel.send(C::out(text)).is_err() {
             // Frontend přestal poslouchat (zavřené okno, zrušený dotaz).
             // Nemá smysl pokračovat ani čekat na konec.
             if let Ok(mut held) = slot.lock() {
@@ -231,12 +232,15 @@ impl Killable for LoginSession {
 /// Potomek je ve sdíleném slotu, ne v téhle funkci, aby ho mohlo zrušit
 /// i tlačítko „Zastavit“. Čeká se až po vyjmutí ze slotu -- držet zámek přes
 /// celé čekání by znamenalo, že rušení čeká na to, co má zrušit.
-fn drain<T: Killable + Send + 'static>(
+pub(crate) fn drain<T, C>(
     stdout: impl Read + Send + 'static,
     stderr: Option<impl Read + Send + 'static>,
-    channel: Channel<AssistantChunk>,
+    channel: Channel<C>,
     slot: Arc<Mutex<Option<T>>>,
-) {
+) where
+    T: Killable + Send + 'static,
+    C: StreamChunk + IpcResponse + Send + 'static,
+{
     std::thread::spawn(move || {
         let complete = pump(stdout, &channel, Arc::clone(&slot));
         let held = slot.lock().ok().and_then(|mut slot| slot.take());
@@ -254,13 +258,13 @@ fn drain<T: Killable + Send + 'static>(
 
         let Some(mut child) = held else {
             // Někdo zatím stiskl „Zastavit“. Pro uživatele to není chyba.
-            let _ = channel.send(AssistantChunk::Finished);
+            let _ = channel.send(C::finished());
             return;
         };
 
         match child.wait_now() {
             Ok(status) if status.success() => {
-                let _ = channel.send(AssistantChunk::Finished);
+                let _ = channel.send(C::finished());
             }
             Ok(status) => {
                 // Neúspěšný konec bez jediného slova by byl jen mlčení;
@@ -274,16 +278,14 @@ fn drain<T: Killable + Send + 'static>(
                     .unwrap_or_default();
                 let code = status.code().unwrap_or(-1);
                 let message = if details.trim().is_empty() {
-                    format!("Claude skončil s kódem {code}.")
+                    format!("Proces skončil s kódem {code}.")
                 } else {
                     details.trim().chars().take(600).collect()
                 };
-                let _ = channel.send(AssistantChunk::Failed { message });
+                let _ = channel.send(C::failed(message));
             }
             Err(error) => {
-                let _ = channel.send(AssistantChunk::Failed {
-                    message: format!("Na Clauda se nepodařilo počkat: {error}"),
-                });
+                let _ = channel.send(C::failed(format!("Na proces se nepodařilo počkat: {error}")));
             }
         }
     });

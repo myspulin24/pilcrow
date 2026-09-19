@@ -37,6 +37,29 @@ pub enum AssistantChunk {
     Failed { message: String },
 }
 
+/// Společný tvar kousků výstupu z procesu, ať už ho spustil kdokoli.
+///
+/// Čtení roury a hlídání konce procesu je pro `claude` i `git` totéž; liší
+/// se jen typ, který odchází do frontendu. Přes tenhle trait je čerpadlo
+/// jedno a každý modul si nese jen svůj enum.
+pub trait StreamChunk: Sized {
+    fn out(text: String) -> Self;
+    fn finished() -> Self;
+    fn failed(message: String) -> Self;
+}
+
+impl StreamChunk for AssistantChunk {
+    fn out(text: String) -> Self {
+        AssistantChunk::Out { text }
+    }
+    fn finished() -> Self {
+        AssistantChunk::Finished
+    }
+    fn failed(message: String) -> Self {
+        AssistantChunk::Failed { message }
+    }
+}
+
 /// Dotaz, tak jak přijde z frontendu.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]

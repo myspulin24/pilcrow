@@ -88,6 +88,8 @@ import type { AssistantApi } from '@/assistant'
 import { applyTheme } from '@/lib/theme'
 
 import { AssistantProvider } from './assistant-store'
+import { GitProvider } from './git-store'
+import type { GitApi } from '@/git'
 
 export interface MathRequest {
   /** Zápis vzorce, se kterým se editor otevře. */
@@ -219,6 +221,14 @@ export interface ExplorerState {
   error: string | null
   /** A single file opened on its own, with no folder around it. */
   loneFile: string | null
+  /**
+   * Soubory v otevřené složce, které tenhle běh Pilcrow zapsal nebo smazal.
+   *
+   * Absolutní cesty. Sekce Git podle nich předvybírá, co jde do commitu:
+   * co změnil Pilcrow, je zaškrtnuté; cizí rozdělaná práce v repu se ukáže,
+   * ale sama se nevybere. Při změně složky se zapomene.
+   */
+  touched: string[]
 }
 
 const emptyExplorer: ExplorerState = {
@@ -232,6 +242,7 @@ const emptyExplorer: ExplorerState = {
   loading: false,
   error: null,
   loneFile: null,
+  touched: [],
 }
 
 export interface AppState {
@@ -335,6 +346,7 @@ type Action =
       expanded: string[]
     }
   | { type: 'explorer-lone-file'; path: string }
+  | { type: 'explorer-touched'; path: string }
   | { type: 'explorer-close' }
   | { type: 'explorer-toggle-dir'; path: string }
   | { type: 'explorer-set-expanded'; expanded: string[] }
@@ -498,8 +510,13 @@ function reducer(state: AppState, action: Action): AppState {
           loading: false,
           error: null,
           loneFile: null,
+          touched: state.explorer.rootPath === action.rootPath ? state.explorer.touched : [],
         },
       }
+    case 'explorer-touched':
+      return state.explorer.touched.includes(action.path)
+        ? state
+        : { ...state, explorer: { ...state.explorer, touched: [...state.explorer.touched, action.path] } }
     case 'explorer-lone-file':
       return {
         ...state,
@@ -662,11 +679,13 @@ export function StoreProvider({
   vault,
   updater,
   assistant,
+  git,
 }: {
   children: ReactNode
   vault?: VaultApi
   updater?: UpdaterApi
   assistant?: AssistantApi
+  git?: GitApi
 }) {
   const vaultRef = useRef<VaultApi>(vault ?? createVault())
   const updaterRef = useRef<UpdaterApi>(updater ?? createUpdater())
@@ -823,6 +842,7 @@ export function StoreProvider({
           })
           dispatch({ type: 'saved', hash: result.hash, text: editor.text, at: Date.now(), from: editor.text })
           dispatch({ type: 'reparse', parsed: parseNote(editor.text, { path: editor.path }) })
+          dispatch({ type: 'explorer-touched', path: editor.path })
         } catch (error) {
           dispatch({ type: 'saving', saving: false })
           reportError(error, t.errors.saveFile)
@@ -1573,6 +1593,7 @@ export function StoreProvider({
       try {
         if (external) await vaultRef.current.deleteExternalFile(path)
         else await vaultRef.current.deleteNote(path)
+        if (external) dispatch({ type: 'explorer-touched', path })
 
         if (stateRef.current.activePath === path) dispatch({ type: 'close' })
 
@@ -1606,6 +1627,7 @@ export function StoreProvider({
       const name = path.split(/[\/]/).pop() ?? path
       try {
         const landed = await vaultRef.current.moveIntoVault(path)
+        dispatch({ type: 'explorer-touched', path })
 
         // Soubor na staré cestě už není: vyhoď ho ze skupin i z editoru.
         const pruned = forgetPath(stateRef.current.collections, path)
@@ -2149,7 +2171,9 @@ export function StoreProvider({
   // a ukládání nastavení, a takhle ho nemusí obalovat každý test zvlášť.
   return (
     <StoreContext.Provider value={value}>
-      <AssistantProvider assistant={assistant}>{children}</AssistantProvider>
+      <AssistantProvider assistant={assistant}>
+        <GitProvider git={git}>{children}</GitProvider>
+      </AssistantProvider>
     </StoreContext.Provider>
   )
 }

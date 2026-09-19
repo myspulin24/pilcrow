@@ -6,6 +6,7 @@
  *
  *   NOTES    your vault  — titles, excerpts, tags
  *   <folder> any folder you opened — a tree of sub-folders and .md files
+ *   GIT      when that folder is in a repository — changes, publish, CI
  *
  * They share the search box: typing narrows the notes by full text and the
  * tree by file name at the same time. Keeping both in one column is the point
@@ -15,59 +16,15 @@
  * handled here too, since this is where the result shows up.
  */
 
-import { useRef, type ReactNode } from 'react'
+import { useRef } from 'react'
 
 import { relativePath, t } from '@/core'
 import { useActions, useAppState } from '@/state/store'
 import { Spinner } from './Feedback'
 import { FileIcon, FileTree, FolderIcon } from './FileTree'
+import { GitSection } from './GitSection'
 import { NoteList } from './NoteList'
-
-function Section({
-  id,
-  title,
-  meta,
-  open,
-  onToggle,
-  actions,
-  children,
-}: {
-  id: string
-  title: ReactNode
-  meta?: ReactNode
-  open: boolean
-  onToggle: () => void
-  actions?: ReactNode
-  children: ReactNode
-}) {
-  return (
-    // No aria-label here: the toggle button below already names the section,
-    // and a second identical name would make queries ambiguous.
-    <section className="ws-section">
-      <div className="ws-section__header">
-        <button
-          type="button"
-          className="ws-section__toggle"
-          aria-expanded={open}
-          aria-controls={`${id}-body`}
-          onClick={onToggle}
-        >
-          <span className="ws-section__twisty" aria-hidden="true">
-            {open ? '▾' : '▸'}
-          </span>
-          <span className="ws-section__title">{title}</span>
-          {meta ? <span className="ws-section__meta">{meta}</span> : null}
-        </button>
-        {actions ? <span className="ws-section__actions">{actions}</span> : null}
-      </div>
-      {open ? (
-        <div className="ws-section__body" id={`${id}-body`}>
-          {children}
-        </div>
-      ) : null}
-    </section>
-  )
-}
+import { Section } from './Section'
 
 export function Workspace() {
   const state = useAppState()
@@ -273,6 +230,8 @@ export function Workspace() {
             <p className="workspace__note">{t.workspace.loneFileHint}</p>
           </Section>
         ) : null}
+
+        <GitSection />
       </div>
 
       <div className="workspace__actions">

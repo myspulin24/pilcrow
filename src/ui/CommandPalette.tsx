@@ -14,6 +14,7 @@ import { formatShortcut } from '@/lib/shortcuts'
 import type { Command, ConfirmRequest, PromptRequest } from '@/state/commands'
 import { buildCommands } from '@/state/commands'
 import { useAssistant } from '@/state/assistant-store'
+import { useGit } from '@/state/git-store'
 import { useActions, useAppState } from '@/state/store'
 import { useInsertWikiLink } from './NotePane'
 
@@ -36,6 +37,7 @@ export function CommandPalette({
   const state = useAppState()
   const actions = useActions()
   const assistant = useAssistant()
+  const git = useGit()
   const insertWikiLink = useInsertWikiLink()
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(0)
@@ -55,7 +57,14 @@ export function CommandPalette({
     () =>
       linkMode
         ? []
-        : buildCommands({ state, actions, prompt, confirm, toggleAssistant: assistant.actions.toggle }),
+        : buildCommands({
+            state,
+            actions,
+            prompt,
+            confirm,
+            toggleAssistant: assistant.actions.toggle,
+            openPublish: git.view.step === 'ready' && git.view.selected.length > 0 ? git.actions.openPublish : undefined,
+          }),
     [linkMode, state, actions, assistant, prompt, confirm],
   )
 

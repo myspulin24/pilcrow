@@ -10,6 +10,29 @@ uživateli vyskočí okno s prázdnou kolonkou.
 Píše se pro toho, kdo aplikaci používá, ne pro toho, kdo ji píše: co se změní
 na obrazovce, ne které soubory se upravily. Nejnovější verze je nahoře.
 
+## 0.7.0 — nevydáno
+
+### Přidáno
+
+- **Sekce Git** v levém sloupci, u složky, která leží v repozitáři. Ukáže
+  změněné soubory .md, předvybere ty, které jsi upravil v Pilcrow, a
+  tlačítkem **Odeslat do gitu…** je pošle v novém commitu na novou větev.
+  Do hlavní větve se nesahá — PR založíš na GitHubu tlačítkem **Otevřít PR**.
+- **Průběh běhu Actions** hned po pushi: úlohy a jejich kroky se jmény
+  a stavem, jak přibývají. Sleduje se běh pro *tvůj* commit, ne poslední
+  v repu, a než se objeví, sekce poctivě říká, že čeká.
+- **Přihlášení k GitHubu** přímo v sekci přes GitHub CLI: ukáže se
+  jednorázový kód, zbytek proběhne v prohlížeči. Pilcrow žádný token nevidí
+  ani neukládá.
+
+### Co se nemění
+
+- Z GitHubu se jen čte. Běhy se nespouštějí a workflow se nemění.
+- Do commitu jde jen to, co máš zaškrtnuté. Cizí rozdělaná práce v repu se
+  ukáže, ale sama se nevybere.
+- Vyžaduje `git`; pro běhy a PR i GitHub CLI (`gh`). Bez `gh` funguje commit
+  a push a sekce řekne, co chybí.
+
 ## 0.6.3 — 2026-09-19
 
 ### Přidáno

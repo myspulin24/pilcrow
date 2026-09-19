@@ -505,7 +505,18 @@ pub fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static
         crate::assistant::assistant_login,
         crate::assistant::assistant_login_code,
         crate::assistant::assistant_login_cancel,
-        crate::assistant::assistant_logout
+        crate::assistant::assistant_logout,
+        crate::git::git_probe,
+        crate::git::git_status,
+        crate::git::git_publish,
+        crate::git::git_push,
+        crate::git::git_cancel,
+        crate::git::gh_runs,
+        crate::git::gh_jobs,
+        crate::git::gh_recent_runs,
+        crate::git::gh_login,
+        crate::git::gh_login_cancel,
+        crate::git::open_url
     ]
 }
 

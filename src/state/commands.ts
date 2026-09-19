@@ -30,6 +30,8 @@ export interface CommandContext {
   confirm: (request: ConfirmRequest) => void
   /** Otevřít nebo zavřít panel asistenta. Chybí tam, kde asistent není. */
   toggleAssistant?: () => void
+  /** Otevřít dialog odeslání do gitu. Chybí, když není co odeslat. */
+  openPublish?: () => void
 }
 
 export function buildCommands({
@@ -38,6 +40,7 @@ export function buildCommands({
   prompt,
   confirm,
   toggleAssistant,
+  openPublish,
 }: CommandContext): Command[] {
   const hasNote = state.activePath !== null
   const activePath = state.activePath ?? ''
@@ -319,6 +322,13 @@ export function buildCommands({
       hint: t.settings.openHint,
       shortcut: { key: ',', mod: true },
       run: () => actions.openSettings(),
+    },
+    {
+      id: 'git.publish',
+      title: t.commands.gitPublish,
+      group: t.palette.groups.explorer,
+      enabled: openPublish !== undefined,
+      run: () => openPublish?.(),
     },
     {
       id: 'app.assistant',
