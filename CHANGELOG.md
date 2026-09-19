@@ -10,7 +10,7 @@ uživateli vyskočí okno s prázdnou kolonkou.
 Píše se pro toho, kdo aplikaci používá, ne pro toho, kdo ji píše: co se změní
 na obrazovce, ne které soubory se upravily. Nejnovější verze je nahoře.
 
-## 0.8.0 — nevydáno
+## 0.8.0 — 2026-09-19
 
 ### Přidáno
 
@@ -33,6 +33,8 @@ na obrazovce, ne které soubory se upravily. Nejnovější verze je nahoře.
 
 - Práce s gitem byla dostupná jen tomu, kdo náhodou otevřel složku s
   repozitářem — nikde v aplikaci nebylo vidět, že něco takového existuje.
+- Tlačítka pod seznamem souborů se vešla do sloupce. Třetí přetékalo přes
+  okraj do textu poznámky.
 
 ## 0.7.0 — 2026-09-19
 

@@ -412,6 +412,7 @@ textarea:focus-visible,
 
 .workspace__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   padding: 8px 10px;
   border-top: 1px solid var(--border);
@@ -3457,7 +3458,10 @@ textarea:focus-visible,
 
 /* -- výběr repozitáře ------------------------------------------------------ */
 
-.workspace__repos {
+/* Vlastní řádek, ne třetí tlačítko vedle dvou. Specificita musí přebít
+   `.workspace__actions .button { flex: 1 }`, jinak se všechna tři stlačí
+   do jedné řádky a poslední přeteče ze sloupce. */
+.workspace__actions .workspace__repos {
   flex: 1 1 100%;
 }
 .repos {
