@@ -168,6 +168,9 @@ pub(crate) fn pump<C: StreamChunk + IpcResponse>(
     mut source: impl Read,
     channel: &Channel<C>,
     slot: Arc<Mutex<Option<impl Killable>>>,
+    // Kam si výstup zároveň odložit. Sekce Git ho potřebuje, aby uměla říct,
+    // co přesně se pokazilo; asistentovi stačí, že text dorazí do panelu.
+    seen: Option<&Mutex<String>>,
 ) -> bool {
     let mut buffer = [0_u8; 4096];
     let mut pending: Vec<u8> = Vec::new();
@@ -187,6 +190,11 @@ pub(crate) fn pump<C: StreamChunk + IpcResponse>(
             continue;
         };
 
+        if let Some(seen) = seen {
+            if let Ok(mut buffer) = seen.lock() {
+                buffer.push_str(&text);
+            }
+        }
         if channel.send(C::out(text)).is_err() {
             // Frontend přestal poslouchat (zavřené okno, zrušený dotaz).
             // Nemá smysl pokračovat ani čekat na konec.
@@ -242,7 +250,7 @@ pub(crate) fn drain<T, C>(
     C: StreamChunk + IpcResponse + Send + 'static,
 {
     std::thread::spawn(move || {
-        let complete = pump(stdout, &channel, Arc::clone(&slot));
+        let complete = pump(stdout, &channel, Arc::clone(&slot), None);
         let held = slot.lock().ok().and_then(|mut slot| slot.take());
 
         if !complete {

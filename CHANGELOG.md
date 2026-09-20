@@ -10,6 +10,17 @@ uživateli vyskočí okno s prázdnou kolonkou.
 Píše se pro toho, kdo aplikaci používá, ne pro toho, kdo ji píše: co se změní
 na obrazovce, ne které soubory se upravily. Nejnovější verze je nahoře.
 
+## 0.9.2 — 2026-09-20
+
+### Opraveno
+
+- **Když operace s gitem selže, je napsáno proč.** Dosud tam stálo jen
+  „skončil s kódem 128“, což neřekne nic — teď je v hlášce věta, kterou
+  napsal sám git (`fatal: …`, `error: …`).
+- **Nad jedním repozitářem běží jen jedna operace.** Dřív se druhá spustila
+  vedle první a mohlo se stát, že jedna počkala na cizí proces a ohlásila
+  jeho návratový kód pod svým jménem. Druhá se teď slušně odmítne.
+
 ## 0.9.1 — 2026-09-20
 
 ### Přidáno

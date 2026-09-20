@@ -58,6 +58,35 @@ pub struct GhProbe {
     pub error: String,
 }
 
+/// Vytáhnout z výstupu gitu větu, která se dá ukázat člověku.
+///
+/// Bez tohohle zbyl z neúspěchu jen návratový kód -- „skončil s kódem 128“
+/// neřekne uživateli ani mně vůbec nic a diagnóza pak stojí na hádání.
+/// Git své vysvětlení píše na chybový výstup, uvozené `fatal:` nebo `error:`;
+/// bere se to poslední, protože předchozí bývají následky, ne příčina.
+///
+/// Když nic takového není, vrátí se poslední neprázdný řádek. Průběh se dělí
+/// i návratem vozíku, takže se řeže podle obojího.
+pub fn failure_reason(output: &str) -> Option<String> {
+    let lines: Vec<&str> = output
+        .split(['\r', '\n'])
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
+
+    let pick = lines
+        .iter()
+        .rev()
+        .find(|line| {
+            let lower = line.to_ascii_lowercase();
+            lower.starts_with("fatal:") || lower.starts_with("error:")
+        })
+        .or_else(|| lines.last())?;
+
+    let trimmed: String = pick.chars().take(300).collect();
+    (!trimmed.is_empty()).then_some(trimmed)
+}
+
 /// Smí se to předat jako `vlastnik/nazev`?
 ///
 /// GitHub povoluje ve jménech písmena, číslice, `-`, `_` a `.`. Tohle je
@@ -317,6 +346,47 @@ mod tests {
         ] {
             assert!(!is_safe_folder_name(bad), "{bad:?}");
         }
+    }
+
+    #[test]
+    fn failure_reason_prefers_what_git_actually_said() {
+        // Tohle je ten rozdíl mezi „skončil s kódem 128“ a použitelnou hláškou.
+        assert_eq!(
+            failure_reason("From github.com:o/r\nfatal: Not possible to fast-forward, aborting.\n")
+                .as_deref(),
+            Some("fatal: Not possible to fast-forward, aborting.")
+        );
+        // Poslední fatální řádek vyhrává: ty předchozí bývají následky.
+        assert_eq!(
+            failure_reason("error: cannot lock ref\nfatal: the real problem\n").as_deref(),
+            Some("fatal: the real problem")
+        );
+        assert_eq!(
+            failure_reason("error: Unable to create index.lock: File exists.").as_deref(),
+            Some("error: Unable to create index.lock: File exists.")
+        );
+    }
+
+    #[test]
+    fn failure_reason_falls_back_to_the_last_line() {
+        assert_eq!(
+            failure_reason("Updating files\nsomething odd happened").as_deref(),
+            Some("something odd happened")
+        );
+        // Průběh gitu je oddělený návratem vozíku, ne koncem řádku.
+        assert_eq!(
+            failure_reason("Receiving objects: 50%\rReceiving objects: 99%\r").as_deref(),
+            Some("Receiving objects: 99%")
+        );
+        assert_eq!(failure_reason(""), None);
+        assert_eq!(failure_reason("   \n\r\n  "), None);
+    }
+
+    #[test]
+    fn failure_reason_does_not_dump_a_whole_log() {
+        let long = format!("fatal: {}", "x".repeat(1000));
+        let reason = failure_reason(&long).unwrap();
+        assert_eq!(reason.chars().count(), 300);
     }
 
     #[test]

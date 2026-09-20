@@ -28,7 +28,7 @@ use tauri::{AppHandle, State};
 
 use pilcrow_core::error::{CoreError, Result};
 use pilcrow_core::git::{
-    gh_candidates, git_candidates, install_commands, is_https_url, is_safe_branch,
+    failure_reason, gh_candidates, git_candidates, install_commands, is_https_url, is_safe_branch,
     is_safe_folder_name, is_safe_repo_path, is_safe_repo_slug, GhProbe, GitChunk, GitProbe,
     PublishRequest,
 };
@@ -278,6 +278,17 @@ fn run_step(
     channel: &Channel<GitChunk>,
     slot: &Arc<Mutex<Option<Child>>>,
 ) -> bool {
+    // Jedna operace nad repozitářem naráz. Dřív se nový potomek do slotu jen
+    // zapsal přes starý -- ten běžel dál, a jeho `run_step` pak počkal na
+    // *cizí* proces a ohlásil jeho návratový kód pod svým jménem. Odmítnout
+    // je poctivější než tuhle záměnu.
+    if slot.lock().map(|held| held.is_some()).unwrap_or(false) {
+        let _ = channel.send(GitChunk::Failed {
+            message: format!("{label}: nad tímhle repozitářem už něco běží."),
+        });
+        return false;
+    }
+
     let _ = channel.send(GitChunk::Out {
         text: format!("$ {label}\n"),
     });
@@ -298,13 +309,18 @@ fn run_step(
         *held = Some(child);
     }
 
+    // Výstup se sbírá i stranou, ne jen posílá do panelu: bez něj zbyl
+    // z neúspěchu holý návratový kód.
+    let seen = Arc::new(Mutex::new(String::new()));
+
     let stderr_thread = stderr.map(|source| {
         let channel = channel.clone();
         let slot = Arc::clone(slot);
-        std::thread::spawn(move || pump(source, &channel, slot))
+        let seen = Arc::clone(&seen);
+        std::thread::spawn(move || pump(source, &channel, slot, Some(&seen)))
     });
     let stdout_ok = stdout
-        .map(|source| pump(source, channel, Arc::clone(slot)))
+        .map(|source| pump(source, channel, Arc::clone(slot), Some(&seen)))
         .unwrap_or(true);
     let stderr_ok = stderr_thread
         .map(|thread| thread.join().unwrap_or(false))
@@ -328,8 +344,15 @@ fn run_step(
     match child.wait_now() {
         Ok(status) if status.success() => true,
         Ok(status) => {
+            // Git své vysvětlení píše na výstup; návratový kód sám o sobě
+            // uživateli ani nám neřekne nic.
+            let reason = seen
+                .lock()
+                .ok()
+                .and_then(|text| failure_reason(&text))
+                .unwrap_or_else(|| format!("skončil s kódem {}", status.code().unwrap_or(-1)));
             let _ = channel.send(GitChunk::Failed {
-                message: format!("{label} skončil s kódem {}.", status.code().unwrap_or(-1)),
+                message: format!("{label}: {reason}"),
             });
             false
         }
@@ -431,11 +454,6 @@ pub async fn git_publish(
     let github = git_value(&git, &root, &["remote", "get-url", "origin"]).contains("github.com");
 
     let slot = Arc::clone(&state.running);
-    if let Ok(mut held) = slot.lock() {
-        if let Some(previous) = held.as_mut() {
-            previous.kill_now();
-        }
-    }
 
     std::thread::spawn(move || {
         let mut add: Vec<String> = vec!["add".into(), "--".into()];
@@ -919,11 +937,6 @@ pub async fn gh_pr_merge(
 
     let gh = require_gh(&state)?;
     let slot = Arc::clone(&state.running);
-    if let Ok(mut held) = slot.lock() {
-        if let Some(previous) = held.as_mut() {
-            previous.kill_now();
-        }
-    }
 
     std::thread::spawn(move || {
         let number = number.to_string();
@@ -1127,11 +1140,6 @@ pub async fn gh_clone(
     let clone_target = target_text.clone();
 
     let slot = Arc::clone(&state.running);
-    if let Ok(mut held) = slot.lock() {
-        if let Some(previous) = held.as_mut() {
-            previous.kill_now();
-        }
-    }
 
     std::thread::spawn(move || {
         let mut command = base_command(&gh);
@@ -1285,9 +1293,67 @@ mod tests {
 
         let transcript = seen.lock().unwrap().join("\n");
         assert!(transcript.contains("\"kind\":\"failed\""), "{transcript}");
-        assert!(transcript.contains("skončil s kódem"), "{transcript}");
+        // Hláška nese, co řekl git -- ne holý návratový kód, ze kterého se
+        // nepozná nic.
+        assert!(
+            transcript.contains("fatal:") || transcript.contains("error:"),
+            "chybí gitova vlastní hláška: {transcript}"
+        );
+        assert!(!transcript.contains("skončil s kódem"), "{transcript}");
         // A po sobě uklidil.
         assert!(slot.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn a_failing_step_says_what_git_said() {
+        // Dřív tu zbyl holý návratový kód a diagnóza stála na hádání.
+        let (_dir, _origin, work) = repo_with_remote();
+        let (channel, seen) = collecting_channel();
+        let slot: Arc<Mutex<Option<Child>>> = Arc::new(Mutex::new(None));
+
+        let mut command = base_command("git");
+        command.current_dir(&work).args(["checkout", "vetev-ktera-neexistuje"]);
+        assert!(!run_step(command, "git checkout", &channel, &slot));
+
+        let transcript = seen.lock().unwrap().join("
+");
+        assert!(transcript.contains("\"kind\":\"failed\""), "{transcript}");
+        // Ne "skončil s kódem 1", ale to, co git opravdu řekl.
+        assert!(
+            transcript.contains("error:") || transcript.contains("fatal:"),
+            "chybí gitova vlastní hláška: {transcript}"
+        );
+    }
+
+    #[test]
+    fn a_second_step_is_refused_while_one_runs() {
+        // Dřív se nový potomek do slotu jen zapsal přes starý; jeden run_step
+        // pak počkal na cizí proces a ohlásil jeho kód pod svým jménem.
+        let (_dir, _origin, work) = repo_with_remote();
+        let (channel, seen) = collecting_channel();
+        let slot: Arc<Mutex<Option<Child>>> = Arc::new(Mutex::new(None));
+
+        // Obsadit slot, jako by něco běželo.
+        let mut busy = base_command("git");
+        busy.current_dir(&work).args(["status"]);
+        busy.stdout(Stdio::piped()).stderr(Stdio::piped());
+        let running = busy.spawn().unwrap();
+        *slot.lock().unwrap() = Some(running);
+
+        let mut command = base_command("git");
+        command.current_dir(&work).args(["status"]);
+        assert!(!run_step(command, "git status", &channel, &slot));
+
+        let transcript = seen.lock().unwrap().join("
+");
+        assert!(transcript.contains("u\u{17e} n\u{11b}co b\u{11b}\"") || transcript.contains("bě"), "{transcript}");
+
+        // Uklidit po sobě: zámek se pustí dřív, než se na potomka čeká.
+        let held = slot.lock().unwrap().take();
+        if let Some(mut child) = held {
+            child.kill_now();
+            let _ = child.wait_now();
+        }
     }
 
     #[test]
