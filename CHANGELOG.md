@@ -10,6 +10,19 @@ uživateli vyskočí okno s prázdnou kolonkou.
 Píše se pro toho, kdo aplikaci používá, ne pro toho, kdo ji píše: co se změní
 na obrazovce, ne které soubory se upravily. Nejnovější verze je nahoře.
 
+## 0.9.1 — 2026-09-20
+
+### Přidáno
+
+- **Otevření staženého repozitáře srovná stav s GitHubem.** Pilcrow se zeptá,
+  co na remote přibylo, a pokud je složka jen pozadu a nemáš nic rozdělaného,
+  rovnou to stáhne — otevřít repo z minulého týdne má znamenat aktuální
+  dokumentaci, ne tu starou.
+- **Stáhne se jen bezpečné převinutí.** Když máš rozdělané změny, neodeslané
+  commity nebo se větve rozešly, Pilcrow nesáhne na nic a napíše proč.
+  Tlačítkem **Stáhnout** si to pak vyvoláš sám, až budeš chtít.
+- Stav proti GitHubu je vidět v sekci Git, kdykoli je co stáhnout.
+
 ## 0.9.0 — 2026-09-19
 
 ### Přidáno

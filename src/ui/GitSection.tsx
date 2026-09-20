@@ -22,6 +22,7 @@ import {
   overallOutcome,
   SECTION_GIT,
   SECTION_RUNS,
+  syncAction,
   suggestBranch,
   suggestMessage,
   suggestPrBody,
@@ -153,6 +154,46 @@ function GhNotice() {
 }
 
 // -- změny ------------------------------------------------------------------
+
+/**
+ * Jak je složka na tom proti GitHubu.
+ *
+ * Mlčí, když je všechno aktuální -- stav, který platí skoro pořád, si řádek
+ * v panelu nezaslouží. Ozve se jen tehdy, když je co stáhnout nebo když
+ * stáhnout nejde a je fér říct proč.
+ */
+function SyncNotice() {
+  const { view, actions } = useGit()
+  const action = syncAction(view.sync)
+
+  if (view.busy === 'pull') {
+    return (
+      <div className="git__sync" role="status">
+        <Spinner label={t.git.pulling} />
+      </div>
+    )
+  }
+  if (view.pulled && action === 'current') {
+    return <p className="git__sync git__muted">{t.git.pulled}</p>
+  }
+  if (action === 'current' || action === 'unknown' || action === 'detached') return null
+
+  return (
+    <div className="git__sync">
+      {action === 'pull' ? (
+        <>
+          <span className="git__muted">{t.git.behind(view.sync?.behind ?? 0)}</span>
+          <button type="button" className="button button--primary" onClick={() => void actions.pull()}>
+            {t.git.pullNow}
+          </button>
+        </>
+      ) : null}
+      {action === 'dirty' ? <span className="git__muted">{t.git.syncDirty}</span> : null}
+      {action === 'ahead' ? <span className="git__muted">{t.git.syncAhead(view.sync?.ahead ?? 0)}</span> : null}
+      {action === 'diverged' ? <span className="git__muted">{t.git.syncDiverged}</span> : null}
+    </div>
+  )
+}
 
 function Changes() {
   const { view, actions } = useGit()
@@ -758,6 +799,7 @@ export function GitSection() {
           {view.step === 'ready' ? (
             <>
               <GhNotice />
+              <SyncNotice />
               <Changes />
               <PublishedCard />
               <CiCard />

@@ -109,7 +109,7 @@ const initialView: ReposView = {
 }
 
 export function ReposProvider({ children }: { children: ReactNode }) {
-  const { api } = useGit()
+  const { api, actions: gitActions } = useGit()
   const { state, actions: storeActions, vault } = useStore()
 
   const [view, setView] = useState<ReposView>(initialView)
@@ -229,9 +229,14 @@ export function ReposProvider({ children }: { children: ReactNode }) {
     async (repo: Repo) => {
       if (!repo.localPath) return
       close()
+      // Otevřít už stažené repo znamená „dej mi aktuální dokumentaci“, ne tu
+      // z minulého týdne. Záměr se ohlásí *před* otevřením: otevření stav
+      // sekce resetuje, takže potom by se ztratil. Stáhne se jen bezpečné
+      // převinutí -- rozhodnutí je v `canFastForward`, ne tady.
+      gitActions.requestAutoPull()
       await storeActions.openFolderAt(repo.localPath)
     },
-    [close, storeActions],
+    [close, gitActions, storeActions],
   )
 
   const cloneRepo = useCallback(

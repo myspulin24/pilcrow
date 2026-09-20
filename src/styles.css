@@ -3779,3 +3779,24 @@ body.is-resizing-v {
   margin: 0;
   accent-color: var(--accent);
 }
+
+/* -- stav proti remote ----------------------------------------------------- */
+
+.git__sync {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.git__sync .button {
+  font-size: 12px;
+  padding: 3px 10px;
+  margin-left: auto;
+}
+.git__sync .spinner {
+  flex: 1 1 auto;
+}

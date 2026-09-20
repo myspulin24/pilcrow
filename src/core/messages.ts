@@ -656,6 +656,24 @@ export const t = {
     merged: (n: number) => `Pull request #${n} je sloučený.`,
     mergeFailed: 'Pull request se nepodařilo sloučit.',
     prLoadFailed: 'Stav pull requestu se nepodařilo zjistit.',
+
+    syncFailed: 'Stav proti GitHubu se nepodařilo zjistit.',
+    pullFailed: 'Změny se nepodařilo stáhnout.',
+    pulling: 'Stahuji změny…',
+    pulled: 'Staženo, složka je aktuální.',
+    // Ne přes `withCount`: ta dá číslo před slovo, takže by z toho vyšlo
+    // „Na GitHubu 6 je novějších commitů“. Sloveso musí být před číslem.
+    behind: (n: number) =>
+      `Na GitHubu ${plural(n, 'je', 'jsou', 'je')} ${n} ${plural(
+        n,
+        'novější commit',
+        'novější commity',
+        'novějších commitů',
+      )}.`,
+    pullNow: 'Stáhnout',
+    syncDirty: 'Nejdřív ulož nebo odešli rozdělané změny -- stažení by je mohlo rozbít.',
+    syncAhead: (n: number) => `Máš ${withCount(n, 'neodeslaný commit', 'neodeslané commity', 'neodeslaných commitů')}.`,
+    syncDiverged: 'Větve se rozešly. Vyřeš to v terminálu -- tady by z toho byl konflikt.',
     mergeBlocked: {
       draft: 'Pull request je koncept. Označ ho na GitHubu jako připravený.',
       conflict: 'Pull request má konflikty. Vyřeš je a zkus to znovu.',

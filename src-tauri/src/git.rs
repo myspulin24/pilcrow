@@ -347,17 +347,27 @@ fn run_step(
 /// Prázdný `credential.helper=` první vyřadí globální helpery -- jinak by se
 /// Git Credential Manager mohl zeptat oknem přes aplikaci. Pak přijde `gh`
 /// jako jediný helper, a jen pro tenhle příkaz.
-fn push_args(gh: Option<&str>, github: bool, branch: &str) -> Vec<String> {
-    let mut args = Vec::new();
-    if let (Some(gh), true) = (gh, github) {
-        args.push("-c".into());
-        args.push("credential.helper=".into());
-        args.push("-c".into());
-        args.push(format!(
+/// Přihlášení k remote půjčené od `gh`, jen pro jeden příkaz.
+///
+/// Používá to push, fetch i pull -- všechny tři sahají na síť a všechny tři
+/// by se jinak mohly zeptat oknem, které v desktopové aplikaci nikdo nečeká.
+fn credential_args(gh: Option<&str>, github: bool) -> Vec<String> {
+    let Some(gh) = gh.filter(|_| github) else {
+        return Vec::new();
+    };
+    vec![
+        "-c".into(),
+        "credential.helper=".into(),
+        "-c".into(),
+        format!(
             "credential.helper=!'{}' auth git-credential",
             gh.replace('\\', "/")
-        ));
-    }
+        ),
+    ]
+}
+
+fn push_args(gh: Option<&str>, github: bool, branch: &str) -> Vec<String> {
+    let mut args = credential_args(gh, github);
     args.extend(["push", "-u", "origin", branch].map(String::from));
     args
 }
@@ -716,6 +726,99 @@ pub async fn gh_pr_create(
         .unwrap_or(&text)
         .to_string();
     Ok(url)
+}
+
+/// Jak je na tom otevřená složka proti remote.
+///
+/// Napřed `git fetch`, jinak by se počítalo proti tomu, co remote dělal
+/// naposledy, když si o něj někdo řekl -- a to může být týden staré. Fetch
+/// zapisuje jen sledovací větve; pracovního stromu se nedotkne, takže se
+/// nemůže poprat s rozdělanou prací.
+#[tauri::command]
+pub async fn git_sync(
+    app: State<'_, AppState>,
+    state: State<'_, GitState>,
+    folder: String,
+) -> Result<String> {
+    let folder = granted_folder(&app, &folder)?;
+    let git = require_git(&state)?;
+    let root = require_root(&git, &folder)?;
+
+    let gh = locate_gh(&state).map(|(path, _)| path);
+    let github = git_value(&git, &root, &["remote", "get-url", "origin"]).contains("github.com");
+
+    let mut fetch_args = credential_args(gh.as_deref(), github);
+    fetch_args.extend(["fetch", "--quiet", "origin"].map(String::from));
+    let fetch: Vec<&str> = fetch_args.iter().map(String::as_str).collect();
+    let fetch_error = match run_in(&git, Some(&root), &fetch) {
+        Ok(output) if output.status.success() => String::new(),
+        Ok(output) => stderr_of(&output),
+        Err(error) => format!("`git fetch` se nepodařilo spustit: {error}"),
+    };
+
+    let branch = git_value(&git, &root, &["rev-parse", "--abbrev-ref", "HEAD"]);
+    let upstream = git_value(&git, &root, &["rev-parse", "--abbrev-ref", "@{upstream}"]);
+    // `--left-right --count` vrací "napřed<TAB>pozadu" proti sledované větvi.
+    let counts = if upstream.is_empty() {
+        String::new()
+    } else {
+        git_value(
+            &git,
+            &root,
+            &["rev-list", "--left-right", "--count", "HEAD...@{upstream}"],
+        )
+    };
+    let mut numbers = counts.split_whitespace();
+    let ahead: i64 = numbers.next().and_then(|v| v.parse().ok()).unwrap_or(0);
+    let behind: i64 = numbers.next().and_then(|v| v.parse().ok()).unwrap_or(0);
+
+    let dirty = run_in(&git, Some(&root), &["status", "--porcelain"])
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| String::from_utf8_lossy(&output.stdout).lines().count() as i64)
+        .unwrap_or(0);
+
+    serde_json::to_string(&serde_json::json!({
+        "branch": branch,
+        "upstream": upstream,
+        "ahead": ahead,
+        "behind": behind,
+        "dirty": dirty,
+        "error": fetch_error,
+    }))
+    .map_err(|error| CoreError::Io(format!("Stav se nepodařilo sestavit: {error}")))
+}
+
+/// Stáhnout, co na remote přibylo.
+///
+/// `--ff-only` schválně: když se větve rozešly, tohle skončí chybou místo
+/// toho, aby uživateli uprostřed dokumentace vyrobilo slučovací commit nebo
+/// konflikt, o který si neřekl.
+#[tauri::command]
+pub async fn git_pull(
+    app: State<'_, AppState>,
+    state: State<'_, GitState>,
+    folder: String,
+    channel: Channel<GitChunk>,
+) -> Result<()> {
+    let folder = granted_folder(&app, &folder)?;
+    let git = require_git(&state)?;
+    let root = require_root(&git, &folder)?;
+
+    let gh = locate_gh(&state).map(|(path, _)| path);
+    let github = git_value(&git, &root, &["remote", "get-url", "origin"]).contains("github.com");
+    let mut args = credential_args(gh.as_deref(), github);
+    args.extend(["pull", "--ff-only"].map(String::from));
+
+    let slot = Arc::clone(&state.running);
+    std::thread::spawn(move || {
+        let mut command = base_command(&git);
+        command.current_dir(&root).args(&args);
+        if run_step(command, "git pull --ff-only", &channel, &slot) {
+            let _ = channel.send(GitChunk::Finished);
+        }
+    });
+    Ok(())
 }
 
 /// Otevřený pull request pro danou větev.

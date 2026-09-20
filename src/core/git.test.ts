@@ -19,7 +19,10 @@ import {
   parseGitStatus,
   parseJobs,
   parseMergeMethods,
+  canFastForward,
   parsePullRequest,
+  parseSyncState,
+  syncAction,
   parseRemote,
   parseRuns,
   parseWorkflows,
@@ -31,6 +34,7 @@ import {
   suggestMessage,
   toRepoRelative,
   type GitProbe,
+  type SyncState,
 } from './git'
 
 const probe = (patch: Partial<GitProbe> = {}): GitProbe => ({
@@ -477,5 +481,53 @@ describe('sloučení pull requestu', () => {
     // uvidí proč.
     expect(parseMergeMethods('')).toEqual({ merge: true, squash: true, rebase: true })
     expect(parseMergeMethods('nesmysl')).toEqual({ merge: true, squash: true, rebase: true })
+  })
+})
+
+describe('stav proti remote', () => {
+  const state = (patch: Partial<SyncState> = {}): SyncState => ({
+    branch: 'main',
+    upstream: 'origin/main',
+    ahead: 0,
+    behind: 0,
+    dirty: 0,
+    error: '',
+    ...patch,
+  })
+
+  it('přečte, co vrací Rust', () => {
+    const raw = '{"branch":"main","upstream":"origin/main","ahead":0,"behind":3,"dirty":0,"error":""}'
+    expect(parseSyncState(raw)).toEqual(state({ behind: 3 }))
+    expect(parseSyncState('')).toBeNull()
+    expect(parseSyncState('[]')).toBeNull()
+  })
+
+  it('stáhne jen tehdy, když jsme čistě pozadu', () => {
+    expect(syncAction(state({ behind: 3 }))).toBe('pull')
+    expect(canFastForward(state({ behind: 3 }))).toBe(true)
+  })
+
+  it('rozdělanou práci nepřepíše', () => {
+    // Tohle je ta past: `git pull` přes rozeditované soubory umí udělat
+    // konflikt, o který si nikdo neřekl.
+    expect(syncAction(state({ behind: 3, dirty: 2 }))).toBe('dirty')
+    expect(canFastForward(state({ behind: 3, dirty: 2 }))).toBe(false)
+  })
+
+  it('rozešlé větve nechá na uživateli', () => {
+    expect(syncAction(state({ behind: 2, ahead: 1 }))).toBe('diverged')
+    expect(canFastForward(state({ behind: 2, ahead: 1 }))).toBe(false)
+  })
+
+  it('pozná aktuální, neodeslané a větev bez upstreamu', () => {
+    expect(syncAction(state())).toBe('current')
+    expect(syncAction(state({ ahead: 2 }))).toBe('ahead')
+    expect(syncAction(state({ upstream: '' }))).toBe('detached')
+  })
+
+  it('když se stav zjistit nedá, nestahuje se nic', () => {
+    expect(syncAction(null)).toBe('unknown')
+    expect(syncAction(state({ behind: 5, error: 'could not resolve host' }))).toBe('unknown')
+    expect(canFastForward(state({ behind: 5, error: 'bez sítě' }))).toBe(false)
   })
 })

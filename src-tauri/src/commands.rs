@@ -519,6 +519,8 @@ pub fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static
         crate::git::gh_status,
         crate::git::gh_workflows,
         crate::git::gh_pr_create,
+        crate::git::git_sync,
+        crate::git::git_pull,
         crate::git::gh_pr_for_branch,
         crate::git::gh_merge_methods,
         crate::git::gh_pr_merge,

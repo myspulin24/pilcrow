@@ -78,6 +78,17 @@ export interface MemoryGitOptions {
    * aplikace o tom nic neví a musí si ho najít podle větve.
    */
   existingPr?: { number: number; branch: string; base?: string; title?: string }
+  /**
+   * Jak daleko je remote napřed. Modeluje repozitář, do kterého mezitím
+   * někdo přispěl.
+   */
+  behind?: number
+  /** Kolik commitů má lokál navíc. */
+  ahead?: number
+  /** Nechat zjištění stavu selhat -- například bez sítě. */
+  failSync?: string
+  /** Nechat stažení selhat. */
+  failPull?: string
   /** Stav PR, který „GitHub“ hlásí pro odeslanou větev. */
   prState?: { mergeable?: string; mergeStateStatus?: string; isDraft?: boolean; state?: string }
   /** Které způsoby sloučení repozitář povoluje. */
@@ -113,6 +124,12 @@ export class MemoryGit implements GitApi {
   createdPr: CreatePrInput | null = null
   /** Poslední sloučení, k ověření v testech. */
   merged: MergePrInput | null = null
+  /** Stáhlo se? K ověření v testech. */
+  pulled = false
+  /** Kolikrát se ptalo na stav remote. K ověření v testech. */
+  syncCalls = 0
+  /** Kolik commitů je remote napřed; stažením klesne na nulu. */
+  private behind: number
   /** Poslední stahování, k ověření v testech. */
   cloned: (CloneInput & { target: string }) | null = null
   /** Dokončit zadržené stahování. `null`, když žádné neběží. */
@@ -137,6 +154,7 @@ export class MemoryGit implements GitApi {
     this.branch = options.branch ?? 'main'
     this.changes = [...(options.changes ?? [])]
     this.failPush = options.failPush ?? ''
+    this.behind = options.behind ?? 0
   }
 
   /** Označit soubor jako změněný, jako by ho někdo přepsal. */
@@ -332,6 +350,30 @@ export class MemoryGit implements GitApi {
     if (this.options.failPr) throw new Error(this.options.failPr)
     this.createdPr = { ...input }
     return 'https://github.com/tester/docs/pull/7'
+  }
+
+  async syncState(): Promise<string> {
+    this.syncCalls += 1
+    return JSON.stringify({
+      branch: this.branch,
+      upstream: this.options.defaultBranch === null ? '' : `origin/${this.branch}`,
+      ahead: this.options.ahead ?? 0,
+      behind: this.behind,
+      dirty: this.changes.length,
+      error: this.options.failSync ?? '',
+    })
+  }
+
+  async pull(_folder: string, sink: GitSink): Promise<void> {
+    sink({ kind: 'out', text: '$ git pull --ff-only\n' })
+    if (this.options.failPull) {
+      sink({ kind: 'failed', message: this.options.failPull })
+      return
+    }
+    sink({ kind: 'out', text: `Fast-forward ${this.behind} commitů\n` })
+    this.pulled = true
+    this.behind = 0
+    sink({ kind: 'finished' })
   }
 
   async pullRequest(_folder: string, branch: string): Promise<string> {

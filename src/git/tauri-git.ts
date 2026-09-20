@@ -83,6 +83,14 @@ export class TauriGit implements GitApi {
     })
   }
 
+  syncState(folder: string): Promise<string> {
+    return invoke<string>('git_sync', { folder })
+  }
+
+  pull(folder: string, sink: GitSink): Promise<void> {
+    return invoke<void>('git_pull', { folder, channel: sinkChannel(sink) })
+  }
+
   pullRequest(folder: string, branch: string): Promise<string> {
     return invoke<string>('gh_pr_for_branch', { folder, branch })
   }

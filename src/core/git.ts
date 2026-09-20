@@ -482,6 +482,67 @@ export function isPrUrl(value: string): boolean {
   return /^https:\/\/[^\s]+\/pull\/\d+$/.test(value.trim())
 }
 
+// -- stav proti remote --------------------------------------------------------
+
+/** Jak je na tom otevřená složka proti remote, po `git fetch`. */
+export interface SyncState {
+  branch: string
+  /** Sledovaná větev, například `origin/main`. Prázdná = větev žádnou nemá. */
+  upstream: string
+  /** Kolik commitů má lokál navíc. */
+  ahead: number
+  /** Kolik commitů má navíc remote. */
+  behind: number
+  /** Kolik souborů je rozdělaných. */
+  dirty: number
+  /** Proč se nepodařilo zjistit stav remote. Prázdné = podařilo. */
+  error: string
+}
+
+export function parseSyncState(json: string): SyncState | null {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(json)
+  } catch {
+    return null
+  }
+  if (!isRecord(parsed)) return null
+  return {
+    branch: str(parsed, 'branch'),
+    upstream: str(parsed, 'upstream'),
+    ahead: num(parsed, 'ahead'),
+    behind: num(parsed, 'behind'),
+    dirty: num(parsed, 'dirty'),
+    error: str(parsed, 'error'),
+  }
+}
+
+/**
+ * Co se stavem proti remote dělat.
+ *
+ * `pull` je jediný případ, kdy se smí sáhnout na pracovní strom samo od sebe:
+ * jsme čistě pozadu, nic rozdělaného, takže `--ff-only` jen převine ukazatel
+ * a doplní soubory. Všude jinde se jen řekne, co se děje -- stáhnout přes
+ * rozdělanou práci nebo přes rozešlé větve je způsob, jak přijít o práci.
+ */
+export type SyncAction = 'current' | 'pull' | 'dirty' | 'ahead' | 'diverged' | 'detached' | 'unknown'
+
+export function syncAction(state: SyncState | null): SyncAction {
+  if (!state) return 'unknown'
+  if (state.error) return 'unknown'
+  if (!state.upstream) return 'detached'
+  if (state.behind > 0 && state.ahead > 0) return 'diverged'
+  if (state.behind > 0 && state.dirty > 0) return 'dirty'
+  if (state.behind > 0) return 'pull'
+  if (state.ahead > 0) return 'ahead'
+  return 'current'
+}
+
+/** Smí se podle tohohle stavu stáhnout bez ptaní? */
+export function canFastForward(state: SyncState | null): boolean {
+  return syncAction(state) === 'pull'
+}
+
 /** Otevřený pull request pro danou větev. */
 export interface PullRequest {
   number: number

@@ -308,3 +308,68 @@ describe('GitHub CLI', () => {
     expect(within(dialog()).queryByRole('list')).toBeNull()
   })
 })
+
+describe('otevření už staženého repozitáře', () => {
+  /** Otevřít `pilcrow`, který je ve výchozím nastavení na disku. */
+  async function openCloned(user: User) {
+    await openDialog(user)
+    await waitFor(() => expect(within(dialog()).getAllByRole('listitem')).toHaveLength(4))
+    await user.click(within(row('myspulin24/pilcrow')).getByRole('button', { name: 'Otevřít' }))
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Otevřít repozitář' })).toBeNull()
+    })
+  }
+
+  it('srovná stav s GitHubem a stáhne, co přibylo', async () => {
+    const user = userEvent.setup()
+    await renderApp({ behind: 3 })
+    await openCloned(user)
+
+    await waitFor(() => expect(git.syncCalls).toBeGreaterThan(0))
+    await waitFor(() => expect(git.pulled).toBe(true))
+  })
+
+  it('když je složka aktuální, nestahuje nic', async () => {
+    const user = userEvent.setup()
+    await renderApp({ behind: 0 })
+    await openCloned(user)
+
+    await waitFor(() => expect(git.syncCalls).toBeGreaterThan(0))
+    expect(git.pulled).toBe(false)
+  })
+
+  it('rozdělanou práci nepřepíše -- nabídne to a čeká', async () => {
+    const user = userEvent.setup()
+    await renderApp({ behind: 2, changes: [{ path: 'docs/guide.md', xy: ' M' }] })
+    await openCloned(user)
+
+    await waitFor(() => expect(git.syncCalls).toBeGreaterThan(0))
+    // Nic se nestáhlo samo...
+    expect(git.pulled).toBe(false)
+    // ...a je napsáno proč.
+    const body = document.getElementById('ws-git-body') as HTMLElement
+    expect(await within(body).findByText(/Nejdřív ulož nebo odešli/)).toBeInTheDocument()
+  })
+
+  it('rozešlé větve nechá na uživateli', async () => {
+    const user = userEvent.setup()
+    await renderApp({ behind: 2, ahead: 1 })
+    await openCloned(user)
+
+    await waitFor(() => expect(git.syncCalls).toBeGreaterThan(0))
+    expect(git.pulled).toBe(false)
+    const body = document.getElementById('ws-git-body') as HTMLElement
+    expect(await within(body).findByText(/Větve se rozešly/)).toBeInTheDocument()
+  })
+
+  it('bez sítě se nestahuje a nic se netvrdí', async () => {
+    const user = userEvent.setup()
+    await renderApp({ behind: 5, failSync: 'could not resolve host github.com' })
+    await openCloned(user)
+
+    await waitFor(() => expect(git.syncCalls).toBeGreaterThan(0))
+    expect(git.pulled).toBe(false)
+    const body = document.getElementById('ws-git-body') as HTMLElement
+    expect(within(body).queryByText(/novější commit/)).toBeNull()
+  })
+})

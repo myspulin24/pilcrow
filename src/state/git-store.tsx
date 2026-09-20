@@ -29,6 +29,7 @@ import {
 import {
   actionsUrl,
   activeWorkflows,
+  canFastForward,
   compareUrl,
   currentPublishStep,
   findDeviceCode,
@@ -42,6 +43,7 @@ import {
   parsePullRequest,
   parseRemote,
   parseRuns,
+  parseSyncState,
   parseWorkflows,
   runsSettled,
   t,
@@ -55,6 +57,7 @@ import {
   type MergeMethod,
   type MergeMethods,
   type PullRequest,
+  type SyncState,
   type Workflow,
   type WorkflowJob,
   type WorkflowRun,
@@ -64,7 +67,7 @@ import { createGit, gitMessage, type GitApi, type GitChunk } from '@/git'
 import { useStore } from './store'
 
 /** Co zrovna běží. Nikdy dvě věci naráz. */
-export type GitBusy = 'probe' | 'status' | 'login' | 'publish' | 'push' | 'pr' | 'merge' | null
+export type GitBusy = 'probe' | 'status' | 'login' | 'publish' | 'push' | 'pr' | 'merge' | 'pull' | null
 
 /** Kde je sledování běhu. */
 export type Watching = 'idle' | 'waiting' | 'running' | 'done' | 'timeout' | 'none'
@@ -121,6 +124,10 @@ export interface GitView {
   mergeOpen: boolean
   /** PR se povedlo sloučit. */
   mergedNumber: number | null
+  /** Jak je složka na tom proti remote. `null` = ještě se neptalo. */
+  sync: SyncState | null
+  /** Stáhlo se samo při otevření. Ukáže se jednou, pak zmizí. */
+  pulled: boolean
   /** `null` = zatím nenačteno. */
   recent: WorkflowRun[] | null
   recentError: string | null
@@ -151,6 +158,18 @@ export interface GitActions {
   openMerge(): void
   closeMerge(): void
   mergePr(method: MergeMethod, deleteBranch: boolean): Promise<void>
+  /** Zjistit stav proti remote a stáhnout, když je to bezpečné převinutí. */
+  syncWithRemote(folder: string, options?: { autoPull?: boolean }): Promise<void>
+  /**
+   * Při nejbližším načtení sekce stáhnout, když to jde.
+   *
+   * Záměr, ne akce: složka se teprve otevírá a stav sekce se přitom resetuje,
+   * takže by se cokoli uloženého do něj ztratilo. Nastavuje to výběr
+   * repozitáře před otevřením.
+   */
+  requestAutoPull(): void
+  /** Stáhnout na vyžádání. */
+  pull(folder?: string): Promise<void>
 }
 
 interface GitValue {
@@ -193,6 +212,8 @@ const initialView = (supported: boolean): GitView => ({
   mergeMethods: { merge: true, squash: true, rebase: true },
   mergeOpen: false,
   mergedNumber: null,
+  sync: null,
+  pulled: false,
   recent: null,
   recentError: null,
   deviceCode: null,
@@ -230,6 +251,14 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
   /** Co uživatel sám odškrtl. Tohle se při obnovení změn znovu nezaškrtne. */
   const deselected = useRef<Set<string>>(new Set())
 
+  /**
+   * Má se při nejbližším načtení sekce stáhnout?
+   *
+   * V refu, ne ve stavu: otevření složky stav sekce resetuje na výchozí,
+   * takže cokoli uloženého do něj by se ztratilo dřív, než by se to použilo.
+   */
+  const autoPullRef = useRef(false)
+
   // -- změny -----------------------------------------------------------------
 
   /**
@@ -266,6 +295,61 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
       }))
     }
   }, [api, patch, update])
+
+  // -- stav proti remote ------------------------------------------------------
+
+  /**
+   * Stáhnout, co na remote přibylo.
+   *
+   * Vždycky jen převinutí. Kdo má rozdělanou práci nebo rozešlé větve, si
+   * o to musí říct v terminálu -- tady by se z toho stal konflikt uprostřed
+   * dokumentace.
+   */
+  const pull = useCallback(async (folder?: string) => {
+    const target = folder ?? viewRef.current.folder
+    if (!target || viewRef.current.busy) return
+    patch({ busy: 'pull', transcript: '', error: null })
+
+    let transcript = ''
+    try {
+      await api.pull(target, (chunk) => {
+        if (chunk.kind === 'out') {
+          transcript += chunk.text
+          patch({ transcript })
+          return
+        }
+        if (chunk.kind === 'failed') {
+          patch({ busy: null, error: chunk.message || t.git.pullFailed })
+          return
+        }
+        patch({ busy: null, pulled: true })
+        void refresh()
+      })
+    } catch (error) {
+      patch({ busy: null, error: gitMessage(error, t.git.pullFailed) })
+    }
+  }, [api, patch])
+
+  /**
+   * Zeptat se remote, jak na tom jsme, a případně rovnou stáhnout.
+   *
+   * `autoPull` zapíná otevření repozitáře: tam uživatel chce aktuální
+   * dokumentaci, ne tu z minulého týdne. Stáhne se ale jen tehdy, když je to
+   * čisté převinutí -- `canFastForward` je jediné místo, které to rozhoduje.
+   */
+  const syncWithRemote = useCallback(
+    async (folder: string, options: { autoPull?: boolean } = {}) => {
+      if (!folder) return
+      try {
+        const sync = parseSyncState(await api.syncState(folder))
+        patch({ sync })
+        if (options.autoPull && canFastForward(sync)) await pull(folder)
+      } catch (error) {
+        patch({ sync: null, error: gitMessage(error, t.git.syncFailed) })
+      }
+    },
+    [api, patch, pull],
+  )
 
   // -- stav ------------------------------------------------------------------
 
@@ -329,6 +413,9 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
       })
       if (gitStep(probe, true) === 'ready') {
         await refreshChanges()
+        const autoPull = autoPullRef.current
+        autoPullRef.current = false
+        void syncWithRemote(target, { autoPull })
         // I po restartu aplikace: otevřený PR pro aktuální větev se najde
         // podle ní, ne podle čísla, které si pamatuje jen běžící sezení.
         void loadPullRequest(target, probe.branch)
@@ -337,7 +424,7 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
       if (viewRef.current.folder !== target) return
       patch({ busy: null, probed: true, error: gitMessage(error, t.git.failed) })
     }
-  }, [api, loadPullRequest, patch, refreshChanges, touchedAbsolute])
+  }, [api, loadPullRequest, patch, refreshChanges, syncWithRemote, touchedAbsolute])
 
   // Nová složka = nový začátek. Všechno, co platilo k té staré, se zahodí.
   useEffect(() => {
@@ -770,6 +857,11 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
       openActions,
       openUrl,
       loadRecent,
+      syncWithRemote,
+      requestAutoPull: () => {
+        autoPullRef.current = true
+      },
+      pull,
       openPr: () => patch({ prOpen: true, prError: null }),
       closePr: () => patch({ prOpen: false, prError: null }),
       createPr,
@@ -787,6 +879,8 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
       login,
       openActions,
       openCompare,
+      pull,
+      syncWithRemote,
       openUrl,
       patch,
       publish,

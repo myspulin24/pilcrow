@@ -75,6 +75,17 @@ export interface GitApi {
   /** Založit pull request. Vrací adresu hotového PR. */
   createPr(input: CreatePrInput): Promise<string>
 
+  /**
+   * Zjistit stav proti remote: `git fetch` a spočítat rozdíl.
+   *
+   * Surový JSON; čte ho `parseSyncState`. Fetch sahá na síť, takže se to
+   * volá při otevření repozitáře a na vyžádání, ne při každém překreslení.
+   */
+  syncState(folder: string): Promise<string>
+
+  /** Stáhnout, co na remote přibylo. Jen převinutí; průběh chodí do `sink`. */
+  pull(folder: string, sink: GitSink): Promise<void>
+
   /** Otevřený PR pro danou větev. Surový JSON; čte ho `parsePullRequest`. */
   pullRequest(folder: string, branch: string): Promise<string>
 

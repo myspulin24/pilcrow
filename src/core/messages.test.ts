@@ -83,3 +83,20 @@ describe('the catalogue', () => {
     expect(offenders).toEqual([])
   })
 })
+
+describe('hlášky o stavu proti GitHubu', () => {
+  it('mají správný slovosled pro všechny tvary čísla', () => {
+    // `withCount` dává číslo před slovo, což u slovesa nefunguje --
+    // vzniklo tím „Na GitHubu 6 je novějších commitů“.
+    expect(t.git.behind(1)).toBe('Na GitHubu je 1 novější commit.')
+    expect(t.git.behind(3)).toBe('Na GitHubu jsou 3 novější commity.')
+    expect(t.git.behind(6)).toBe('Na GitHubu je 6 novějších commitů.')
+    expect(t.git.behind(0)).toBe('Na GitHubu je 0 novějších commitů.')
+  })
+
+  it('neodeslané commity se skloňují taky', () => {
+    expect(t.git.syncAhead(1)).toBe('Máš 1 neodeslaný commit.')
+    expect(t.git.syncAhead(3)).toBe('Máš 3 neodeslané commity.')
+    expect(t.git.syncAhead(6)).toBe('Máš 6 neodeslaných commitů.')
+  })
+})
