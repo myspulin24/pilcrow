@@ -16,9 +16,18 @@
  * handled here too, since this is where the result shows up.
  */
 
-import { useRef } from 'react'
+import { Fragment, useRef } from 'react'
 
-import { relativePath, SECTION_FILES, SECTION_NOTES, t } from '@/core'
+import {
+  folderLabel,
+  folderOf,
+  folderSectionKey,
+  relativePath,
+  sameFolder,
+  SECTION_NOTES,
+  t,
+  type OpenFolder,
+} from '@/core'
 import { useRepos } from '@/state/repos-store'
 import { useActions, useAppState } from '@/state/store'
 import { Spinner } from './Feedback'
@@ -28,6 +37,112 @@ import { NoteList } from './NoteList'
 import { ResizeHandle } from './ResizeHandle'
 import { Section } from './Section'
 
+/**
+ * Jedna otevřená složka: hlavička, ikony a strom.
+ *
+ * Aktivní složka je ta, ke které patří sekce Git. Přepíná se kliknutím do
+ * hlavičky, ale jen tehdy, když aktivní není -- na aktivní složce hlavička
+ * dělá to co vždycky, sbalí a rozbalí blok. Jedno kliknutí tak nikdy
+ * neudělá dvě věci naráz.
+ */
+function FolderSection({ folder, active }: { folder: OpenFolder; active: boolean }) {
+  const state = useAppState()
+  const actions = useActions()
+  const name = folderLabel(folder.rootPath)
+  const id = `ws-files-${folderSectionKey(folder.rootPath).replace(/[^a-z0-9]+/gi, '-')}`
+
+  const icons = (
+    <>
+      <button
+        type="button"
+        className="ws-icon-button"
+        title={t.workspace.expandAllHint}
+        aria-label={t.workspace.expandAll}
+        onClick={() => actions.expandAllFolders(folder.rootPath)}
+      >
+        {'⇲'}
+      </button>
+      <button
+        type="button"
+        className="ws-icon-button"
+        title={t.workspace.collapseAllHint}
+        aria-label={t.workspace.collapseAll}
+        onClick={() => actions.collapseAllFolders(folder.rootPath)}
+      >
+        {'⇱'}
+      </button>
+      <button
+        type="button"
+        className={`ws-icon-button ${folder.loading ? 'is-busy' : ''}`}
+        title={t.workspace.refreshHint}
+        aria-label={t.workspace.refresh}
+        aria-busy={folder.loading}
+        disabled={folder.loading}
+        onClick={() => void actions.refreshTree(folder.rootPath)}
+      >
+        <span aria-hidden="true">{'↻'}</span>
+      </button>
+      <button
+        type="button"
+        className="ws-icon-button"
+        title={t.workspace.closeFolderHint}
+        aria-label={t.workspace.closeFolder}
+        onClick={() => actions.closeFolder(folder.rootPath)}
+      >
+        {'×'}
+      </button>
+    </>
+  )
+
+  return (
+    <Section
+      id={id}
+      active={active}
+      activeLabel={t.workspace.activeFolder}
+      title={
+        <>
+          <FolderIcon open={folder.open} />
+          <span className="ws-section__label">{name}</span>
+        </>
+      }
+      meta={
+        <>
+          {t.workspace.files_(folder.fileCount)}
+          {folder.truncated ? (
+            <span className="ws-section__warn"> · {t.workspace.partialScan}</span>
+          ) : null}
+        </>
+      }
+      titleHint={active ? folder.rootPath : t.workspace.activateFolder(name)}
+      open={folder.open}
+      onToggle={() =>
+        active ? actions.toggleFolderSection(folder.rootPath) : actions.activateFolder(folder.rootPath)
+      }
+      resize={{ key: folderSectionKey(folder.rootPath), label: name }}
+      actions={icons}
+    >
+      {folder.loading && !folder.tree ? (
+        <Spinner label={t.workspace.scanning} />
+      ) : folder.error ? (
+        <>
+          <p className="workspace__note workspace__note--error" role="alert">
+            {folder.error}
+          </p>
+          <button
+            type="button"
+            className="workspace__link"
+            onClick={() => void actions.openFolderFromDisk()}
+          >
+            {t.workspace.chooseAnother}
+          </button>
+        </>
+      ) : folder.tree ? (
+        <FileTree folder={folder} filter={state.query} />
+      ) : null}
+    </Section>
+  )
+}
+
 export function Workspace() {
   const state = useAppState()
   const actions = useActions()
@@ -35,8 +150,13 @@ export function Workspace() {
   const searchRef = useRef<HTMLInputElement>(null)
   const { explorer } = state
 
-  const folderName =
-    explorer.rootPath?.split(/[\\/]/).filter(Boolean).pop() ?? explorer.rootPath ?? ''
+  /** Cesta otevřeného souboru vůči složce, ze které je -- ne vůči aktivní. */
+  const readingPath = state.activePath
+    ? (() => {
+        const owner = folderOf(explorer.folders, state.activePath)
+        return owner ? relativePath(owner.rootPath, state.activePath) : state.activePath
+      })()
+    : ''
 
   /** Down/Up from the search box walks the note list, as it always has. */
   const stepNote = (delta: number) => {
@@ -119,87 +239,16 @@ export function Workspace() {
           <NoteList />
         </Section>
 
-        {explorer.loading ? (
-          <Section id="ws-files" title={t.workspace.files} open onToggle={() => actions.toggleFilesSection()}>
-            <Spinner label={t.workspace.scanning} />
-          </Section>
-        ) : explorer.error ? (
-          <Section id="ws-files" title={t.workspace.files} open onToggle={() => actions.toggleFilesSection()}>
-            <p className="workspace__note workspace__note--error" role="alert">
-              {explorer.error}
-            </p>
-            <button
-              type="button"
-              className="workspace__link"
-              onClick={() => void actions.openFolderFromDisk()}
-            >
-              {t.workspace.chooseAnother}
-            </button>
-          </Section>
-        ) : explorer.tree && explorer.rootPath ? (
-          <Section
-            id="ws-files"
-            title={
-              <>
-                <FolderIcon open />
-                <span className="ws-section__label">{folderName}</span>
-              </>
-            }
-            meta={
-              <>
-                {t.workspace.files_(explorer.fileCount)}
-                {explorer.truncated ? (
-                  <span className="ws-section__warn"> · {t.workspace.partialScan}</span>
-                ) : null}
-              </>
-            }
-            open={state.filesSectionOpen}
-            onToggle={() => actions.toggleFilesSection()}
-            resize={{ key: SECTION_FILES, label: folderName }}
-            actions={
-              <>
-                <button
-                  type="button"
-                  className="ws-icon-button"
-                  title={t.workspace.expandAllHint}
-                  aria-label={t.workspace.expandAll}
-                  onClick={() => actions.expandAllFolders()}
-                >
-                  {'⇲'}
-                </button>
-                <button
-                  type="button"
-                  className="ws-icon-button"
-                  title={t.workspace.collapseAllHint}
-                  aria-label={t.workspace.collapseAll}
-                  onClick={() => actions.collapseAllFolders()}
-                >
-                  {'⇱'}
-                </button>
-                <button
-                  type="button"
-                  className="ws-icon-button"
-                  title={t.workspace.refreshHint}
-                  aria-label={t.workspace.refresh}
-                  onClick={() => void actions.refreshTree()}
-                >
-                  {'↻'}
-                </button>
-                <button
-                  type="button"
-                  className="ws-icon-button"
-                  title={t.workspace.closeFolderHint}
-                  aria-label={t.workspace.closeFolder}
-                  onClick={() => actions.closeFolder()}
-                >
-                  {'×'}
-                </button>
-              </>
-            }
-          >
-            <FileTree tree={explorer.tree} filter={state.query} />
-          </Section>
-        ) : explorer.loneFile ? (
+        {explorer.folders.map((folder) => (
+          <Fragment key={folder.rootPath}>
+            <FolderSection folder={folder} active={sameFolder(folder.rootPath, explorer.active ?? '')} />
+            {/* Sekce Git patří aktivní složce, a je hned pod ní: tak je na
+                první pohled vidět, čí větev a čí změny jsou zrovna vidět. */}
+            {sameFolder(folder.rootPath, explorer.active ?? '') ? <GitSection /> : null}
+          </Fragment>
+        ))}
+
+        {explorer.loneFile ? (
           <Section
             id="ws-files"
             title={t.workspace.openedFile}
@@ -235,15 +284,18 @@ export function Workspace() {
             <p className="workspace__note">{t.workspace.loneFileHint}</p>
           </Section>
         ) : null}
-
-        <GitSection />
       </div>
 
       <div className="workspace__actions">
         <button type="button" className="button" onClick={() => void actions.openFileFromDisk()}>
           {t.workspace.openFile}
         </button>
-        <button type="button" className="button" onClick={() => void actions.openFolderFromDisk()}>
+        <button
+          type="button"
+          className="button"
+          title={explorer.folders.length > 0 ? t.workspace.openAnother : undefined}
+          onClick={() => void actions.openFolderFromDisk()}
+        >
           {t.workspace.openFolder}
         </button>
         {repos.view.open ? null : (
@@ -262,7 +314,7 @@ export function Workspace() {
         <div className="workspace__current" title={state.activePath}>
           <span className="workspace__current-label">{t.workspace.reading}</span>
           <span className="workspace__current-path">
-            {explorer.rootPath ? relativePath(explorer.rootPath, state.activePath) : state.activePath}
+            {readingPath}
           </span>
         </div>
       ) : null}

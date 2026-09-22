@@ -103,7 +103,7 @@ function Conversation() {
 
   return (
     <>
-      <div className="assistant__context">
+      <div className="assistant__context" title={editor?.path}>
         {editor
           ? t.assistant.contextLine(parsed?.frontmatter.title || editor.path)
           : t.assistant.emptyNoNote}

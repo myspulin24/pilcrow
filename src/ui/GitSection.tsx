@@ -13,6 +13,8 @@
 import { useEffect, useId, useState } from 'react'
 
 import {
+  activeFolder,
+  clockTime,
   currentPublishStep,
   isCommittable,
   defaultMergeMethod,
@@ -755,11 +757,26 @@ export function GitSection() {
   // bez gitu a složka mimo repo sekci vůbec nedostanou: bez gitu se nedá
   // zjistit ani to, jestli složka v repu je, a nabízet instalaci gitu každé
   // otevřené složce by otravovalo i toho, kdo git nikdy nechtěl.
-  if (!state.explorer.tree || !state.explorer.rootPath) return null
+  if (!activeFolder(state.explorer.folders, state.explorer.active)) return null
   if (!view.probed) return null
   if (view.step === 'unsupported' || view.step === 'install-git' || view.step === 'not-repo') return null
 
-  const meta = view.probe?.branch ? <span className="git__branch">{view.probe.branch}</span> : null
+  // Zjišťování stavu trvá od zlomku vteřiny po několik vteřin a dřív po něm
+  // v hlavičce nezbylo nic. Teď je tam po celou dobu „zjišťuji…“ a pak čas,
+  // kdy to doběhlo -- takže je vidět i to, že se právě nic nezměnilo.
+  const checking = view.busy === 'probe' || view.busy === 'status'
+  const meta = (
+    <>
+      {view.probe?.branch ? <span className="git__branch">{view.probe.branch}</span> : null}
+      {checking ? (
+        <span className="git__checked" role="status">
+          {t.git.rechecking}
+        </span>
+      ) : view.checkedAt ? (
+        <span className="git__checked">{t.git.checkedAt(clockTime(view.checkedAt))}</span>
+      ) : null}
+    </>
+  )
 
   return (
     <>
@@ -778,13 +795,14 @@ export function GitSection() {
         actions={
           <button
             type="button"
-            className="ws-icon-button"
+            className={`ws-icon-button ${checking ? 'is-busy' : ''}`}
             title={t.git.recheckHint}
             aria-label={t.git.recheck}
+            aria-busy={checking}
             disabled={view.busy !== null}
             onClick={() => void actions.refresh()}
           >
-            {'↻'}
+            <span aria-hidden="true">{'↻'}</span>
           </button>
         }
       >

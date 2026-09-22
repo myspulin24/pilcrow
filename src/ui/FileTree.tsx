@@ -8,7 +8,15 @@
 
 import { useMemo } from 'react'
 
-import { filterTree, flattenTree, stepFile, t, type TreeNode, type TreeRow } from '@/core'
+import {
+  filterTree,
+  flattenTree,
+  stepFile,
+  t,
+  type OpenFolder,
+  type TreeNode,
+  type TreeRow,
+} from '@/core'
 import { useActions, useAppState } from '@/state/store'
 import { addToGroupMenu } from './Sidebar'
 
@@ -73,21 +81,26 @@ function Row({
 }
 
 /**
- * The visible rows of the open folder.
+ * The visible rows of one open folder.
  *
  * The workspace search box doubles as the tree filter, so typing narrows the
  * notes above and the files below at the same time. While a filter is active
  * everything is expanded -- you asked to see the matches, not to go hunting
  * for them.
+ *
+ * Složka se předává celá, ne jen strom: otevřených jich může být víc a každá
+ * si drží vlastní rozbalené podsložky. Brát je ze stavu „té otevřené“ by
+ * znamenalo, že rozbalení v jednom stromu rozbalí i ostatní.
  */
-export function FileTree({ tree, filter }: { tree: TreeNode; filter: string }) {
+export function FileTree({ folder, filter }: { folder: OpenFolder; filter: string }) {
   const state = useAppState()
   const actions = useActions()
+  const tree = folder.tree
 
   const visible = useMemo(() => filterTree(tree, filter), [tree, filter])
 
   const expandedSet = useMemo(() => {
-    if (!filter.trim()) return new Set(state.explorer.expanded)
+    if (!filter.trim()) return new Set<string>(folder.expanded)
     const all = new Set<string>()
     const walk = (node: TreeNode | null) => {
       if (!node || node.kind !== 'dir') return
@@ -96,7 +109,7 @@ export function FileTree({ tree, filter }: { tree: TreeNode; filter: string }) {
     }
     walk(visible)
     return all
-  }, [filter, state.explorer.expanded, visible])
+  }, [filter, folder.expanded, visible])
 
   const rows = useMemo(() => flattenTree(visible, expandedSet), [visible, expandedSet])
 
@@ -112,10 +125,10 @@ export function FileTree({ tree, filter }: { tree: TreeNode; filter: string }) {
         items: [
           {
             label: row.expanded ? t.menu.collapse : t.menu.expand,
-            onSelect: () => actions.toggleTreeFolder(node.path),
+            onSelect: () => actions.toggleTreeFolder(folder.rootPath, node.path),
           },
-          { label: t.workspace.expandAll, onSelect: () => actions.expandAllFolders() },
-          { label: t.workspace.collapseAll, onSelect: () => actions.collapseAllFolders() },
+          { label: t.workspace.expandAll, onSelect: () => actions.expandAllFolders(folder.rootPath) },
+          { label: t.workspace.collapseAll, onSelect: () => actions.collapseAllFolders(folder.rootPath) },
         ],
       })
       return
@@ -128,14 +141,14 @@ export function FileTree({ tree, filter }: { tree: TreeNode; filter: string }) {
       items: [
         { label: t.menu.open, onSelect: () => void actions.openFromTree(node.path) },
         {
-          label: t.menu.moveIntoVault,
-          hint: t.menu.moveIntoVaultHint,
+          label: t.menu.linkIntoVault,
+          hint: t.menu.linkIntoVaultHint,
           onSelect: () =>
             actions.confirmFor({
-              title: t.dialogs.moveIntoVaultTitle,
-              message: t.dialogs.moveIntoVaultMessage(node.path),
-              confirmLabel: t.dialogs.moveIntoVaultConfirm,
-              onConfirm: () => void actions.moveIntoVault(node.path),
+              title: t.dialogs.linkIntoVaultTitle,
+              message: t.dialogs.linkIntoVaultMessage(node.path),
+              confirmLabel: t.dialogs.linkIntoVaultConfirm,
+              onConfirm: () => void actions.linkIntoVault(node.path),
             }),
         },
         addToGroupMenu(state.collections, actions, node.path, true),
@@ -182,7 +195,7 @@ export function FileTree({ tree, filter }: { tree: TreeNode; filter: string }) {
           key={row.node.path}
           row={row}
           activePath={state.activePath}
-          onToggle={actions.toggleTreeFolder}
+          onToggle={(path) => actions.toggleTreeFolder(folder.rootPath, path)}
           onOpen={(path) => void actions.openFromTree(path)}
           onMenu={onMenu}
         />

@@ -10,6 +10,35 @@ uživateli vyskočí okno s prázdnou kolonkou.
 Píše se pro toho, kdo aplikaci používá, ne pro toho, kdo ji píše: co se změní
 na obrazovce, ne které soubory se upravily. Nejnovější verze je nahoře.
 
+## 0.10.0 — 2026-09-22
+
+### Přidáno
+
+- **Otevřených složek může být víc naráz.** Každá má v levém sloupci vlastní
+  blok se stromem, vlastní rozbalené podsložky a vlastní výšku. Jedna z nich
+  je aktivní — k té patří sekce Git a je hned pod ní. Přepíná se kliknutím
+  do její hlavičky, poznáš ji podle proužku u kraje. Po restartu se otevřou
+  všechny; cesty, které mezitím zmizely, se tiše vynechají.
+- **Soubor z repozitáře jde dát mezi poznámky odkazem.** Pravé tlačítko na
+  soubor ve stromu → „Dát mezi poznámky“. Soubor zůstane, kde je; v trezoru
+  vznikne poznámka, která na něj ukazuje. Otevřít ji znamená otevřít ten
+  soubor — edituje se přímo on — ale název a štítky se drží v poznámce, takže
+  se do cizího repozitáře nic nepřipisuje. Nahrazuje dosavadní „Přesunout do
+  poznámek“, po kterém v repu zůstávala díra.
+
+### Opraveno
+
+- **Panel s Claudem už se neroztahuje.** Stačil jeden blok kódu v odpovědi
+  a panel se rozjel přes půl okna. Šířka je teď pevná a dlouhé řádky se
+  v odpovědi posouvají vlastním posuvníkem.
+- **Je vidět, že „Zkontrolovat znovu“ v sekci Git něco dělá.** Po dobu
+  zjišťování se ikona točí a v hlavičce stojí „zjišťuji…“; po dokončení je
+  tam čas, kdy to doběhlo. U složky, kde se nic nezměnilo, dřív kliknutí
+  vypadalo úplně stejně jako nekliknutí.
+- **Stav gitu se po zjištění neztrácel.** Překreslení kvůli něčemu jinému
+  mohlo vrátit rozpracovaný stav o krok zpátky, takže druhá polovina
+  zjišťování pracovala s prázdnou složkou.
+
 ## 0.9.2 — 2026-09-20
 
 ### Opraveno

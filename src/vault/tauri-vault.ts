@@ -283,10 +283,6 @@ export class TauriVault implements VaultApi {
     return call<void>('delete_external_file', { path })
   }
 
-  moveIntoVault(path: string): Promise<string> {
-    return call<string>('move_into_vault', { path })
-  }
-
   loadCollections(): Promise<Collection[]> {
     return call<Collection[]>('load_collections')
   }

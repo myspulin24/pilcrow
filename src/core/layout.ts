@@ -36,6 +36,13 @@ export function clampWorkspaceWidth(value: number): number {
  * ztratilo, co si nastavil. Přidávat nové je v pořádku.
  */
 export const SECTION_NOTES = 'notes'
+/**
+ * Předpona klíče pro blok se složkou.
+ *
+ * Od 0.10 je otevřených složek víc, takže samotné `files` nestačí -- klíč
+ * dostane ještě cestu složky, viz `folderSectionKey`. Uložené výšky z dřívějška
+ * se tím přestanou používat; je to jedna hodnota, ne data.
+ */
 export const SECTION_FILES = 'files'
 export const SECTION_GIT = 'git'
 export const SECTION_RUNS = 'runs'

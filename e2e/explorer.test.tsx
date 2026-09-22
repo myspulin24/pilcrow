@@ -350,7 +350,15 @@ describe('the explorer and the vault coexist', () => {
     })
   })
 
-  describe('přesun souboru do poznámek', () => {
+  /**
+   * Soubor z repozitáře mezi poznámkami.
+   *
+   * Dřív se přesouval do trezoru. To v repozitáři nechávalo díru a
+   * dokumentace se rozdělila na dvě místa, takže se to obrátilo: soubor
+   * zůstane, kde je, a v trezoru vznikne poznámka, která na něj ukazuje.
+   * Otevřít ji znamená otevřít ten soubor; štítky zůstávají v poznámce.
+   */
+  describe('soubor mezi poznámkami', () => {
     const menuItem = (name: string | RegExp) => screen.findByRole('menuitem', { name })
 
     /**
@@ -366,48 +374,120 @@ describe('the explorer and the vault coexist', () => {
       })
     }
 
-    async function moveReadme(user: ReturnType<typeof userEvent.setup>) {
+    async function linkReadme(user: ReturnType<typeof userEvent.setup>) {
       await rightClickFile(/README.md/)
-      await user.click(await menuItem(/Přesunout do poznámek/))
-      const dialog = await screen.findByRole('alertdialog', { name: /Přesunout do poznámek/ })
-      await user.click(within(dialog).getByRole('button', { name: 'Přesunout' }))
+      await user.click(await menuItem(/Dát mezi poznámky/))
+      const dialog = await screen.findByRole('alertdialog', { name: /Dát mezi poznámky/ })
+      await user.click(within(dialog).getByRole('button', { name: 'Dát mezi poznámky' }))
     }
 
-    it('přesune soubor z průzkumníku do trezoru a otevře ho jako poznámku', async () => {
+    it('soubor zůstane v repu, v poznámkách vznikne odkaz na něj', async () => {
       const user = userEvent.setup()
       await openTheFolder(user)
-      await moveReadme(user)
+      await linkReadme(user)
 
-      // Z původního místa je pryč -- tohle je přesun, ne kopie.
-      await waitFor(() => {
-        expect(vault.peekExternal('/docs/README.md')).toBeUndefined()
-      })
       await waitFor(async () => {
-        expect((await vault.readNote('README.md')).content).toContain('Top level readme.')
+        expect((await vault.readNote('README.md')).content).toContain('source: "/docs/README.md"')
       })
-      // Ze stromu zmizel taky.
-      await waitFor(() => {
-        expect(treeRowNames()).not.toContain('README.md')
-      })
+      // Soubor je pořád tam, kde byl -- tohle není přesun ani kopie.
+      expect(vault.peekExternal('/docs/README.md')).toContain('Top level readme.')
+      // A ve stromu zůstal.
+      expect(treeRowNames()).toContain('README.md')
+      // Text poznámky je popisek, ne obsah souboru: kopie by zastarala.
+      expect((await vault.readNote('README.md')).content).not.toContain('Top level readme.')
+    })
+
+    it('otevřít ji znamená otevřít ten soubor', async () => {
+      const user = userEvent.setup()
+      await openTheFolder(user)
+      await linkReadme(user)
+
+      // V editoru je soubor z repozitáře, ne text poznámky.
       await waitFor(() => {
         expect(editor().value).toContain('Top level readme.')
       })
+      expect(within(noteHeader()).getByText('odkaz z poznámek')).toBeInTheDocument()
+
+      // A uloží se do něj, ne do trezoru.
+      await user.click(editor())
+      await user.keyboard('{Control>}a{/Control}')
+      await user.keyboard('# Docs\n\nPřepsáno.')
+      await user.keyboard('{Control>}s{/Control}')
+
+      await waitFor(() => {
+        expect(vault.peekExternal('/docs/README.md')).toContain('Přepsáno.')
+      })
+      expect((await vault.readNote('README.md')).content).not.toContain('Přepsáno.')
     })
 
-    it('nepřepíše stejnojmennou poznámku, očísluje ji', async () => {
+    it('štítky jdou do poznámky, do souboru se nezapíšou', async () => {
+      const user = userEvent.setup()
+      await openTheFolder(user)
+      await linkReadme(user)
+      await waitFor(() => expect(editor().value).toContain('Top level readme.'))
+
+      const field = within(noteHeader()).getByLabelText('Štítky')
+      await user.click(field)
+      await user.keyboard('#dokumentace repo/docs{Enter}')
+
+      await waitFor(async () => {
+        expect((await vault.readNote('README.md')).content).toContain('tags: [dokumentace, repo/docs]')
+      })
+      // Do cizího souboru Pilcrow nic nepřipisuje.
+      expect(vault.peekExternal('/docs/README.md')).not.toContain('dokumentace')
+      // A cesta k souboru se tím neztratila.
+      expect((await vault.readNote('README.md')).content).toContain('source: "/docs/README.md"')
+    })
+
+    it('poznámka se stejným jménem se nepřepíše, odkaz se očísluje', async () => {
       const user = userEvent.setup()
       const mine = ['# Moje', '', 'Tohle tu bylo první.', ''].join('\n')
       await act(async () => {
         await vault.createNote({ path: 'README.md', content: mine, record: toIndexRecord('README.md', mine) })
       })
       await openTheFolder(user)
-      await moveReadme(user)
+      await linkReadme(user)
 
       await waitFor(async () => {
-        expect((await vault.readNote('README 2.md')).content).toContain('Top level readme.')
+        expect((await vault.readNote('README 2.md')).content).toContain('source: "/docs/README.md"')
       })
-      // Původní poznámka je nedotčená.
       expect((await vault.readNote('README.md')).content).toContain('Tohle tu bylo první.')
+    })
+
+    it('smazat otevřený odkaz smaže poznámku, ne soubor', async () => {
+      const user = userEvent.setup()
+      await openTheFolder(user)
+      await linkReadme(user)
+      await waitFor(() => expect(editor().value).toContain('Top level readme.'))
+
+      await user.keyboard('{Control>}k{/Control}')
+      await user.type(await screen.findByLabelText('Příkaz nebo poznámka'), 'smazat pozn')
+      await user.click(await screen.findByRole('option', { name: /Smazat poznámku/ }))
+      const dialog = await screen.findByRole('alertdialog')
+      await user.click(within(dialog).getByRole('button', { name: 'Smazat' }))
+
+      // Poznámka je pryč...
+      await waitFor(async () => {
+        await expect(vault.readNote('README.md')).rejects.toBeTruthy()
+      })
+      // ...soubor v repozitáři zůstal.
+      expect(vault.peekExternal('/docs/README.md')).toContain('Top level readme.')
+    })
+
+    it('odkaz na soubor, který zmizel, to řekne a nic neotevře', async () => {
+      const user = userEvent.setup()
+      await openTheFolder(user)
+      await linkReadme(user)
+      await waitFor(() => expect(editor().value).toContain('Top level readme.'))
+
+      // Soubor zmizí z disku (třeba smazaný v repu) a poznámka se otevře znovu.
+      await act(async () => {
+        await vault.deleteExternalFile('/docs/README.md')
+      })
+      const notes = within(workspace()).getByRole('list', { name: 'Poznámky' })
+      await user.click(within(notes).getByRole('button', { name: /README\.md/ }))
+
+      expect(await screen.findByText(/na disku není/)).toBeInTheDocument()
     })
   })
 

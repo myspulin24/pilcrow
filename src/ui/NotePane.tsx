@@ -17,6 +17,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   baseName,
   buildLinkIndex,
+  folderOf,
+  parseTagInput,
   collectFilePaths,
   insertLink,
   parentPath,
@@ -45,14 +47,67 @@ import { Toolbar } from './Toolbar'
 import { MathDialog } from './MathDialog'
 import { Backlinks } from './Backlinks'
 
+/**
+ * Štítky poznámky-odkazu.
+ *
+ * Jediné místo v aplikaci, kde se štítky píšou jinam než do textu: v editoru
+ * je cizí soubor a do toho Pilcrow nepřidává nic. Ukládají se do poznámky
+ * v trezoru, která na soubor odkazuje.
+ */
+function LinkedTags({ tags }: { tags: string[] }) {
+  const actions = useActions()
+  const [draft, setDraft] = useState<string | null>(null)
+  const value = draft ?? tags.map((tag) => `#${tag}`).join(' ')
+
+  const commit = () => {
+    if (draft === null) return
+    const next = parseTagInput(draft)
+    setDraft(null)
+    // Beze změny se nic neukládá: poznámka by jinak skákala v seznamu nahoru
+    // pokaždé, když se do pole jen kliklo.
+    if (next.join(' ') === tags.join(' ')) return
+    void actions.setLinkedTags(next)
+  }
+
+  return (
+    <label className="note-header__tags" title={t.note.linkedTagsHint}>
+      <span className="note-header__tags-label">{t.note.linkedTags}</span>
+      <input
+        type="text"
+        className="note-header__tags-input"
+        aria-label={t.note.linkedTags}
+        placeholder={t.note.linkedTagsHint}
+        value={value}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            commit()
+            event.currentTarget.blur()
+          } else if (event.key === 'Escape') {
+            setDraft(null)
+          }
+        }}
+      />
+    </label>
+  )
+}
+
 function NoteHeader({ path, external }: { path: string; external: boolean }) {
   const state = useAppState()
   const actions = useActions()
   const parsed = state.parsed
+  const linked = state.linked
 
   // A vault note is titled by its frontmatter; an external file is titled by
-  // its file name, because Pilcrow does not own its metadata.
-  const title = external ? baseName(path) : (parsed?.frontmatter.title ?? titleFromPath(path))
+  // its file name, because Pilcrow does not own its metadata. Poznámka-odkaz
+  // je oboje naráz: v editoru je soubor, ale název a štítky jsou z trezoru.
+  const title = linked
+    ? linked.frontmatter.title || baseName(path)
+    : external
+      ? baseName(path)
+      : (parsed?.frontmatter.title ?? titleFromPath(path))
   const folder = external
     ? parentPath(path)
     : path.includes('/')
@@ -77,7 +132,11 @@ function NoteHeader({ path, external }: { path: string; external: boolean }) {
           {title}
         </h1>
         <div className="note-header__meta">
-          {external ? <span className="note-header__badge">{t.note.externalBadge}</span> : null}
+          {linked ? (
+            <span className="note-header__badge">{t.note.linkedBadge}</span>
+          ) : external ? (
+            <span className="note-header__badge">{t.note.externalBadge}</span>
+          ) : null}
           {folder ? (
             <span className="note-header__folder">{external ? folder : `${folder}/`}</span>
           ) : null}
@@ -89,6 +148,7 @@ function NoteHeader({ path, external }: { path: string; external: boolean }) {
             {status}
           </span>
         </div>
+        {linked ? <LinkedTags tags={linked.frontmatter.tags} /> : null}
       </div>
       <div className="note-header__actions">
         {external ? null : (
@@ -135,16 +195,19 @@ export function NotePane() {
    * else's folder still works.
    */
   const linkIndex = useMemo(() => {
-    if (isExternal && state.explorer.tree) {
+    // Ze složky, ze které soubor je -- ne z té, která je zrovna aktivní.
+    // Otevřených je jich víc a odkaz musí vést tam, odkud soubor pochází.
+    const owner = state.activePath ? folderOf(state.explorer.folders, state.activePath) : null
+    if (isExternal && owner?.tree) {
       return buildLinkIndex(
-        collectFilePaths(state.explorer.tree).map((path) => ({
+        collectFilePaths(owner.tree).map((path) => ({
           path,
           title: stemOf(baseName(path)),
         })),
       )
     }
     return buildLinkIndex(state.notes.map((note) => ({ path: note.path, title: note.title })))
-  }, [isExternal, state.explorer.tree, state.notes])
+  }, [isExternal, state.activePath, state.explorer.folders, state.notes])
 
   const html = useMemo(() => {
     if (!live) return ''

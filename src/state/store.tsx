@@ -43,7 +43,24 @@ import {
   uniquePath,
   validateNoteName,
   ancestorsOf,
+  baseName,
+  buildLinkedNote,
+  generateId,
+  linkedSource,
+  withTags,
   collectDirPaths,
+  activeAfterClose,
+  activeFolder,
+  emptyFolder as emptyOpenFolder,
+  findFolder,
+  folderOf,
+  foldersToRemember,
+  foldersToRestore,
+  patchFolder,
+  sameFolder,
+  withFolder,
+  withoutFolder,
+  type OpenFolder,
   addToCollection,
   createCollection as createCollectionIn,
   cycleMode,
@@ -62,6 +79,7 @@ import {
   type NoteSummary,
   type ParsedNote,
   type MathLanguageId,
+  type NoteFrontmatter,
   type TreeNode,
   type VaultError,
 } from '@/core'
@@ -205,45 +223,55 @@ export interface EditorBuffer {
   external: boolean
 }
 
-/** The right-hand file explorer. */
+/**
+ * Průzkumník souborů v levém sloupci.
+ *
+ * Otevřených složek může být víc naráz, každá se svým stromem. Jedna je
+ * aktivní: k ní patří sekce Git, protože stav gitu se v aplikaci drží pro
+ * jednu složku. Rozhodování o seznamu je v `core/folders.ts`, tady jsou jen
+ * data.
+ */
 export interface ExplorerState {
-  /** Absolute path of the opened folder, or null when none is open. */
-  rootPath: string | null
-  tree: TreeNode | null
-  fileCount: number
-  folderCount: number
-  /** True when the scan hit a depth or size limit. */
-  truncated: boolean
-  /** Paths of expanded folders. */
-  expanded: string[]
-  /** Live filter over file and folder names. */
+  folders: OpenFolder[]
+  /** Cesta aktivní složky. `null` = žádná otevřená není. */
+  active: string | null
+  /** Live filter over file and folder names. Společný všem stromům. */
   filter: string
-  loading: boolean
-  error: string | null
   /** A single file opened on its own, with no folder around it. */
   loneFile: string | null
   /**
-   * Soubory v otevřené složce, které tenhle běh Pilcrow zapsal nebo smazal.
+   * Soubory v otevřených složkách, které tenhle běh Pilcrow zapsal nebo smazal.
    *
    * Absolutní cesty. Sekce Git podle nich předvybírá, co jde do commitu:
    * co změnil Pilcrow, je zaškrtnuté; cizí rozdělaná práce v repu se ukáže,
-   * ale sama se nevybere. Při změně složky se zapomene.
+   * ale sama se nevybere.
    */
   touched: string[]
 }
 
 const emptyExplorer: ExplorerState = {
-  rootPath: null,
-  tree: null,
-  fileCount: 0,
-  folderCount: 0,
-  truncated: false,
-  expanded: [],
+  folders: [],
+  active: null,
   filter: '',
-  loading: false,
-  error: null,
   loneFile: null,
   touched: [],
+}
+
+/**
+ * Otevřená poznámka, která je odkazem na soubor.
+ *
+ * V editoru je ten soubor, ne poznámka: `activePath` a `editor.path` ukazují
+ * na něj a ukládá se do něj. Poznámka v trezoru drží jenom název, štítky
+ * a cestu -- a je tady, aby bylo vidět, odkud se na soubor přišlo, a aby
+ * měly štítky kam.
+ */
+export interface LinkedState {
+  /** Cesta poznámky v trezoru. */
+  notePath: string
+  /** Absolutní cesta souboru, který se edituje. */
+  source: string
+  /** Frontmatter poznámky. Odtud je název i štítky. */
+  frontmatter: NoteFrontmatter
 }
 
 export interface AppState {
@@ -262,6 +290,8 @@ export interface AppState {
   editor: EditorBuffer | null
   parsed: ParsedNote | null
   backlinks: BacklinkRow[]
+  /** Otevřený soubor je ve skutečnosti poznámka-odkaz. Jinak `null`. */
+  linked: LinkedState | null
 
   conflict: ConflictState | null
   paletteOpen: boolean
@@ -304,6 +334,7 @@ const initialState: AppState = {
   editor: null,
   parsed: null,
   backlinks: [],
+  linked: null,
   conflict: null,
   paletteOpen: false,
   paletteMode: 'commands',
@@ -333,10 +364,11 @@ type Action =
   | { type: 'notes-loading'; loading: boolean }
   | { type: 'query'; query: string }
   | { type: 'active-tag'; tag: string | null }
-  | { type: 'open'; file: NoteFile; parsed: ParsedNote; external?: boolean }
+  | { type: 'open'; file: NoteFile; parsed: ParsedNote; external?: boolean; linked?: LinkedState }
   | { type: 'close' }
-  | { type: 'explorer-loading' }
-  | { type: 'explorer-error'; message: string }
+  | { type: 'linked-frontmatter'; frontmatter: NoteFrontmatter }
+  | { type: 'explorer-loading'; rootPath: string }
+  | { type: 'explorer-error'; rootPath: string; message: string }
   | {
       type: 'explorer-tree'
       rootPath: string
@@ -349,8 +381,11 @@ type Action =
   | { type: 'explorer-lone-file'; path: string }
   | { type: 'explorer-touched'; path: string }
   | { type: 'explorer-close' }
-  | { type: 'explorer-toggle-dir'; path: string }
-  | { type: 'explorer-set-expanded'; expanded: string[] }
+  | { type: 'explorer-close-folder'; rootPath: string }
+  | { type: 'explorer-activate'; rootPath: string }
+  | { type: 'explorer-toggle-folder'; rootPath: string }
+  | { type: 'explorer-toggle-dir'; rootPath: string; path: string }
+  | { type: 'explorer-set-expanded'; rootPath: string; expanded: string[] }
   | { type: 'explorer-filter'; filter: string }
   | { type: 'toggle-notes-section' }
   | { type: 'toggle-files-section' }
@@ -415,6 +450,9 @@ function reducer(state: AppState, action: Action): AppState {
         parsed: action.parsed,
         // A vault note keeps its backlinks; an external file has none.
         backlinks: action.external ? [] : state.backlinks,
+        // Bez `linked` je to obyčejné otevření; nastavuje ho jen otevření
+        // poznámky, která odkazuje na soubor.
+        linked: action.linked ?? null,
         editor: {
           path: action.file.path,
           baseText: action.file.content,
@@ -427,7 +465,9 @@ function reducer(state: AppState, action: Action): AppState {
         },
       }
     case 'close':
-      return { ...state, activePath: null, editor: null, parsed: null, backlinks: [] }
+      return { ...state, activePath: null, editor: null, parsed: null, backlinks: [], linked: null }
+    case 'linked-frontmatter':
+      return state.linked ? { ...state, linked: { ...state.linked, frontmatter: action.frontmatter } } : state
     case 'edit': {
       if (!state.editor) return state
       return {
@@ -492,28 +532,55 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, filesSectionOpen: !state.filesSectionOpen }
     case 'drop-active':
       return { ...state, dropActive: action.active }
-    case 'explorer-loading':
-      return { ...state, explorer: { ...state.explorer, loading: true, error: null } }
-    case 'explorer-error':
-      return { ...state, explorer: { ...state.explorer, loading: false, error: action.message } }
-    case 'explorer-tree':
+    case 'explorer-loading': {
+      // Složka se do sloupce zapíše hned, ještě než dojde strom: než se velké
+      // repo projde, uběhne chvíle a bez tohohle by se do té doby nedělo nic.
+      const existing = findFolder(state.explorer.folders, action.rootPath)
+      const folder = { ...(existing ?? emptyOpenFolder(action.rootPath)), loading: true, error: null }
       return {
         ...state,
-        filesSectionOpen: true,
         explorer: {
           ...state.explorer,
-          rootPath: action.rootPath,
-          tree: action.tree,
-          fileCount: action.fileCount,
-          folderCount: action.folderCount,
-          truncated: action.truncated,
-          expanded: action.expanded,
-          loading: false,
-          error: null,
-          loneFile: null,
-          touched: state.explorer.rootPath === action.rootPath ? state.explorer.touched : [],
+          folders: withFolder(state.explorer.folders, folder),
+          active: action.rootPath,
         },
       }
+    }
+    case 'explorer-error':
+      return {
+        ...state,
+        explorer: {
+          ...state.explorer,
+          folders: patchFolder(state.explorer.folders, action.rootPath, {
+            loading: false,
+            error: action.message,
+          }),
+        },
+      }
+    case 'explorer-tree': {
+      const existing = findFolder(state.explorer.folders, action.rootPath)
+      const folder: OpenFolder = {
+        ...(existing ?? emptyOpenFolder(action.rootPath)),
+        rootPath: action.rootPath,
+        tree: action.tree,
+        fileCount: action.fileCount,
+        folderCount: action.folderCount,
+        truncated: action.truncated,
+        expanded: action.expanded,
+        open: true,
+        loading: false,
+        error: null,
+      }
+      return {
+        ...state,
+        explorer: {
+          ...state.explorer,
+          folders: withFolder(state.explorer.folders, folder),
+          active: action.rootPath,
+          loneFile: null,
+        },
+      }
+    }
     case 'explorer-touched':
       return state.explorer.touched.includes(action.path)
         ? state
@@ -526,14 +593,52 @@ function reducer(state: AppState, action: Action): AppState {
       }
     case 'explorer-close':
       return { ...state, explorer: emptyExplorer }
+    case 'explorer-close-folder':
+      return {
+        ...state,
+        explorer: {
+          ...state.explorer,
+          active: activeAfterClose(state.explorer.folders, action.rootPath, state.explorer.active),
+          folders: withoutFolder(state.explorer.folders, action.rootPath),
+        },
+      }
+    case 'explorer-activate':
+      return findFolder(state.explorer.folders, action.rootPath)
+        ? { ...state, explorer: { ...state.explorer, active: action.rootPath } }
+        : state
+    case 'explorer-toggle-folder': {
+      const folder = findFolder(state.explorer.folders, action.rootPath)
+      if (!folder) return state
+      return {
+        ...state,
+        explorer: {
+          ...state.explorer,
+          folders: patchFolder(state.explorer.folders, action.rootPath, { open: !folder.open }),
+        },
+      }
+    }
     case 'explorer-toggle-dir': {
-      const expanded = state.explorer.expanded.includes(action.path)
-        ? state.explorer.expanded.filter((path) => path !== action.path)
-        : [...state.explorer.expanded, action.path]
-      return { ...state, explorer: { ...state.explorer, expanded } }
+      const folder = findFolder(state.explorer.folders, action.rootPath)
+      if (!folder) return state
+      const expanded = folder.expanded.includes(action.path)
+        ? folder.expanded.filter((path) => path !== action.path)
+        : [...folder.expanded, action.path]
+      return {
+        ...state,
+        explorer: {
+          ...state.explorer,
+          folders: patchFolder(state.explorer.folders, action.rootPath, { expanded }),
+        },
+      }
     }
     case 'explorer-set-expanded':
-      return { ...state, explorer: { ...state.explorer, expanded: action.expanded } }
+      return {
+        ...state,
+        explorer: {
+          ...state.explorer,
+          folders: patchFolder(state.explorer.folders, action.rootPath, { expanded: action.expanded }),
+        },
+      }
     case 'explorer-filter':
       return { ...state, explorer: { ...state.explorer, filter: action.filter } }
     case 'math':
@@ -606,8 +711,15 @@ export interface Actions {
   closeMenu(): void
   deleteFile(path: string, external: boolean): Promise<void>
 
-  /** Přesuň soubor z průzkumníku do trezoru; vrací se až po otevření nové poznámky. */
-  moveIntoVault(path: string): Promise<void>
+  /**
+   * Dej soubor z průzkumníku mezi poznámky odkazem.
+   *
+   * Soubor zůstane, kde je; v trezoru vznikne poznámka, která na něj ukazuje.
+   * Vrací se až po jejím otevření.
+   */
+  linkIntoVault(path: string): Promise<void>
+  /** Přepiš štítky otevřené poznámky-odkazu. Soubor se tím nemění. */
+  setLinkedTags(tags: string[]): Promise<void>
 
   // --- modals ---------------------------------------------------------------
   promptFor(request: PromptRequest): void
@@ -633,15 +745,27 @@ export interface Actions {
    * našel na disku), takže ptát se na ni podruhé by bylo jen zdržení.
    */
   openFolderAt(path: string): Promise<void>
-  /** Re-scan the open folder, picking up files added outside the app. */
-  refreshTree(): Promise<void>
-  /** Open a file the explorer is showing. */
+  /**
+   * Re-scan an open folder, picking up files added outside the app.
+   * Bez argumentu tu aktivní.
+   */
+  refreshTree(rootPath?: string): Promise<void>
+  /** Open a file the explorer is showing. Jeho složka se tím stane aktivní. */
   openFromTree(path: string): Promise<void>
-  toggleTreeFolder(path: string): void
-  expandAllFolders(): void
-  collapseAllFolders(): void
+  toggleTreeFolder(rootPath: string, path: string): void
+  expandAllFolders(rootPath?: string): void
+  collapseAllFolders(rootPath?: string): void
   setTreeFilter(filter: string): void
-  closeFolder(): void
+  /** Zavřít jednu složku; bez argumentu celý průzkumník. */
+  closeFolder(rootPath?: string): void
+  /**
+   * Přepnout aktivní složku -- tu, ke které patří sekce Git.
+   *
+   * Otevřených složek může být víc, ale stav gitu se drží pro jednu.
+   */
+  activateFolder(rootPath: string): void
+  /** Sbalit nebo rozbalit blok jedné složky v levém sloupci. */
+  toggleFolderSection(rootPath: string): void
   /** Otevřít editor vzorců. Bez argumentu se vkládá nový vzorec. */
   openMath(request?: MathRequest): void
   closeMath(): void
@@ -702,6 +826,15 @@ export function StoreProvider({
 
   const stateRef = useRef(state)
   stateRef.current = state
+
+  /**
+   * Doběhlo obnovení průzkumníku po startu?
+   *
+   * Dokud ne, nesmí se do nastavení zapisovat, co je otevřené: na začátku je
+   * sloupec prázdný a zapsat ten stav by smazalo cesty, které se právě
+   * obnovují.
+   */
+  const explorerRestored = useRef(false)
 
   const editorElement = useRef<HTMLTextAreaElement | null>(null)
 
@@ -821,7 +954,34 @@ export function StoreProvider({
     async (path: string) => {
       try {
         const file = await vaultRef.current.readNote(path)
-        dispatch({ type: 'open', file, parsed: parseNote(file.content, { path }) })
+        const parsed = parseNote(file.content, { path })
+
+        // Poznámka-odkaz: v editoru je soubor, na který ukazuje, ne ona sama.
+        //
+        // Čtení mimo trezor je povolené jen po dobu běhu, takže se cesta musí
+        // nejdřív znovu povolit -- `reopenFile` dělá přesně tohle a vrací
+        // `null`, když soubor zmizel. Je to tentýž obchod jako u obnovení
+        // složky po startu: cesta se do trezoru dostala tím, že ji uživatel
+        // sám vybral.
+        const source = linkedSource(parsed)
+        if (source) {
+          const granted = await vaultRef.current.reopenFile(source)
+          if (!granted) {
+            reportError({ kind: 'not-found', message: t.errors.linkMissing(source) }, t.errors.open(path))
+            return
+          }
+          const target = await vaultRef.current.readExternalFile(source)
+          dispatch({
+            type: 'open',
+            file: target,
+            parsed: parseNote(target.content, { path: source }),
+            external: true,
+            linked: { notePath: path, source, frontmatter: parsed.frontmatter },
+          })
+          return
+        }
+
+        dispatch({ type: 'open', file, parsed })
         void loadBacklinks(path)
       } catch (error) {
         reportError(error, t.errors.open(path))
@@ -1055,7 +1215,13 @@ export function StoreProvider({
       try {
         const file = await vaultRef.current.readNote(path)
         await vaultRef.current.deleteNote(path)
-        if (stateRef.current.activePath === path) dispatch({ type: 'close' })
+        // Otevřená poznámka-odkaz má v `activePath` cestu souboru, ne svou;
+        // zavřít se musí i tak -- poznámka, ze které se soubor otevřel, už
+        // neexistuje.
+        const current = stateRef.current
+        if (current.activePath === path || current.linked?.notePath === path) {
+          dispatch({ type: 'close' })
+        }
         await refresh()
         toast('info', t.toast.deleted(path), {
           label: t.common.undo,
@@ -1385,11 +1551,20 @@ export function StoreProvider({
         })
         // Reveal it in the tree, so clicking a search result or following a
         // link never leaves the selection hidden inside a collapsed folder.
+        // A protože složek může být otevřených víc, tohle je zároveň to
+        // místo, kde se přepíná aktivní složka: otevřít soubor je nejběžnější
+        // způsob, jak říct „teď pracuju tady“.
         const explorer = stateRef.current.explorer
-        const needed = ancestorsOf(explorer.tree, path)
-        if (needed.length > 0) {
-          const expanded = new Set([...explorer.expanded, ...needed])
-          dispatch({ type: 'explorer-set-expanded', expanded: [...expanded] })
+        const owner = folderOf(explorer.folders, path)
+        if (owner) {
+          if (!sameFolder(explorer.active ?? '', owner.rootPath)) {
+            dispatch({ type: 'explorer-activate', rootPath: owner.rootPath })
+          }
+          const needed = ancestorsOf(owner.tree, path)
+          if (needed.length > 0) {
+            const expanded = new Set([...owner.expanded, ...needed])
+            dispatch({ type: 'explorer-set-expanded', rootPath: owner.rootPath, expanded: [...expanded] })
+          }
         }
       } catch (error) {
         reportError(error, t.errors.open(path))
@@ -1398,34 +1573,14 @@ export function StoreProvider({
     [reportError],
   )
 
-  /**
-   * Zapiš do nastavení, co má průzkumník otevřít po příštím startu.
-   *
-   * Píše se jen při skutečné změně, takže obnovení po startu ani obyčejné
-   * načtení stromu nesahá na disk zbytečně. Selhání se polyká: neuložená
-   * cesta je nepohodlí, ale rozbít kvůli ní otevření složky by bylo horší.
-   */
-  const rememberExplorer = useCallback(
-    (lastFolder: string, lastFile: string) => {
-      const settings = stateRef.current.settings
-      if (settings.lastFolder === lastFolder && settings.lastFile === lastFile) return
-      void updateSettings({ lastFolder, lastFile }).catch(() => {})
-    },
-    [updateSettings],
-  )
-
-  /** Ukaž v průzkumníku jeden soubor bez složky a zapamatuj si ho. */
-  const showLoneFile = useCallback(
-    (path: string) => {
-      dispatch({ type: 'explorer-lone-file', path })
-      rememberExplorer('', path)
-    },
-    [rememberExplorer],
-  )
+  /** Ukaž v průzkumníku jeden soubor bez složky. Uloží ho efekt níž. */
+  const showLoneFile = useCallback((path: string) => {
+    dispatch({ type: 'explorer-lone-file', path })
+  }, [])
 
   const loadTree = useCallback(
     async (rootPath: string, keepExpanded: string[] = []) => {
-      dispatch({ type: 'explorer-loading' })
+      dispatch({ type: 'explorer-loading', rootPath })
       try {
         const folder = await vaultRef.current.readFolderTree(rootPath)
         dispatch({
@@ -1437,7 +1592,6 @@ export function StoreProvider({
           truncated: folder.truncated,
           expanded: keepExpanded,
         })
-        rememberExplorer(rootPath, '')
         if (folder.fileCount === 0) {
           toast('info', t.toast.emptyFolder)
         } else if (folder.truncated) {
@@ -1445,10 +1599,10 @@ export function StoreProvider({
         }
       } catch (error) {
         const message = isVaultError(error) ? error.message : t.errors.readFolder(rootPath)
-        dispatch({ type: 'explorer-error', message })
+        dispatch({ type: 'explorer-error', rootPath, message })
       }
     },
-    [rememberExplorer, toast],
+    [toast],
   )
 
   const openFileFromDisk = useCallback(async () => {
@@ -1479,15 +1633,44 @@ export function StoreProvider({
     [loadTree],
   )
 
-  const refreshTree = useCallback(async () => {
-    const { rootPath, expanded } = stateRef.current.explorer
-    if (!rootPath) return
-    await loadTree(rootPath, expanded)
-  }, [loadTree])
+  /** Projít složku znovu. Bez argumentu tu aktivní. */
+  const refreshTree = useCallback(
+    async (rootPath?: string) => {
+      const { folders, active } = stateRef.current.explorer
+      const folder = rootPath ? findFolder(folders, rootPath) : activeFolder(folders, active)
+      if (!folder) return
+      await loadTree(folder.rootPath, folder.expanded)
+    },
+    [loadTree],
+  )
 
-  const expandAllFolders = useCallback(() => {
-    const tree = stateRef.current.explorer.tree
-    dispatch({ type: 'explorer-set-expanded', expanded: collectDirPaths(tree) })
+  const expandAllFolders = useCallback((rootPath?: string) => {
+    const { folders, active } = stateRef.current.explorer
+    const folder = rootPath ? findFolder(folders, rootPath) : activeFolder(folders, active)
+    if (!folder) return
+    dispatch({
+      type: 'explorer-set-expanded',
+      rootPath: folder.rootPath,
+      expanded: collectDirPaths(folder.tree),
+    })
+  }, [])
+
+  const collapseAllFolders = useCallback((rootPath?: string) => {
+    const { folders, active } = stateRef.current.explorer
+    const folder = rootPath ? findFolder(folders, rootPath) : activeFolder(folders, active)
+    if (!folder) return
+    dispatch({ type: 'explorer-set-expanded', rootPath: folder.rootPath, expanded: [] })
+  }, [])
+
+  /**
+   * Zavřít složku, nebo -- bez argumentu -- všechno, co průzkumník ukazuje.
+   *
+   * Zavřít jednu složku není totéž co zavřít průzkumník: zbytek sloupce
+   * zůstane, jen aktivní složka přeskočí na sousední.
+   */
+  const closeFolder = useCallback((rootPath?: string) => {
+    if (rootPath) dispatch({ type: 'explorer-close-folder', rootPath })
+    else dispatch({ type: 'explorer-close' })
   }, [])
 
   // -- collections -----------------------------------------------------------
@@ -1619,7 +1802,10 @@ export function StoreProvider({
         }
 
         await refresh()
-        if (external && stateRef.current.explorer.rootPath) await refreshTree()
+        // Znovu se projde jen ta složka, ve které soubor byl -- ostatní
+        // otevřené stromy se smazáním nezměnily.
+        const owner = external ? folderOf(stateRef.current.explorer.folders, path) : null
+        if (owner) await refreshTree(owner.rootPath)
         toast('info', t.toast.deleted(path.split(/[\\/]/).pop() ?? path))
       } catch (error) {
         reportError(error, t.errors.deleteFile)
@@ -1629,41 +1815,78 @@ export function StoreProvider({
   )
 
   /**
-   * Přesuň soubor z průzkumníku do poznámek.
+   * Dej soubor z průzkumníku mezi poznámky -- odkazem, ne kopií.
    *
-   * Přesun, ne kopie: smysl je, aby soubor přestal existovat na dvou místech.
-   * Kdo ho chce nechat, kde je, a jen se na něj odkázat, má na to skupiny --
-   * ty ukládají cestu, ne obsah.
+   * V trezoru vznikne poznámka, ve které není text souboru, ale cesta k němu.
+   * Otevřít ji znamená otevřít ten soubor: edituje se přímo on a zůstává tam,
+   * kde je -- v repozitáři, se svou historií. Do trezoru patří jen to, co je
+   * uživatelovo: název, štítky, připnutí.
    *
-   * Cíl se vrací z backendu, protože nemusí mít stejné jméno: trezor nikdy
-   * nepřepisuje, takže se při shodě jmen očísluje.
+   * Dřív se soubor fyzicky přesunul. To v repozitáři nechávalo díru, kterou
+   * bylo potřeba commitnout, a dokumentace se tím rozdělila na dvě místa.
    */
-  const moveIntoVault = useCallback(
+  const linkIntoVault = useCallback(
     async (path: string) => {
-      const name = path.split(/[\/]/).pop() ?? path
+      const name = baseName(path)
       try {
-        const landed = await vaultRef.current.moveIntoVault(path)
-        dispatch({ type: 'explorer-touched', path })
-
-        // Soubor na staré cestě už není: vyhoď ho ze skupin i z editoru.
-        const pruned = forgetPath(stateRef.current.collections, path)
-        if (JSON.stringify(pruned) !== JSON.stringify(stateRef.current.collections)) {
-          await commitCollections(pruned)
-        }
-        if (stateRef.current.activePath === path) dispatch({ type: 'close' })
+        // Jména se berou z trezoru, ne ze seznamu ve stavu: ten se obnovuje
+        // až po hledání, takže by o poznámce vzniklé před chvílí nevěděl
+        // a `createNote` by odmítl zapsat na obsazenou cestu.
+        const existing = (await vaultRef.current.listNotes()).map((note) => note.path)
+        const target = uniquePath(safeFileName(name), existing)
+        const now = new Date().toISOString()
+        const content = buildLinkedNote({
+          source: path,
+          title: name,
+          id: generateId(),
+          now,
+          body: `${t.note.linkBody(path)}\n`,
+        })
+        await vaultRef.current.createNote({
+          path: target,
+          content,
+          record: toIndexRecord(target, content, parseNote(content, { path: target })),
+        })
 
         await refresh()
-        if (stateRef.current.explorer.rootPath) await refreshTree()
-        await open(landed)
-        toast(
-          'success',
-          landed === name ? t.toast.movedIntoVault(landed) : t.toast.movedIntoVaultRenamed(name, landed),
-        )
+        await open(target)
+        toast('success', t.toast.linkedIntoVault(name))
       } catch (error) {
-        reportError(error, t.errors.moveIntoVault)
+        reportError(error, t.errors.linkIntoVault)
       }
     },
-    [commitCollections, open, refresh, refreshTree, reportError, toast],
+    [open, refresh, reportError, toast],
+  )
+
+  /**
+   * Přepsat štítky poznámky-odkazu.
+   *
+   * Píše se do poznámky v trezoru, ne do souboru: ten je cizí a Pilcrow do něj
+   * nikdy nic nepřidává. Soubor zůstane v editoru otevřený a nerozepsaný --
+   * mění se jen poznámka vedle něj.
+   */
+  const setLinkedTags = useCallback(
+    async (tags: string[]) => {
+      const linked = stateRef.current.linked
+      if (!linked) return
+      try {
+        const file = await vaultRef.current.readNote(linked.notePath)
+        const parsed = parseNote(file.content, { path: linked.notePath })
+        const updated = withTags(parsed, tags)
+        const content = serializeNoteFile(updated)
+        await vaultRef.current.writeNote({
+          path: linked.notePath,
+          content,
+          expectedHash: file.hash,
+          record: toIndexRecord(linked.notePath, content, updated),
+        })
+        dispatch({ type: 'linked-frontmatter', frontmatter: updated.frontmatter })
+        await refresh()
+      } catch (error) {
+        reportError(error, t.errors.save)
+      }
+    },
+    [refresh, reportError],
   )
 
   /**
@@ -1864,21 +2087,26 @@ export function StoreProvider({
   const restoreExplorer = useCallback(
     async (settings: VaultSettings): Promise<string | null> => {
       try {
-        if (settings.lastFolder) {
-          const folder = await vaultRef.current.reopenFolder(settings.lastFolder)
-          if (!folder) {
-            void updateSettings({ lastFolder: '' }).catch(() => {})
-            return null
+        const remembered = foldersToRestore(settings)
+        if (remembered.length > 0) {
+          // Pozpátku, aby aktivní zůstala ta první: každý strom, který dojde,
+          // svou složku zaktivní, takže poslední slovo má ta, která se načte
+          // nakonec.
+          for (const rootPath of [...remembered].reverse()) {
+            const folder = await vaultRef.current.reopenFolder(rootPath)
+            // Cesta zmizela nebo je na jiném počítači. Nic se nehlásí, jen se
+            // zapomene -- efekt níž přepíše nastavení tím, co zbylo.
+            if (!folder) continue
+            dispatch({
+              type: 'explorer-tree',
+              rootPath,
+              tree: folder.root,
+              fileCount: folder.fileCount,
+              folderCount: folder.folderCount,
+              truncated: folder.truncated,
+              expanded: [],
+            })
           }
-          dispatch({
-            type: 'explorer-tree',
-            rootPath: settings.lastFolder,
-            tree: folder.root,
-            fileCount: folder.fileCount,
-            folderCount: folder.folderCount,
-            truncated: folder.truncated,
-            expanded: [],
-          })
           return null
         }
         if (settings.lastFile) {
@@ -1925,6 +2153,10 @@ export function StoreProvider({
         // je to to poslední, co měl uživatel v ruce.
         const restored = await restoreExplorer(settings)
         if (cancelled) return
+        // Teprve teď se smí zapisovat, co je otevřené. Kdyby efekt níž běžel
+        // dřív, uložil by prázdný sloupec -- a cesty, které se právě
+        // obnovovaly, by zmizely z nastavení.
+        explorerRestored.current = true
         if (restored) {
           void openFromTree(restored)
         } else {
@@ -1947,6 +2179,33 @@ export function StoreProvider({
     // Deliberately runs once: this is app start-up.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /**
+   * Zapsat do nastavení, co má průzkumník otevřít po příštím startu.
+   *
+   * Efektem, ne z akcí: seznam složek se mění na několika místech a `dispatch`
+   * se projeví až při překreslení. Kdyby si každá akce nový seznam skládala
+   * sama, četla by ho ze stavu, který ještě neplatí -- a uložilo by se, co
+   * bylo před ní.
+   *
+   * Píše se jen při skutečné změně. Selhání se polyká: neuložená cesta je
+   * nepohodlí, ale rozbít kvůli ní otevření složky by bylo horší.
+   */
+  useEffect(() => {
+    if (!explorerRestored.current) return
+    const openFolders = foldersToRemember(state.explorer.folders, state.explorer.active)
+    const lastFolder = openFolders[0] ?? ''
+    const lastFile = state.explorer.loneFile ?? ''
+    const settings = state.settings
+    if (
+      settings.lastFolder === lastFolder &&
+      settings.lastFile === lastFile &&
+      JSON.stringify(settings.openFolders ?? []) === JSON.stringify(openFolders)
+    ) {
+      return
+    }
+    void updateSettings({ lastFolder, lastFile, openFolders }).catch(() => {})
+  }, [state.explorer.folders, state.explorer.active, state.explorer.loneFile, state.settings, updateSettings])
 
   // Debounced search whenever the query or the tag filter changes.
   useEffect(() => {
@@ -2102,21 +2361,28 @@ export function StoreProvider({
       createCollectionWith,
       toggleSidebar: () => dispatch({ type: 'toggle-sidebar' }),
       toggleNotesSection: () => dispatch({ type: 'toggle-notes-section' }),
-      toggleFilesSection: () => dispatch({ type: 'toggle-files-section' }),
+      // Ctrl+B sbalí blok se soubory. Když je otevřených složek víc, patří
+      // zkratka té aktivní -- stejné složce, které patří sekce Git.
+      toggleFilesSection: () => {
+        const { folders, active } = stateRef.current.explorer
+        const folder = activeFolder(folders, active)
+        if (folder) dispatch({ type: 'explorer-toggle-folder', rootPath: folder.rootPath })
+        else dispatch({ type: 'toggle-files-section' })
+      },
       openFileFromDisk,
       openFolderFromDisk,
       openFolderAt,
       refreshTree,
       openFromTree,
-      toggleTreeFolder: (path) => dispatch({ type: 'explorer-toggle-dir', path }),
+      toggleTreeFolder: (rootPath, path) => dispatch({ type: 'explorer-toggle-dir', rootPath, path }),
       expandAllFolders,
-      collapseAllFolders: () => dispatch({ type: 'explorer-set-expanded', expanded: [] }),
+      collapseAllFolders,
       setTreeFilter: (filter) => dispatch({ type: 'explorer-filter', filter }),
-      moveIntoVault,
-      closeFolder: () => {
-        dispatch({ type: 'explorer-close' })
-        rememberExplorer('', '')
-      },
+      linkIntoVault,
+      setLinkedTags,
+      closeFolder,
+      activateFolder: (rootPath) => dispatch({ type: 'explorer-activate', rootPath }),
+      toggleFolderSection: (rootPath) => dispatch({ type: 'explorer-toggle-folder', rootPath }),
       openMath: (request) => dispatch({ type: 'math', math: request ?? { tex: '', display: true, language: 'latex' } }),
       closeMath: () => dispatch({ type: 'math', math: null }),
       checkForUpdates,
@@ -2162,10 +2428,12 @@ export function StoreProvider({
       openOrCreateByTitle,
       closeSettings,
       openSettings,
-      moveIntoVault,
+      linkIntoVault,
+      setLinkedTags,
       rebuildIndex,
       refresh,
-      rememberExplorer,
+      collapseAllFolders,
+      closeFolder,
       updateSettings,
       refreshTree,
       remove,

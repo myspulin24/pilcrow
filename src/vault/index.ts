@@ -30,8 +30,13 @@ export function createVault(): VaultApi {
       '/ukazka/navody/instalace.md': '# Instalace\n\nSpusť `npm start`.\n',
       '/ukazka/navody/pokrocile/ladeni.md': '# Ladění\n\nHlouběji ve stromu.\n',
       '/ukazka/reference/api.md': '# API\n\nReferenční materiál.\n',
+      '/druha-slozka/README.md': '# Druhá složka\n\nAby šlo vyzkoušet víc otevřených složek naráz.\n',
+      '/druha-slozka/poznamky/schuzka.md': '# Schůzka\n\nZápis.\n',
     },
     externalRoot: '/ukazka',
+    // Druhé „Otevřít složku...“ v náhledu vybere jinou složku, takže je vidět
+    // i to, jak se sloupec chová s víc otevřenými naráz.
+    externalRoots: ['/ukazka', '/druha-slozka'],
     label: t.browser.demoVault,
     warning: t.browser.warning,
   })

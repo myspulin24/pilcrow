@@ -137,6 +137,14 @@ export class MemoryGit implements GitApi {
   /** Zpráva, se kterou má push selhat. Prázdné = projde. */
   failPush: string
 
+  /**
+   * Složky, na které se aplikace ptala, v pořadí.
+   *
+   * Otevřených složek může být víc a stav gitu patří té aktivní; tohle je
+   * jediný způsob, jak v testu ověřit, že se opravdu ptá na ni.
+   */
+  readonly probedFolders: string[] = []
+
   private readonly options: MemoryGitOptions
   private loggedIn: boolean
   private branch: string
@@ -173,6 +181,7 @@ export class MemoryGit implements GitApi {
   }
 
   async probe(folder: string): Promise<GitProbe> {
+    this.probedFolders.push(folder)
     const gitInstalled = this.options.gitInstalled ?? true
     const ghInstalled = this.options.ghInstalled ?? true
     const repoRoot = this.options.repoRoot === null ? '' : (this.options.repoRoot ?? folder)

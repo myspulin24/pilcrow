@@ -104,6 +104,10 @@ export const t = {
     closeFileHint: 'Zavřít tenhle soubor',
     folderContents: 'Obsah složky',
     partialScan: 'neúplné',
+    /** Ke které složce patří sekce Git, když je jich otevřených víc. */
+    activeFolder: 'Sem míří Git',
+    activateFolder: (name: string) => `Přepnout Git na složku ${name}`,
+    openAnother: 'Otevřít další složku',
     resize: 'Šířka levého sloupce',
     resizeSection: (name: string) => `Výška bloku ${name}`,
     resizeSectionHint: 'Táhni myší, nebo šipkami nahoru a dolů. Dvojklik zruší pevnou výšku.',
@@ -135,6 +139,13 @@ export const t = {
     nothingOpen: 'Nic není otevřené',
     nothingOpenHint: 'Vyber vlevo poznámku, nebo stiskni Ctrl + N a napiš novou.',
     externalBadge: 'externí soubor',
+    linkedBadge: 'odkaz z poznámek',
+    /** Tělo poznámky-odkazu. Ukáže se jako úryvek v seznamu poznámek. */
+    linkBody: (path: string) => `Odkaz na soubor ${path}`,
+    linkedTags: 'Štítky',
+    linkedTagsHint: 'Oddělené mezerou nebo čárkou. Ukládají se do poznámky, ne do souboru.',
+    linkedTagsSave: 'Uložit štítky',
+    linkedSource: 'Soubor',
     words: (count: number) => withCount(count, 'slovo', 'slova', 'slov'),
     tasks: (done: number, total: number) =>
       `${done}/${total} ${plural(total, 'úkol', 'úkoly', 'úkolů')}`,
@@ -168,8 +179,8 @@ export const t = {
     actions: 'Akce',
     open: 'Otevřít',
     addToGroup: 'Přidat do skupiny',
-    moveIntoVault: 'Přesunout do poznámek',
-    moveIntoVaultHint: 'soubor se přesune do trezoru',
+    linkIntoVault: 'Dát mezi poznámky',
+    linkIntoVaultHint: 'soubor zůstane v repu, poznámka na něj odkáže',
     newGroupDots: 'Nová skupina...',
     firstGroupDots: 'Vytvořit první skupinu...',
     renameDots: 'Přejmenovat...',
@@ -210,10 +221,10 @@ export const t = {
     deleteNoteMessage: (title: string) =>
       `Smazat „${title}“? Soubor zmizí z trezoru. Po smazání se dá vrátit tlačítkem v hlášce.`,
     deleteNoteShort: (title: string) => `Smazat „${title}“? Soubor zmizí z trezoru.`,
-    moveIntoVaultTitle: 'Přesunout do poznámek',
-    moveIntoVaultMessage: (path: string) =>
-      `Přesunout ${path} do poznámek? Soubor se přesune do trezoru a na původním místě už nebude. Odkaz na místě zůstane, pokud ho chceš jen propojit -- na to je „Přidat do skupiny“.`,
-    moveIntoVaultConfirm: 'Přesunout',
+    linkIntoVaultTitle: 'Dát mezi poznámky',
+    linkIntoVaultMessage: (path: string) =>
+      `Dát ${path} mezi poznámky? Soubor zůstane, kde je. V poznámkách vznikne odkaz na něj: otevřít ho pak jde odsud i odtamtud a štítky se drží v trezoru, takže se do repozitáře nic nepřipisuje.`,
+    linkIntoVaultConfirm: 'Dát mezi poznámky',
     deleteFileTitle: 'Smazat soubor',
     deleteFileMessage: (path: string) =>
       `Smazat ${path}? Soubor zmizí z disku, ne jen z tohoto seznamu.`,
@@ -325,9 +336,7 @@ export const t = {
     moved: (folder: string) => `Přesunuto do ${folder}.`,
     movedToRoot: 'Přesunuto do kořene trezoru.',
     deleted: (name: string) => `Smazáno: ${name}`,
-    movedIntoVault: (path: string) => `Přesunuto do poznámek: ${path}`,
-    movedIntoVaultRenamed: (from: string, to: string) =>
-      `Přesunuto do poznámek jako ${to} -- ${from} už v poznámkách bylo.`,
+    linkedIntoVault: (name: string) => `${name} je mezi poznámkami. Soubor zůstal v repozitáři.`,
     restored: 'Obnoveno.',
     pinned: 'Připnuto.',
     unpinned: 'Odepnuto.',
@@ -391,7 +400,8 @@ export const t = {
     attach: 'Soubor se nepodařilo připojit.',
     search: 'Hledání selhalo.',
     deleteFile: 'Soubor se nepodařilo smazat.',
-    moveIntoVault: 'Soubor se nepodařilo přesunout do poznámek.',
+    linkIntoVault: 'Odkaz na soubor se nepodařilo do poznámek přidat.',
+    linkMissing: (path: string) => `Soubor ${path} na disku není. Poznámka na něj odkazuje, ale otevřít ho nejde.`,
     saveGroups: 'Skupiny se nepodařilo uložit.',
     drop: 'To, co jsi pustil, se nepodařilo otevřít.',
     generic: 'Trezor vrátil neočekávanou chybu.',
@@ -562,6 +572,9 @@ export const t = {
     checking: 'Zjišťuji stav gitu…',
     recheck: 'Zkontrolovat znovu',
     recheckHint: 'Znovu zjistit stav gitu a změny',
+    /** Krátce v hlavičce sekce, aby bylo poznat, že se něco děje. */
+    rechecking: 'zjišťuji…',
+    checkedAt: (time: string) => `zjištěno v ${time}`,
 
     noRemote: 'Repozitář nemá remote',
     noRemoteBody: 'Není kam pushovat. Přidej origin v terminálu (git remote add origin …) a zkontroluj znovu.',

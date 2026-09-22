@@ -183,6 +183,13 @@ pub struct VaultSettings {
     /// trezorem přenese cesta, která jinde nic neznamená.
     #[serde(default)]
     pub last_folder: String,
+    /// Všechny složky otevřené v levém sloupci, aktivní první.
+    ///
+    /// Od 0.10 jich může být otevřených víc naráz. `last_folder` zůstává
+    /// první položkou tohohle seznamu, aby nastavení uměla přečíst i starší
+    /// verze aplikace -- ty otevřou aspoň tu, ve které se pracovalo.
+    #[serde(default)]
+    pub open_folders: Vec<String>,
     /// Naposledy otevřený samostatný soubor, když nebyla otevřená složka.
     #[serde(default)]
     pub last_file: String,
@@ -245,6 +252,7 @@ impl Default for VaultSettings {
             show_toolbar: true,
             check_updates: true,
             last_folder: String::new(),
+            open_folders: Vec::new(),
             last_file: String::new(),
             workspace_width: default_workspace_width(),
             section_heights: HashMap::new(),

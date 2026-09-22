@@ -42,7 +42,6 @@ import {
   type VaultStatus,
   type WriteResult,
 } from './api'
-import { toIndexRecord } from './record'
 
 interface Entry {
   content: string
@@ -64,6 +63,14 @@ export interface MemoryVaultOptions {
   settings?: Partial<VaultSettings>
   /** What the folder picker returns. */
   externalRoot?: string
+  /**
+   * Co vrátí výběr složky při druhém a dalším otevření.
+   *
+   * Otevřených složek může být víc naráz a test je musí umět otevřít jednu
+   * po druhé. Když dojdou, vrací se pořád ta poslední -- jako by uživatel
+   * vybral tutéž složku znovu.
+   */
+  externalRoots?: string[]
   /** What the file picker returns. Defaults to the first external file. */
   dialogFile?: string
 }
@@ -82,6 +89,8 @@ export class MemoryVault implements VaultApi {
   /** Stand-in for the world outside the vault, keyed by absolute path. */
   private externalFiles = new Map<string, string>()
   private externalRoot: string | null
+  /** Fronta složek pro výběr; poslední se vrací opakovaně. */
+  private externalRoots: string[]
   private dialogFile: string | null
   private collections: Collection[] = []
 
@@ -96,6 +105,7 @@ export class MemoryVault implements VaultApi {
       this.externalFiles.set(path, content)
     }
     this.externalRoot = options.externalRoot ?? null
+    this.externalRoots = [...(options.externalRoots ?? [])]
     this.dialogFile = options.dialogFile ?? [...this.externalFiles.keys()][0] ?? null
     this.settings = { ...this.settings, ...options.settings, vaultPath: this.label }
   }
@@ -286,7 +296,8 @@ export class MemoryVault implements VaultApi {
   }
 
   async openFolderDialog(): Promise<string | null> {
-    return this.externalRoot
+    if (this.externalRoots.length > 1) return this.externalRoots.shift() ?? null
+    return this.externalRoots[0] ?? this.externalRoot
   }
 
   async readFolderTree(path: string): Promise<FolderTree> {
@@ -375,25 +386,6 @@ export class MemoryVault implements VaultApi {
       else ignored += 1
     }
     return { folder, file, ignored }
-  }
-
-  async moveIntoVault(path: string): Promise<string> {
-    const content = this.externalFiles.get(path)
-    if (content === undefined) throw vaultError('not-found', `${path} už neexistuje.`)
-
-    // Stejné pravidlo jako v Rustu: nikdy nepřepsat, jméno se očísluje.
-    const name = path.split(/[\/]/).pop() || 'bez-nazvu.md'
-    const dot = name.lastIndexOf('.')
-    const stem = dot > 0 ? name.slice(0, dot) : name
-    const extension = dot > 0 ? name.slice(dot) : '.md'
-    let target = `${stem}${extension}`
-    for (let attempt = 2; this.files.has(target); attempt += 1) {
-      target = `${stem} ${attempt}${extension}`
-    }
-
-    this.put(target, content, toIndexRecord(target, content))
-    this.externalFiles.delete(path)
-    return target
   }
 
   async deleteExternalFile(path: string): Promise<void> {

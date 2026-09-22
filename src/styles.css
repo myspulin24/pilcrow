@@ -597,6 +597,61 @@ textarea:focus-visible,
   color: var(--accent);
 }
 
+.ws-icon-button:disabled {
+  cursor: default;
+}
+
+.ws-icon-button:disabled:hover {
+  background: transparent;
+  color: var(--text-faint);
+}
+
+/* Točící se ↻ po dobu práce. Bez toho nejde poznat, jestli kliknutí něco
+   udělalo -- zjišťování stavu trvá zlomek vteřiny i několik vteřin, a v obou
+   případech to vypadalo stejně: nijak. */
+.ws-icon-button.is-busy {
+  color: var(--accent);
+}
+
+.ws-icon-button.is-busy > span {
+  display: inline-block;
+  animation: ws-spin 0.9s linear infinite;
+}
+
+@keyframes ws-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-icon-button.is-busy > span {
+    animation: none;
+  }
+}
+
+/* Aktivní složka -- ta, ke které patří sekce Git. Pruh u kraje, ne barva
+   pozadí: bloků bývá ve sloupci hodně a podbarvený by přebil obsah. */
+.ws-section.is-active > .ws-section__header {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.ws-section__active {
+  color: var(--accent);
+  font-size: 9px;
+  line-height: 1;
+  margin-left: 2px;
+}
+
+.ws-section__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .ws-section__body .empty-state,
 .ws-section__body .spinner {
   padding: 22px 16px;
@@ -1546,6 +1601,39 @@ textarea:focus-visible,
   color: var(--text-muted);
 }
 
+/* Štítky poznámky-odkazu. Jediné pole na štítky v aplikaci: v editoru je
+   cizí soubor, do kterého se psát nesmí, takže musí být kam. */
+.note-header__tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.note-header__tags-label {
+  color: var(--text-faint);
+  flex: 0 0 auto;
+}
+
+.note-header__tags-input {
+  font: inherit;
+  font-size: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 420px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text);
+}
+
+.note-header__tags-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 /* --- narrow windows: the explorer outranks the tag sidebar ---------------- */
 
 
@@ -2450,6 +2538,12 @@ textarea:focus-visible,
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* Bez tohohle nula panel nezůstal, jak je zadaný.
+     Prvek ve flexu se totiž sám od sebe nesmrskne pod šířku svého nejužšího
+     obsahu -- a stačila jedna dlouhá cesta k souboru bez mezer v řádku
+     „Kontext:“ a panel se roztáhl přes půl okna. `flex-basis` výš říká, jak
+     široký má být; tohle teprve zařídí, že to platí. */
+  min-width: 0;
   border-left: 1px solid var(--border);
   background: var(--bg-sunken);
 }
@@ -2524,6 +2618,9 @@ textarea:focus-visible,
   color: var(--text-faint);
   border-bottom: 1px solid var(--border);
   flex: 0 0 auto;
+  /* Jméno souboru ani nadpis poznámky nemusí mít kde zalomit. Ať se zlomí
+     kdekoli -- přetéct ven z panelu je horší než rozdělené slovo. */
+  overflow-wrap: anywhere;
 }
 
 .assistant__truncated {
@@ -3131,6 +3228,14 @@ textarea:focus-visible,
 .git__branch {
   font-family: var(--mono);
   font-size: 11px;
+}
+
+/* „zjišťuji…“ / „zjištěno v 16:21:05“ vedle jména větve. */
+.git__checked {
+  margin-left: 6px;
+  font-size: 10px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
 }
 .git__card {
   padding: 10px;

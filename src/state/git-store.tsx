@@ -28,6 +28,7 @@ import {
 
 import {
   actionsUrl,
+  activeFolder,
   activeWorkflows,
   canFastForward,
   compareUrl,
@@ -132,6 +133,14 @@ export interface GitView {
   recent: WorkflowRun[] | null
   recentError: string | null
   deviceCode: string | null
+  /**
+   * Kdy naposledy doběhlo zjišťování stavu. `null` = ještě nikdy.
+   *
+   * Ukazuje se v hlavičce sekce. Bez toho nešlo poznat, jestli tlačítko
+   * „Zkontrolovat znovu“ něco udělalo: u složky, kde se nic nezměnilo,
+   * vypadá hotové zjištění stejně jako žádné.
+   */
+  checkedAt: number | null
 }
 
 export interface GitActions {
@@ -217,13 +226,17 @@ const initialView = (supported: boolean): GitView => ({
   recent: null,
   recentError: null,
   deviceCode: null,
+  checkedAt: null,
 })
 
 export function GitProvider({ children, git }: { children: ReactNode; git?: GitApi }) {
   const apiRef = useRef<GitApi>(git ?? createGit())
   const api = apiRef.current
   const { state } = useStore()
-  const folder = state.explorer.tree ? state.explorer.rootPath : null
+  // Stav gitu se drží pro jednu složku, i když jich je otevřených víc: tu
+  // aktivní. Změna aktivní složky je pro `git-store` totéž co otevření jiné
+  // -- pohled se zahodí a zjistí se znovu.
+  const folder = activeFolder(state.explorer.folders, state.explorer.active)?.rootPath ?? null
   const touchedAbsolute = state.explorer.touched
 
   const [view, setView] = useState<GitView>(() => initialView(api.available))
@@ -236,9 +249,17 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
    * volá `refreshChanges` v tomtéž tahu, ve kterém uložil probe -- kdyby ref
    * čekal na překreslení, četlo by se z něj to, co platilo před chvílí.
    * Obejít `update` přímým `setView` by tuhle záruku tiše zrušilo.
+   *
+   * A hlavně: ref se **nepřepisuje při překreslení**. Stávalo tu
+   * `viewRef.current = view`, což vypadá nevinně, ale je to závod. Překreslit
+   * se dá i kvůli něčemu úplně jinému -- třeba proto, že se do nastavení
+   * zapsalo, které složky jsou otevřené -- a takové překreslení nese `view`,
+   * ve kterém poslední `update` ještě není. Tím se ref vrátil zpátky v čase
+   * a `refresh` pak ve své druhé půlce viděl složku `null`, přestože ji
+   * o řádek výš sám nastavil. Ref mění jenom `update`, a ten jde vždycky
+   * dopředu.
    */
   const viewRef = useRef(view)
-  viewRef.current = view
   const update = useCallback((fn: (current: GitView) => GitView) => {
     viewRef.current = fn(viewRef.current)
     setView(fn)
@@ -420,6 +441,9 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
         // podle ní, ne podle čísla, které si pamatuje jen běžící sezení.
         void loadPullRequest(target, probe.branch)
       }
+      // Až tady, ne po probe: „zjištěno v“ má platit pro stav i pro změny,
+      // což je přesně to, co tlačítko slibuje.
+      if (viewRef.current.folder === target) patch({ checkedAt: Date.now() })
     } catch (error) {
       if (viewRef.current.folder !== target) return
       patch({ busy: null, probed: true, error: gitMessage(error, t.git.failed) })

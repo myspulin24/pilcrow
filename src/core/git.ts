@@ -671,3 +671,17 @@ export function currentPublishStep(transcript: string): string | null {
   const last = lines[lines.length - 1]
   return last ? last.slice(2) : null
 }
+
+/**
+ * Hodiny pro „zjištěno v“ v hlavičce sekce.
+ *
+ * Vlastní skládání, ne `toLocaleTimeString`: to se liší podle nastavení
+ * systému i podle verze prohlížeče, a tady jde o krátký technický údaj,
+ * který má vypadat všude stejně a dá se otestovat.
+ */
+export function clockTime(at: number): string {
+  const date = new Date(at)
+  if (Number.isNaN(date.getTime())) return ''
+  const two = (value: number) => String(value).padStart(2, '0')
+  return `${two(date.getHours())}:${two(date.getMinutes())}:${two(date.getSeconds())}`
+}

@@ -74,7 +74,8 @@ Vlastní trezor s poznámkami v Markdownu. Výchozí umístění je
 ### Soubory
 
 Otevřete jednotlivý soubor `.md` nebo celou složku a procházejte ji jako strom.
-Otevřená složka se pamatuje i mezi spuštěními.
+Otevřených složek může být víc naráz; co bylo otevřené, se pamatuje i mezi
+spuštěními.
 
 - Vypisuje pouze Markdown; složky bez Markdownu se skrývají
 - Přeskakuje `node_modules`, `target`, `.git` a podobné; limit 16 úrovní
@@ -82,7 +83,13 @@ Otevřená složka se pamatuje i mezi spuštěními.
 - Soubory mimo trezor se ukládají beze změny — Pilcrow do nich nepřidává
   frontmatter ani metadata
 - Detekce souběžné změny na disku s nabídkou řešení konfliktu
-- Volitelné přesunutí externího souboru do trezoru
+- **Odkaz v poznámkách** — soubor z repozitáře lze zpřístupnit mezi
+  poznámkami, aniž by se kamkoli kopíroval. V trezoru vznikne poznámka
+  s cestou k němu; otevřením se edituje přímo původní soubor, zatímco název
+  a štítky zůstávají v trezoru.
+
+Jedna z otevřených složek je *aktivní* — k ní se vztahuje sekce Git. Přepíná
+se kliknutím do její hlavičky.
 
 ### Git a GitHub
 

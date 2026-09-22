@@ -127,12 +127,23 @@ export interface VaultSettings {
    */
   checkUpdates: boolean
   /**
-   * Naposledy otevřená složka v průzkumníku, aby po startu byla znovu.
+   * Naposledy *aktivní* složka v průzkumníku, aby po startu byla znovu.
    *
    * Absolutní cesta. Když na tomhle počítači neexistuje, nic se neotevře
    * a nic se nehlásí -- trezor se dá přenést jinam, cesta ne.
+   *
+   * Od 0.10 je to první položka `openFolders`. Zůstává tu kvůli starším
+   * verzím aplikace: kdo se k nim vrátí, přijde o seznam, ale ne o složku,
+   * ve které pracoval.
    */
   lastFolder: string
+  /**
+   * Všechny složky otevřené v levém sloupci, aktivní první.
+   *
+   * Cesty, které mezitím zmizely, se při startu tiše vynechají a seznam se
+   * přepíše tím, co zbylo.
+   */
+  openFolders: string[]
   /** Naposledy otevřený samostatný soubor, když nebyla otevřená složka. */
   lastFile: string
   /** Šířka levého sloupce v bodech. Uživatel si ji roztahuje myší. */
@@ -281,15 +292,6 @@ export interface VaultApi {
   /** Delete a file the explorer is showing. */
   deleteExternalFile(path: string): Promise<void>
 
-  /**
-   * Move a file the explorer is showing into the vault, so it becomes a note.
-   *
-   * A move: the original is gone afterwards. Returns the vault-relative path
-   * it landed on, which may differ from its old name -- the vault never
-   * overwrites an existing note.
-   */
-  moveIntoVault(path: string): Promise<string>
-
   // --- collections ---------------------------------------------------------
 
   /**
@@ -317,6 +319,7 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   showToolbar: true,
   checkUpdates: true,
   lastFolder: '',
+  openFolders: [],
   lastFile: '',
   workspaceWidth: 300,
   sectionHeights: {},

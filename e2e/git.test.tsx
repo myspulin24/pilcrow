@@ -130,6 +130,37 @@ describe('kdy se sekce ukáže', () => {
     expect(within(gitBody()).getByText('Žádné změny v souborech .md.')).toBeInTheDocument()
   })
 
+  /**
+   * Tlačítko „Zkontrolovat znovu“ dřív nedávalo najevo vůbec nic.
+   *
+   * U složky, kde se nic nezměnilo, vypadá hotové zjištění stejně jako
+   * žádné: seznam změn je pořád prázdný. Uživatel na ikonu klikal a nevěděl,
+   * jestli funguje. Čas v hlavičce je odpověď, která platí i tehdy, když se
+   * nezměnilo nic.
+   */
+  it('hlavička řekne, kdy se stav naposled zjišťoval', async () => {
+    const user = userEvent.setup()
+    await renderApp()
+    await openTheFolder(user)
+    await waitForGit()
+
+    await waitFor(() => expect(gitToggle()).toHaveTextContent(/zjištěno v \d\d:\d\d:\d\d/))
+  })
+
+  it('kliknutí na „Zkontrolovat znovu“ se opravdu zeptá gitu', async () => {
+    const user = userEvent.setup()
+    await renderApp()
+    await openTheFolder(user)
+    await waitForGit()
+    await waitFor(() => expect(gitToggle()).toHaveTextContent(/zjištěno v/))
+    const before = git.probedFolders.length
+
+    await user.click(within(workspace()).getByRole('button', { name: 'Zkontrolovat znovu' }))
+
+    await waitFor(() => expect(git.probedFolders.length).toBe(before + 1))
+    expect(git.probedFolders.at(-1)).toBe('/repo/docs')
+  })
+
   it('bez gitu řekne, jak ho nainstalovat, a nic víc', async () => {
     const user = userEvent.setup()
     await renderApp({ gitInstalled: false })

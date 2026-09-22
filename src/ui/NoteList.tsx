@@ -107,7 +107,10 @@ export function NoteList() {
       aria-label={t.notes.list}
     >
       {state.notes.map((note) => {
-        const isActive = note.path === state.activePath
+        // Poznámka-odkaz: v editoru je soubor, na který ukazuje, takže
+        // `activePath` je jeho cesta. Označit se ale má poznámka -- z ní se
+        // otevřel a v ní jsou štítky.
+        const isActive = note.path === state.activePath || note.path === state.linked?.notePath
         return (
           <li key={note.path}>
             <button

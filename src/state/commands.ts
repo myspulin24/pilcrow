@@ -6,7 +6,7 @@
  * the same binding everywhere.
  */
 
-import { t } from '@/core'
+import { activeFolder, t } from '@/core'
 import type { Shortcut } from '@/lib/shortcuts'
 import type { Actions, AppState, ConfirmRequest, PromptRequest } from './store'
 
@@ -46,9 +46,17 @@ export function buildCommands({
   openRepos,
 }: CommandContext): Command[] {
   const hasNote = state.activePath !== null
-  const activePath = state.activePath ?? ''
-  const activeTitle = state.parsed?.frontmatter.title ?? ''
-  const pinned = state.parsed?.frontmatter.pinned ?? false
+  /**
+   * Na co míří příkazy nad poznámkou.
+   *
+   * U poznámky-odkazu je v editoru soubor z repozitáře, ale přejmenovat,
+   * přesunout, připnout nebo smazat jde poznámka v trezoru -- do cizího
+   * repozitáře Pilcrow takhle nesahá. Proto se bere její cesta, ne cesta
+   * souboru.
+   */
+  const activePath = state.linked?.notePath ?? state.activePath ?? ''
+  const activeTitle = state.linked?.frontmatter.title ?? state.parsed?.frontmatter.title ?? ''
+  const pinned = state.linked?.frontmatter.pinned ?? state.parsed?.frontmatter.pinned ?? false
 
   const commands: Command[] = [
     {
@@ -192,33 +200,37 @@ export function buildCommands({
       id: 'explorer.refresh',
       title: t.commands.rescan,
       group: t.palette.groups.explorer,
-      enabled: state.explorer.rootPath !== null,
+      enabled: state.explorer.active !== null,
       run: () => void actions.refreshTree(),
     },
     {
       id: 'explorer.expand',
       title: t.commands.expandAll,
       group: t.palette.groups.explorer,
-      enabled: state.explorer.tree !== null,
+      enabled: state.explorer.active !== null,
       run: () => actions.expandAllFolders(),
     },
     {
       id: 'explorer.collapse',
       title: t.commands.collapseAll,
       group: t.palette.groups.explorer,
-      enabled: state.explorer.tree !== null,
+      enabled: state.explorer.active !== null,
       run: () => actions.collapseAllFolders(),
     },
     {
       id: 'explorer.close',
       title: t.commands.closeFolder,
       group: t.palette.groups.explorer,
-      enabled: state.explorer.rootPath !== null || state.explorer.loneFile !== null,
-      run: () => actions.closeFolder(),
+      enabled: state.explorer.folders.length > 0 || state.explorer.loneFile !== null,
+      // Aktivní složku, ne všechny: příkaz se jmenuje „Zavřít složku“
+      // a zavřít jich naráz pět by bylo těžké vzít zpátky.
+      run: () => actions.closeFolder(state.explorer.active ?? undefined),
     },
     {
       id: 'view.files-section',
-      title: t.commands.toggleFiles(state.filesSectionOpen),
+      title: t.commands.toggleFiles(
+        activeFolder(state.explorer.folders, state.explorer.active)?.open ?? state.filesSectionOpen,
+      ),
       group: t.palette.groups.view,
       shortcut: { key: 'b', mod: true },
       run: () => actions.toggleFilesSection(),
