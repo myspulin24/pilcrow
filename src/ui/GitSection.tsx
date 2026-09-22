@@ -15,6 +15,7 @@ import { useEffect, useId, useState } from 'react'
 import {
   activeFolder,
   clockTime,
+  folderLabel,
   currentPublishStep,
   isCommittable,
   defaultMergeMethod,
@@ -757,7 +758,8 @@ export function GitSection() {
   // bez gitu a složka mimo repo sekci vůbec nedostanou: bez gitu se nedá
   // zjistit ani to, jestli složka v repu je, a nabízet instalaci gitu každé
   // otevřené složce by otravovalo i toho, kdo git nikdy nechtěl.
-  if (!activeFolder(state.explorer.folders, state.explorer.active)) return null
+  const folder = activeFolder(state.explorer.folders, state.explorer.active)
+  if (!folder) return null
   if (!view.probed) return null
   if (view.step === 'unsupported' || view.step === 'install-git' || view.step === 'not-repo') return null
 
@@ -765,18 +767,22 @@ export function GitSection() {
   // v hlavičce nezbylo nic. Teď je tam po celou dobu „zjišťuji…“ a pak čas,
   // kdy to doběhlo -- takže je vidět i to, že se právě nic nezměnilo.
   const checking = view.busy === 'probe' || view.busy === 'status'
-  const meta = (
-    <>
-      {view.probe?.branch ? <span className="git__branch">{view.probe.branch}</span> : null}
-      {checking ? (
-        <span className="git__checked" role="status">
-          {t.git.rechecking}
-        </span>
-      ) : view.checkedAt ? (
-        <span className="git__checked">{t.git.checkedAt(clockTime(view.checkedAt))}</span>
-      ) : null}
-    </>
-  )
+  const meta = view.probe?.branch ? <span className="git__branch">{view.probe.branch}</span> : null
+
+  /**
+   * Kdy se stav naposled zjišťoval.
+   *
+   * V těle sekce, ne v hlavičce: tam se o místo dělí s názvem sekce, jménem
+   * složky a jménem větve a při `docs/2026-09-22-1710` na řádku nezbylo nic.
+   * Když je sekce sbalená, je odpovědí točící se ikona vedle hlavičky.
+   */
+  const checkedLine = checking ? (
+    <p className="git__checked-line" role="status">
+      {t.git.rechecking}
+    </p>
+  ) : view.checkedAt ? (
+    <p className="git__checked-line">{t.git.checkedAt(clockTime(view.checkedAt))}</p>
+  ) : null
 
   return (
     <>
@@ -785,9 +791,13 @@ export function GitSection() {
         title={
           <>
             <GitIcon />
-            <span className="ws-section__label">{t.git.section}</span>
+            <span className="ws-section__label ws-section__label--fixed">{t.git.section}</span>
+            {/* Ke které složce se sekce vztahuje. Bez toho by s víc otevřenými
+                složkami nebylo poznat, čí větev a čí změny jsou vidět. */}
+            <span className="ws-section__for">{folderLabel(folder.rootPath)}</span>
           </>
         }
+        titleHint={folder.rootPath}
         meta={meta}
         open={open}
         onToggle={() => setOpen((value) => !value)}
@@ -807,6 +817,7 @@ export function GitSection() {
         }
       >
         <div className="git">
+          {checkedLine}
           {view.busy === 'probe' && !view.probe ? <Spinner label={t.git.checking} /> : null}
 
           {view.step === 'no-remote' ? <SetupCard title={t.git.noRemote} body={t.git.noRemoteBody} /> : null}

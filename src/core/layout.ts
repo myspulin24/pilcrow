@@ -23,8 +23,27 @@ export const WORKSPACE_WIDTH_DEFAULT = 300
  *    zpátky na výchozí šířku.
  */
 export function clampWorkspaceWidth(value: number): number {
-  if (!Number.isFinite(value) || value === 0) return WORKSPACE_WIDTH_DEFAULT
-  return Math.min(WORKSPACE_WIDTH_MAX, Math.max(WORKSPACE_WIDTH_MIN, Math.round(value)))
+  return clampWidth(value, WORKSPACE_WIDTH_MIN, WORKSPACE_WIDTH_MAX, WORKSPACE_WIDTH_DEFAULT)
+}
+
+/**
+ * Šířka postranního panelu se skupinami a štítky.
+ *
+ * Meze jsou jiné než u sloupce s poznámkami: pod 160 bodů se nevejde ani
+ * název skupiny, nad 480 by panel začal ukrajovat z místa pro dokument.
+ * Pravidlo pro nulu a zápornou hodnotu je stejné -- viz `clampWorkspaceWidth`.
+ */
+export const SIDEBAR_WIDTH_MIN = 160
+export const SIDEBAR_WIDTH_MAX = 480
+export const SIDEBAR_WIDTH_DEFAULT = 220
+
+export function clampSidebarWidth(value: number): number {
+  return clampWidth(value, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX, SIDEBAR_WIDTH_DEFAULT)
+}
+
+function clampWidth(value: number, min: number, max: number, fallback: number): number {
+  if (!Number.isFinite(value) || value === 0) return fallback
+  return Math.min(max, Math.max(min, Math.round(value)))
 }
 
 // -- výšky jednotlivých bloků -------------------------------------------------

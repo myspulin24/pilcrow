@@ -10,6 +10,26 @@ uživateli vyskočí okno s prázdnou kolonkou.
 Píše se pro toho, kdo aplikaci používá, ne pro toho, kdo ji píše: co se změní
 na obrazovce, ne které soubory se upravily. Nejnovější verze je nahoře.
 
+## 0.10.1 — 2026-09-22
+
+### Přidáno
+
+- **Boční panel se skupinami a štítky se dá roztáhnout.** Chytni jeho pravou
+  hranu a táhni; šířka se pamatuje. Jde to i šipkami z klávesnice a dvojklik
+  vrátí výchozí šířku — stejně jako u sloupce vedle.
+
+### Opraveno
+
+- **Sekce Git přestala uskakovat.** Byla hned pod aktivní složkou, takže
+  s ní hnulo každé sbalení nebo rozbalení složky nad ní a přepnutí aktivní
+  složky ji přestěhovalo úplně jinam. Teď stojí pod všemi složkami, na
+  jednom místě, a v hlavičce je napsané, ke které složce patří.
+- **Sbalení sekce Git vydrží.** Přepnutím složky se sekce přestavovala od
+  nuly, takže se sbalená sekce zase rozbalila.
+- **V hlavičce bloku ustupují doplňky, ne název.** V úzkém sloupci zbylo
+  z „Git“ jen „G…“, zatímco jméno větve a čas zabíraly celý řádek. Čas
+  posledního zjištění se přesunul nad seznam změn, kde se vejde celý.
+
 ## 0.10.0 — 2026-09-22
 
 ### Přidáno

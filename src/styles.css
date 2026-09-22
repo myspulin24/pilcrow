@@ -166,6 +166,7 @@ textarea:focus-visible,
 /* --- sidebar -------------------------------------------------------------- */
 
 .sidebar {
+  position: relative;
   width: 220px;
   flex-shrink: 0;
   display: flex;
@@ -552,6 +553,27 @@ textarea:focus-visible,
   min-width: 0;
   font-weight: 700;
   color: var(--text-muted);
+  /* Ustupuje až jako poslední: název bloku je to, podle čeho se v hlavičce
+     orientuje oko. Doplňky vpravo se krátí čtyřikrát rychleji. */
+  flex: 0 1 auto;
+}
+
+/* Ke které složce sekce Git patří. Tlumeně, aby to nepřebilo její název. */
+.ws-section__for {
+  color: var(--text-faint);
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Název, který se nemá zkracovat, protože je krátký a je to jméno sekce --
+   „Git“. Zkrátit se smí to, co je za ním: jméno složky. */
+.ws-section__label--fixed {
+  flex-shrink: 0;
 }
 
 .ws-section__label {
@@ -565,7 +587,16 @@ textarea:focus-visible,
 
 .ws-section__meta {
   margin-left: auto;
-  flex-shrink: 0;
+  /* Dřív `flex-shrink: 0`, takže v úzkém sloupci ustupoval název bloku a
+     z „Git“ zbylo „G…“, zatímco jméno větve a čas zabíraly plnou šířku.
+     Teď se krátí doplňky, ne název. */
+  flex: 0 4 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
   text-transform: none;
   letter-spacing: 0;
@@ -3225,15 +3256,22 @@ textarea:focus-visible,
 .git .workspace__note {
   margin: 2px 0;
 }
+/* Jméno větve se v úzkém sloupci zkrátí -- poznat jde podle začátku. Čas
+   vedle něj ne: je krátký, pevně dlouhý a je to jediná odpověď na otázku,
+   jestli zjišťování doběhlo. */
 .git__branch {
   font-family: var(--mono);
   font-size: 11px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* „zjišťuji…“ / „zjištěno v 16:21:05“ vedle jména větve. */
-.git__checked {
-  margin-left: 6px;
-  font-size: 10px;
+/* „zjišťuji…“ / „zjištěno v 16:21:05“ nad seznamem změn. */
+.git__checked-line {
+  margin: 0 0 8px;
+  font-size: 11px;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
@@ -3776,7 +3814,8 @@ textarea:focus-visible,
 
 /* -- roztahování levého sloupce ------------------------------------------- */
 
-.workspace__resize {
+.workspace__resize,
+.sidebar__resize {
   position: absolute;
   top: 0;
   right: -3px;
@@ -3788,7 +3827,13 @@ textarea:focus-visible,
   border: 0;
   padding: 0;
 }
-.workspace__resize::after {
+/* Panel má `overflow: hidden`, takže úchyt přečnívající ven by se oříznul.
+   Sedí proto těsně uvnitř pravé hrany. */
+.sidebar__resize {
+  right: 0;
+}
+.workspace__resize::after,
+.sidebar__resize::after {
   content: '';
   position: absolute;
   top: 0;
@@ -3801,10 +3846,14 @@ textarea:focus-visible,
 }
 .workspace__resize:hover::after,
 .workspace__resize:focus-visible::after,
-.workspace__resize.is-dragging::after {
+.workspace__resize.is-dragging::after,
+.sidebar__resize:hover::after,
+.sidebar__resize:focus-visible::after,
+.sidebar__resize.is-dragging::after {
   opacity: 1;
 }
-.workspace__resize:focus-visible {
+.workspace__resize:focus-visible,
+.sidebar__resize:focus-visible {
   outline: none;
 }
 /* Při tažení nesmí nic chytat výběr textu ani kurzor. */

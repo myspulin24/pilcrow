@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   clampSectionHeight,
+  clampSidebarWidth,
   clampWorkspaceWidth,
   SECTION_FILES,
   SECTION_GIT,
@@ -10,6 +11,9 @@ import {
   SECTION_NOTES,
   SECTION_RUNS,
   sectionHeight,
+  SIDEBAR_WIDTH_DEFAULT,
+  SIDEBAR_WIDTH_MAX,
+  SIDEBAR_WIDTH_MIN,
   withSectionHeight,
   WORKSPACE_WIDTH_DEFAULT,
   WORKSPACE_WIDTH_MAX,
@@ -45,6 +49,22 @@ describe('clampWorkspaceWidth', () => {
   it('zaokrouhluje -- šířka jde do CSS v celých bodech', () => {
     expect(clampWorkspaceWidth(300.4)).toBe(300)
     expect(clampWorkspaceWidth(300.6)).toBe(301)
+  })
+})
+
+describe('clampSidebarWidth', () => {
+  it('má vlastní meze, ne ty od vedlejšího sloupce', () => {
+    expect(clampSidebarWidth(300)).toBe(300)
+    expect(clampSidebarWidth(20)).toBe(SIDEBAR_WIDTH_MIN)
+    expect(clampSidebarWidth(5000)).toBe(SIDEBAR_WIDTH_MAX)
+    // Kdyby se obě šířky ořezávaly stejně, tenhle rozdíl by zmizel.
+    expect(clampSidebarWidth(5000)).not.toBe(clampWorkspaceWidth(5000))
+  })
+
+  it('nevyplněné nastavení spadne na výchozí šířku, tažení za okraj na minimum', () => {
+    expect(clampSidebarWidth(0)).toBe(SIDEBAR_WIDTH_DEFAULT)
+    expect(clampSidebarWidth(Number.NaN)).toBe(SIDEBAR_WIDTH_DEFAULT)
+    expect(clampSidebarWidth(-40)).toBe(SIDEBAR_WIDTH_MIN)
   })
 })
 

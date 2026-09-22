@@ -135,16 +135,19 @@ describe('kdy se sekce ukáže', () => {
    *
    * U složky, kde se nic nezměnilo, vypadá hotové zjištění stejně jako
    * žádné: seznam změn je pořád prázdný. Uživatel na ikonu klikal a nevěděl,
-   * jestli funguje. Čas v hlavičce je odpověď, která platí i tehdy, když se
-   * nezměnilo nic.
+   * jestli funguje. Čas nad seznamem změn je odpověď, která platí i tehdy,
+   * když se nezměnilo nic.
    */
-  it('hlavička řekne, kdy se stav naposled zjišťoval', async () => {
+  it('sekce řekne, kdy se stav naposled zjišťoval', async () => {
     const user = userEvent.setup()
     await renderApp()
     await openTheFolder(user)
     await waitForGit()
 
-    await waitFor(() => expect(gitToggle()).toHaveTextContent(/zjištěno v \d\d:\d\d:\d\d/))
+    await waitFor(() => expect(gitBody()).toHaveTextContent(/zjištěno v \d\d:\d\d:\d\d/))
+    // V hlavičce je větev, ne čas: tam se o místo dělí s názvem sekce
+    // a jménem složky a dlouhá větev by z něj stejně nic nenechala.
+    expect(gitToggle()).toHaveTextContent('main')
   })
 
   it('kliknutí na „Zkontrolovat znovu“ se opravdu zeptá gitu', async () => {
@@ -152,7 +155,7 @@ describe('kdy se sekce ukáže', () => {
     await renderApp()
     await openTheFolder(user)
     await waitForGit()
-    await waitFor(() => expect(gitToggle()).toHaveTextContent(/zjištěno v/))
+    await waitFor(() => expect(gitBody()).toHaveTextContent(/zjištěno v/))
     const before = git.probedFolders.length
 
     await user.click(within(workspace()).getByRole('button', { name: 'Zkontrolovat znovu' }))

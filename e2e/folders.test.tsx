@@ -189,19 +189,65 @@ describe('aktivní složka', () => {
     await waitFor(() => expect(git.probedFolders.at(-1)).toBe('/prvni'))
   })
 
-  it('sekce Git je hned pod aktivní složkou', async () => {
+  /**
+   * Sekce Git nesmí uskakovat.
+   *
+   * Nejdřív byla hned pod aktivní složkou. Jenže sbalit nebo rozbalit
+   * kteroukoli složku nad ní s ní hnulo, a přepnutí aktivní složky ji
+   * přestěhovalo úplně jinam -- práce s víc repozitáři z toho byla samá honba
+   * za sekcí, která se zrovna posunula. Stojí proto pod všemi složkami, na
+   * jednom místě.
+   */
+  it('sekce Git je pod všemi složkami a při přepnutí neuskočí', async () => {
     const user = userEvent.setup()
     await renderApp()
     await openBoth(user)
 
-    const gitSection = () => within(workspace()).getByRole('button', { name: /^Git\b/ }).closest('section')!
-    const folderSection = (name: string) => folderToggle(name).closest('section')!
+    const sectionIds = () =>
+      [...workspace().querySelectorAll('section.ws-section')].map((node) => node.id)
 
-    await waitFor(() => expect(gitSection()).toBeInTheDocument())
-    expect(folderSection('druhy').nextElementSibling).toBe(gitSection())
+    await waitFor(() => expect(sectionIds()).toContain('ws-git'))
+    const before = sectionIds()
+    expect(before[before.length - 1]).toBe('ws-git')
 
     await user.click(folderToggle('prvni'))
-    await waitFor(() => expect(folderSection('prvni').nextElementSibling).toBe(gitSection()))
+    await waitFor(() => expect(folderToggle('prvni')).toHaveAttribute('aria-current', 'true'))
+    expect(sectionIds()).toEqual(before)
+
+    // A sbalení složky nad ní s pořadím taky nehne.
+    await user.click(folderToggle('prvni'))
+    await waitFor(() => expect(folderToggle('prvni')).toHaveAttribute('aria-expanded', 'false'))
+    expect(sectionIds()).toEqual(before)
+  })
+
+  it('hlavička sekce Git říká, které složky se týká', async () => {
+    const user = userEvent.setup()
+    await renderApp()
+    await openBoth(user)
+
+    const gitToggle = () => within(workspace()).getByRole('button', { name: /^▾?Git/ })
+    await waitFor(() => expect(gitToggle()).toHaveTextContent('druhy'))
+
+    await user.click(folderToggle('prvni'))
+    await waitFor(() => expect(gitToggle()).toHaveTextContent('prvni'))
+  })
+
+  it('rozbalení sekce Git přepnutí složky přežije', async () => {
+    const user = userEvent.setup()
+    await renderApp()
+    await openBoth(user)
+
+    const gitToggle = () => within(workspace()).getByRole('button', { name: /^▾?Git/ })
+    await waitFor(() => expect(gitToggle()).toBeInTheDocument())
+
+    // Sbalit Git, přepnout složku -- a Git má zůstat sbalený. Dokud se sekce
+    // kreslila uvnitř seznamu složek, přepnutím se přestavěla a rozbalila se.
+    await user.click(gitToggle())
+    await waitFor(() => expect(gitToggle()).toHaveAttribute('aria-expanded', 'false'))
+
+    await user.click(folderToggle('prvni'))
+    await waitFor(() => expect(folderToggle('prvni')).toHaveAttribute('aria-current', 'true'))
+    expect(gitToggle()).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('po zavření aktivní složky přebírá ta zbylá', async () => {

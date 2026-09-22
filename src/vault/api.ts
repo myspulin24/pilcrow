@@ -146,8 +146,10 @@ export interface VaultSettings {
   openFolders: string[]
   /** Naposledy otevřený samostatný soubor, když nebyla otevřená složka. */
   lastFile: string
-  /** Šířka levého sloupce v bodech. Uživatel si ji roztahuje myší. */
+  /** Šířka sloupce s poznámkami a soubory v bodech. Roztahuje se myší. */
   workspaceWidth: number
+  /** Šířka postranního panelu se skupinami a štítky v bodech. */
+  sidebarWidth: number
   /**
    * Výšky jednotlivých bloků v levém sloupci, klíč -> body.
    *
@@ -322,6 +324,7 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   openFolders: [],
   lastFile: '',
   workspaceWidth: 300,
+  sidebarWidth: 220,
   sectionHeights: {},
   reposFolder: '',
   assistantEnabled: false,

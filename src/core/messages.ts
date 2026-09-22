@@ -58,6 +58,8 @@ export const t = {
     hideHint: 'Skrýt tento panel (Ctrl + \\)',
     show: 'Zobrazit boční panel',
     showHint: 'Zobrazit skupiny a štítky (Ctrl + \\)',
+    resize: 'Šířka bočního panelu',
+    resizeHint: 'Táhni myší, nebo šipkami. Dvojklik vrátí výchozí šířku.',
     allNotes: 'Všechny poznámky',
     pinned: 'Připnuté',
     today: 'Dnes',

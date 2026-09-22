@@ -16,7 +16,7 @@
  * handled here too, since this is where the result shows up.
  */
 
-import { Fragment, useRef } from 'react'
+import { useRef } from 'react'
 
 import {
   folderLabel,
@@ -240,13 +240,19 @@ export function Workspace() {
         </Section>
 
         {explorer.folders.map((folder) => (
-          <Fragment key={folder.rootPath}>
-            <FolderSection folder={folder} active={sameFolder(folder.rootPath, explorer.active ?? '')} />
-            {/* Sekce Git patří aktivní složce, a je hned pod ní: tak je na
-                první pohled vidět, čí větev a čí změny jsou zrovna vidět. */}
-            {sameFolder(folder.rootPath, explorer.active ?? '') ? <GitSection /> : null}
-          </Fragment>
+          <FolderSection
+            key={folder.rootPath}
+            folder={folder}
+            active={sameFolder(folder.rootPath, explorer.active ?? '')}
+          />
         ))}
+
+        {/* Sekce Git patří aktivní složce, ale stojí pod všemi -- na jednom
+            místě, které se sbalováním a rozbalováním složek nehýbe. Dřív byla
+            hned pod tou aktivní a při každém sbalení uskočila jinam; navíc se
+            při přepnutí složky celá přestavěla, takže si nepamatovala, jestli
+            byla rozbalená. Ke které složce patří, je vidět v její hlavičce. */}
+        <GitSection />
 
         {explorer.loneFile ? (
           <Section

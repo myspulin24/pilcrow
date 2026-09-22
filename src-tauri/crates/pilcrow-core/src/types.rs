@@ -196,6 +196,9 @@ pub struct VaultSettings {
     /// Šířka levého sloupce v bodech. Uživatel si ji roztahuje myší.
     #[serde(default = "default_workspace_width")]
     pub workspace_width: i64,
+    /// Šířka postranního panelu se skupinami a štítky v bodech.
+    #[serde(default = "default_sidebar_width")]
+    pub sidebar_width: i64,
     /// Výšky jednotlivých bloků v levém sloupci, klíč -> body.
     ///
     /// Chybějící klíč znamená „podle obsahu“, což je výchozí chování. Mapa,
@@ -233,6 +236,9 @@ fn default_font_size() -> i64 {
 fn default_view_mode() -> String {
     "split".to_string()
 }
+fn default_sidebar_width() -> i64 {
+    220
+}
 fn default_workspace_width() -> i64 {
     300
 }
@@ -255,6 +261,7 @@ impl Default for VaultSettings {
             open_folders: Vec::new(),
             last_file: String::new(),
             workspace_width: default_workspace_width(),
+            sidebar_width: default_sidebar_width(),
             section_heights: HashMap::new(),
             repos_folder: String::new(),
             assistant_enabled: false,

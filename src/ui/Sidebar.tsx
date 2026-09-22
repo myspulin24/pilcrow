@@ -15,6 +15,7 @@ import { useMemo, useState } from 'react'
 import { buildTagTree, collectionsContaining, t, type CollectionItem, type TagNode } from '@/core'
 import { useActions, useAppState } from '@/state/store'
 import { FileIcon } from './FileTree'
+import { ResizeHandle } from './ResizeHandle'
 
 function TagBranch({
   node,
@@ -324,6 +325,8 @@ export function Sidebar() {
           <span className="sidebar__vault-path">{state.status?.vaultPath ?? t.rail.vaultOpening}</span>
         </button>
       </div>
+
+      <ResizeHandle column="sidebar" />
     </nav>
   )
 }

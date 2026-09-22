@@ -83,6 +83,17 @@ async function renderApp(options: MemoryGitOptions = {}, settings: Partial<Vault
 const workspace = () => screen.getByLabelText('Pracovní plocha')
 const dialog = () => screen.getByRole('dialog', { name: 'Otevřít repozitář' })
 
+/**
+ * Jména otevřených složek v levém sloupci.
+ *
+ * Ne `getByText(jméno)`: jméno aktivní složky je i v hlavičce sekce Git,
+ * takže by hledání podle textu našlo dvě místa.
+ */
+const openFolderNames = () =>
+  [...workspace().querySelectorAll('[id^="ws-files-"] .ws-section__label')].map(
+    (node) => node.textContent ?? '',
+  )
+
 async function openDialog(user: User) {
   await user.click(within(workspace()).getByRole('button', { name: 'Otevřít repozitář...' }))
   return screen.findByRole('dialog', { name: 'Otevřít repozitář' })
@@ -179,7 +190,7 @@ describe('co už je na disku', () => {
     await waitFor(() => {
       expect(within(workspace()).getByRole('tree')).toBeInTheDocument()
     })
-    expect(within(workspace()).getByText('pilcrow')).toBeInTheDocument()
+    expect(openFolderNames()).toContain('pilcrow')
   })
 })
 
@@ -224,7 +235,7 @@ describe('stažení', () => {
     })
     // A rovnou se otevřela, takže uživatel nemusí hledat, kam se to uložilo.
     await waitFor(() => {
-      expect(within(workspace()).getByText('rozpocet')).toBeInTheDocument()
+      expect(openFolderNames()).toContain('rozpocet')
     })
   })
 
