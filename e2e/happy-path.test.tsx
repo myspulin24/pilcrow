@@ -181,7 +181,14 @@ describe('the core loop', () => {
     })
     // U výsledku hledání zůstává úryvek s vyznačenou shodou -- bez něj by to
     // byl jen seznam názvů a nebylo by poznat, čím se řádek trefil.
-    expect(screen.getByLabelText('Poznámky').querySelector('mark')).not.toBeNull()
+    //
+    // Uvnitř `waitFor`: hledání je odložené a běží na pozadí, takže mezitím
+    // je v seznamu vidět předchozí výsledek. Kontrola mimo čekání prošla
+    // lokálně i v jednom běhu CI a spadla v druhém -- na tom, který stav
+    // zrovna stihla zastihnout.
+    await waitFor(() => {
+      expect(screen.getByLabelText('Poznámky').querySelector('mark')).not.toBeNull()
+    })
 
     // --- and so does a tag filter -----------------------------------------
     await user.clear(search)
