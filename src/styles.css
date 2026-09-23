@@ -586,6 +586,9 @@ textarea:focus-visible,
   flex: 1;
 }
 
+/* Jeden řádek, jen název. Úryvek a štítky tu bývaly taky, ale v úzkém
+   panelu z nich byl šum -- text poznámky je vidět hned vedle, jakmile ji
+   otevřeš. Proto i menší svislé odsazení: do sloupce se vejde víc názvů. */
 .note-row {
   display: block;
   width: 100%;
@@ -595,7 +598,7 @@ textarea:focus-visible,
   background: transparent;
   font: inherit;
   color: inherit;
-  padding: 10px 12px;
+  padding: 6px 12px;
   cursor: pointer;
 }
 
@@ -626,12 +629,7 @@ textarea:focus-visible,
   white-space: nowrap;
 }
 
-.note-row__time {
-  font-size: 11px;
-  color: var(--text-faint);
-  flex-shrink: 0;
-}
-
+/* Jen u výsledku hledání: ukazuje, čím se řádek trefil. */
 .note-row__excerpt {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -647,21 +645,6 @@ textarea:focus-visible,
   background: transparent;
   color: var(--accent);
   font-weight: 600;
-}
-
-.note-row__tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 6px;
-}
-
-.note-row__tag {
-  font-size: 11px;
-  color: var(--text-faint);
-  background: var(--bg-sunken);
-  border-radius: 10px;
-  padding: 1px 7px;
 }
 
 /* --- note pane ------------------------------------------------------------ */

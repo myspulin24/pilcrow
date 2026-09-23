@@ -10,6 +10,17 @@ uživateli vyskočí okno s prázdnou kolonkou.
 Píše se pro toho, kdo aplikaci používá, ne pro toho, kdo ji píše: co se změní
 na obrazovce, ne které soubory se upravily. Nejnovější verze je nahoře.
 
+## 0.11.1 — 2026-09-23
+
+### Změněno
+
+- **V seznamu poznámek je jen název.** Úryvek textu, čas poslední změny
+  a štítky z řádku zmizely — v úzkém panelu z nich byl šum a text poznámky
+  je stejně vidět hned vedle, jakmile ji otevřeš. Do sloupce se tak vejde
+  víc poznámek naráz.
+- Při hledání zůstává pod názvem úryvek s vyznačenou shodou. Není to tělo
+  poznámky, ale odpověď na otázku, proč se ten řádek našel.
+
 ## 0.11.0 — 2026-09-23
 
 ### Změněno

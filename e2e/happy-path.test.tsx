@@ -179,6 +179,9 @@ describe('the core loop', () => {
       expect(noteList().getByText('Projekt Aurora')).toBeInTheDocument()
       expect(noteList().queryByText('Seznam ke čtení')).not.toBeInTheDocument()
     })
+    // U výsledku hledání zůstává úryvek s vyznačenou shodou -- bez něj by to
+    // byl jen seznam názvů a nebylo by poznat, čím se řádek trefil.
+    expect(screen.getByLabelText('Poznámky').querySelector('mark')).not.toBeNull()
 
     // --- and so does a tag filter -----------------------------------------
     await user.clear(search)
@@ -193,6 +196,28 @@ describe('the core loop', () => {
     await waitFor(() => {
       expect(screen.getByText(/Exportováno 2 soubory/)).toBeInTheDocument()
     })
+  })
+
+  /**
+   * Řádek v seznamu poznámek nese jen název.
+   *
+   * Do 0.11.1 tam byl i úryvek těla, čas a štítky. V úzkém panelu z toho byl
+   * šum: text poznámky je vidět hned vedle, jakmile ji otevřeš.
+   */
+  it('v seznamu poznámek je jen název, nic z těla', async () => {
+    await waitForOpenNote(/Seznam ke čtení/)
+
+    const rows = screen.getByLabelText('Poznámky').querySelectorAll('.note-row')
+    expect(rows.length).toBeGreaterThan(0)
+    for (const row of rows) {
+      const text = row.textContent ?? ''
+      // Název ano...
+      expect(text.length).toBeGreaterThan(0)
+      // ...tělo, čas ani štítky ne.
+      expect(row.querySelector('.note-row__excerpt')).toBeNull()
+      expect(row.querySelector('.note-row__time')).toBeNull()
+      expect(row.querySelector('.note-row__tags')).toBeNull()
+    }
   })
 
   it('renames a note and rewrites the links that pointed at it', async () => {

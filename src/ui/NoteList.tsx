@@ -12,19 +12,6 @@ import { useActions, useAppState } from '@/state/store'
 import { EmptyState, Spinner } from './Feedback'
 import { addToGroupMenu } from './Sidebar'
 
-function relativeTime(iso: string): string {
-  const then = Date.parse(iso)
-  if (Number.isNaN(then)) return ''
-  const seconds = Math.round((Date.now() - then) / 1000)
-  if (seconds < 60) return t.notes.justNow
-  const minutes = Math.round(seconds / 60)
-  if (minutes < 60) return t.notes.minutesAgo(minutes)
-  const hours = Math.round(minutes / 60)
-  if (hours < 24) return t.notes.hoursAgo(hours)
-  const days = Math.round(hours / 24)
-  if (days < 30) return t.notes.daysAgo(days)
-  return new Date(then).toLocaleDateString('cs-CZ')
-}
 
 export function NoteList() {
   const state = useAppState()
@@ -127,8 +114,11 @@ export function NoteList() {
                   </span>
                 ) : null}
                 <span className="note-row__title">{note.title}</span>
-                <span className="note-row__time">{relativeTime(note.updated)}</span>
               </span>
+              {/* Úryvek jen u výsledku hledání -- `snippet` plní jen hledání,
+                  výpis poznámek ho nemá. Není to tělo poznámky, ale odpověď
+                  na otázku, proč se tenhle řádek našel; bez něj by šlo
+                  o seznam názvů bez souvislosti s tím, co jsi napsal. */}
               {note.snippet ? (
                 <span
                   className="note-row__excerpt"
@@ -136,18 +126,6 @@ export function NoteList() {
                   // input and only ever adds <mark>.
                   dangerouslySetInnerHTML={{ __html: note.snippet }}
                 />
-              ) : (
-                <span className="note-row__excerpt">{note.excerpt || t.notes.emptyNote}</span>
-              )}
-              {note.tags.length > 0 ? (
-                <span className="note-row__tags">
-                  {note.tags.slice(0, 4).map((tag) => (
-                    <span key={tag} className="note-row__tag">
-                      #{tag}
-                    </span>
-                  ))}
-                  {note.tags.length > 4 ? <span className="note-row__tag">+{note.tags.length - 4}</span> : null}
-                </span>
               ) : null}
             </button>
           </li>
