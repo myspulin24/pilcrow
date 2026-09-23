@@ -484,7 +484,8 @@ describe('the explorer and the vault coexist', () => {
       await act(async () => {
         await vault.deleteExternalFile('/docs/README.md')
       })
-      const notes = within(workspace()).getByRole('list', { name: 'Poznámky' })
+      // Seznam poznámek je v levém panelu, strom souborů ve vedlejším.
+      const notes = screen.getByRole('list', { name: 'Poznámky' })
       await user.click(within(notes).getByRole('button', { name: /README\.md/ }))
 
       expect(await screen.findByText(/na disku není/)).toBeInTheDocument()

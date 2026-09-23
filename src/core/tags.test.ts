@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { maskCode } from './mask'
-import { buildTagTree, collectTags, expandTagAncestors, findInlineTags, normalizeTag, renameTagInBody } from './tags'
+import { collectTags, expandTagAncestors, findInlineTags, normalizeTag, renameTagInBody } from './tags'
 
 describe('maskCode', () => {
   it('returns a string of the same length so offsets stay valid', () => {
@@ -95,29 +95,6 @@ describe('expandTagAncestors', () => {
   it('yields every prefix so parent tags match children', () => {
     expect(expandTagAncestors('a/b/c')).toEqual(['a', 'a/b', 'a/b/c'])
     expect(expandTagAncestors('solo')).toEqual(['solo'])
-  })
-})
-
-describe('buildTagTree', () => {
-  it('nests tags and counts parents inclusively', () => {
-    const tree = buildTagTree([['work/clients/acme'], ['work/admin'], ['home']])
-
-    const work = tree.find((node) => node.path === 'work')
-    expect(work?.count).toBe(2)
-    expect(work?.children.map((node) => node.name).sort()).toEqual(['admin', 'clients'])
-
-    const clients = work?.children.find((node) => node.name === 'clients')
-    expect(clients?.children[0]?.path).toBe('work/clients/acme')
-    expect(tree.find((node) => node.path === 'home')?.count).toBe(1)
-  })
-
-  it('counts a note once even when it carries a tag and its child', () => {
-    const tree = buildTagTree([['work', 'work/admin']])
-    expect(tree.find((node) => node.path === 'work')?.count).toBe(1)
-  })
-
-  it('returns an empty tree for notes with no tags', () => {
-    expect(buildTagTree([[], []])).toEqual([])
   })
 })
 

@@ -38,7 +38,7 @@ mod tests {
     #[test]
     fn missing_file_yields_defaults() {
         let settings = load(Path::new("/definitely/not/here/settings.json"));
-        assert_eq!(settings.daily_folder, "daily");
+        assert_eq!(settings.theme, "system");
         assert_eq!(settings.editor_font_size, 15);
     }
 
@@ -54,10 +54,10 @@ mod tests {
     fn partial_file_fills_in_the_rest() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("settings.json");
-        std::fs::write(&path, r#"{"dailyFolder":"journal"}"#).unwrap();
+        std::fs::write(&path, r#"{"theme":"dark"}"#).unwrap();
 
         let settings = load(&path);
-        assert_eq!(settings.daily_folder, "journal");
+        assert_eq!(settings.theme, "dark");
         assert_eq!(settings.editor_font_size, 15);
         assert_eq!(settings.default_view_mode, "split");
         assert!(settings.show_sidebar);
@@ -69,8 +69,8 @@ mod tests {
 
     /// Nastavení z dřívější verze se musí načíst, ne zahodit.
     ///
-    /// `showPreview` byl kdysi uložený a nikdy se nepoužil; teď už ho struktura
-    /// nezná. Soubor s ním nesmí shodit načítání a zbytek voleb má zůstat.
+    /// `showPreview` a `dailyFolder` bývaly uložené; dnes je struktura nezná.
+    /// Soubor s nimi nesmí shodit načítání a zbytek voleb má zůstat.
     #[test]
     fn unknown_keys_from_an_older_version_are_ignored() {
         let dir = tempfile::tempdir().unwrap();
@@ -82,9 +82,9 @@ mod tests {
         .unwrap();
 
         let settings = load(&path);
-        assert_eq!(settings.daily_folder, "journal");
         assert_eq!(settings.theme, "dark");
         assert_eq!(settings.default_view_mode, "split");
+        assert_eq!(settings.editor_font_size, 15);
     }
 
     #[test]
@@ -92,12 +92,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("settings.json");
         let mut settings = VaultSettings::default();
-        settings.daily_folder = "log".into();
+        settings.theme = "dark".into();
         settings.editor_font_size = 18;
 
         save(&path, &settings).unwrap();
         let read = load(&path);
-        assert_eq!(read.daily_folder, "log");
+        assert_eq!(read.theme, "dark");
         assert_eq!(read.editor_font_size, 18);
     }
 }

@@ -153,8 +153,6 @@ pub struct ExternalChange {
 pub struct VaultSettings {
     #[serde(default)]
     pub vault_path: String,
-    #[serde(default = "default_daily_folder")]
-    pub daily_folder: String,
     #[serde(default = "default_theme")]
     pub theme: String,
     #[serde(default = "default_font_size")]
@@ -224,9 +222,6 @@ pub struct VaultSettings {
     pub assistant_model: String,
 }
 
-fn default_daily_folder() -> String {
-    "daily".to_string()
-}
 fn default_theme() -> String {
     "system".to_string()
 }
@@ -250,7 +245,6 @@ impl Default for VaultSettings {
     fn default() -> Self {
         Self {
             vault_path: String::new(),
-            daily_folder: default_daily_folder(),
             theme: default_theme(),
             editor_font_size: default_font_size(),
             default_view_mode: default_view_mode(),

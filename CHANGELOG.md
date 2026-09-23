@@ -10,6 +10,31 @@ uživateli vyskočí okno s prázdnou kolonkou.
 Píše se pro toho, kdo aplikaci používá, ne pro toho, kdo ji píše: co se změní
 na obrazovce, ne které soubory se upravily. Nejnovější verze je nahoře.
 
+## 0.11.0 — 2026-09-23
+
+### Změněno
+
+- **Levý panel je teď trezor: poznámky nahoře, skupiny pod nimi.** Seznam
+  poznámek se přestěhoval z prostředního sloupce, takže vedle něj zbyl celý
+  panel na otevřené složky a git. Rozdělené je to podle toho, čí která věc
+  je — vlevo tvoje, vedle repozitář.
+- Hledání zůstalo jedno a zužuje obojí naráz. Když levý panel schováš
+  (`Ctrl` `\`), přesune se k souborům, aby šel pořád prořezat strom.
+
+### Odebráno
+
+- **Tlačítko „Dnes“ a denní poznámky.** „Dnes“ stálo mezi filtry, vypadalo
+  jako filtr, ale zakládalo soubor — proklikáváním panelu tak vznikaly
+  poznámky, o které nikdo nežádal. Pryč je celá funkce včetně `Ctrl` `D`
+  a volby „složka denních poznámek“. Soubory, které už ve složce `daily/`
+  máš, zůstávají jako obyčejné poznámky.
+- **Tlačítka „Všechny poznámky“ a „Připnuté“.** Prázdné hledání ukáže
+  všechno, `is:pinned` jen připnuté — a ty se navíc řadí nahoru samy.
+- **Strom štítků.** Štítky se dál píšou i filtrují: kliknutím na `#štítek`
+  v náhledu poznámky, nebo `tag:neco` v hledání.
+- **Tlačítko „Trezor“ dole v panelu.** Cesta k trezoru je ve stavovém řádku
+  a otevřít složku jde přes `Ctrl` `K` → „Ukázat trezor“.
+
 ## 0.10.1 — 2026-09-22
 
 ### Přidáno

@@ -1,22 +1,18 @@
 /**
- * The workspace: the single left column you navigate from.
+ * Panel repozitáře: otevřené složky a git.
  *
- * One search box at the top, and underneath it the two places a document can
- * come from, as collapsible sections:
+ *   <složka>  každá otevřená složka -- strom podsložek a souborů .md
+ *   GIT       stav aktivní složky -- změny, odeslání, běhy CI
  *
- *   NOTES    your vault  — titles, excerpts, tags
- *   <folder> any folder you opened — a tree of sub-folders and .md files
- *   GIT      when that folder is in a repository — changes, publish, CI
+ * Poznámky a skupiny sem nepatří; ty jsou v levém panelu vedle. Rozdělené je
+ * to podle toho, čí ta věc je: vlevo tvůj trezor, tady cizí repozitář.
  *
- * They share the search box: typing narrows the notes by full text and the
- * tree by file name at the same time. Keeping both in one column is the point
- * — navigation on one side, the document on the other.
+ * Hledání zůstalo jedno, v levém panelu, a zužuje obojí naráz -- napsané
+ * jméno souboru tady prořeže strom stejně jako seznam poznámek vedle.
  *
  * You can also drop files or a folder onto the window from the OS; that is
  * handled here too, since this is where the result shows up.
  */
-
-import { useRef } from 'react'
 
 import {
   folderLabel,
@@ -24,7 +20,6 @@ import {
   folderSectionKey,
   relativePath,
   sameFolder,
-  SECTION_NOTES,
   t,
   type OpenFolder,
 } from '@/core'
@@ -33,8 +28,8 @@ import { useActions, useAppState } from '@/state/store'
 import { Spinner } from './Feedback'
 import { FileIcon, FileTree, FolderIcon } from './FileTree'
 import { GitSection } from './GitSection'
-import { NoteList } from './NoteList'
 import { ResizeHandle } from './ResizeHandle'
+import { SearchBox, TagFilterNotice } from './SearchBox'
 import { Section } from './Section'
 
 /**
@@ -147,7 +142,6 @@ export function Workspace() {
   const state = useAppState()
   const actions = useActions()
   const repos = useRepos()
-  const searchRef = useRef<HTMLInputElement>(null)
   const { explorer } = state
 
   /** Cesta otevřeného souboru vůči složce, ze které je -- ne vůči aktivní. */
@@ -158,87 +152,29 @@ export function Workspace() {
       })()
     : ''
 
-  /** Down/Up from the search box walks the note list, as it always has. */
-  const stepNote = (delta: number) => {
-    if (state.notes.length === 0) return
-    const current = state.notes.findIndex((note) => note.path === state.activePath)
-    const next = Math.min(state.notes.length - 1, Math.max(0, (current === -1 ? -1 : current) + delta))
-    const note = state.notes[next]
-    if (note) void actions.open(note.path)
-  }
-
   return (
     <div className={`workspace ${state.dropActive ? 'is-drop-target' : ''}`} aria-label={t.workspace.label}>
-      <div className="workspace__search">
-        {state.sidebarVisible ? null : (
-          <button
-            type="button"
-            className="workspace__reveal-rail"
-            title={t.rail.showHint}
-            aria-label={t.rail.show}
-            onClick={() => actions.toggleSidebar()}
-          >
-            {'»'}
-          </button>
-        )}
-        <input
-          type="search"
-          data-search-input
-          ref={searchRef}
-          className="workspace__input"
-          placeholder={t.workspace.search}
-          aria-label={t.workspace.search}
-          value={state.query}
-          onChange={(event) => actions.setQuery(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'ArrowDown') {
-              event.preventDefault()
-              stepNote(1)
-            } else if (event.key === 'ArrowUp') {
-              event.preventDefault()
-              stepNote(-1)
-            } else if (event.key === 'Enter') {
-              event.preventDefault()
-              document.querySelector<HTMLTextAreaElement>('[data-editor-textarea]')?.focus()
-            } else if (event.key === 'Escape') {
-              actions.setQuery('')
-            }
-          }}
-        />
-        <button
-          type="button"
-          className="workspace__new"
-          title={t.workspace.newNote}
-          aria-label={t.workspace.newNote}
-          onClick={() => void actions.create({ title: state.query.trim() || 'Untitled' })}
-        >
-          +
-        </button>
-      </div>
-
-      {state.activeTag ? (
-        <div className="workspace__filter">
-          <span>
-            {t.workspace.filteredByTag} <strong>#{state.activeTag}</strong>
-          </span>
-          <button type="button" onClick={() => actions.setActiveTag(null)}>
-            {t.workspace.clearFilter}
-          </button>
-        </div>
-      ) : null}
+      {/* Se schovaným panelem poznámek se hledání přestěhuje sem: jinak by
+          Ctrl + \ vzal i jediný způsob, jak prořezat strom souborů. */}
+      {state.sidebarVisible ? null : (
+        <>
+          <div className="workspace__reveal">
+            <button
+              type="button"
+              className="workspace__reveal-rail"
+              title={t.rail.showHint}
+              aria-label={t.rail.show}
+              onClick={() => actions.toggleSidebar()}
+            >
+              {'»'}
+            </button>
+            <SearchBox />
+          </div>
+          <TagFilterNotice />
+        </>
+      )}
 
       <div className="workspace__scroll">
-        <Section
-          id="ws-notes"
-          title={t.workspace.notes}
-          meta={`${state.notes.length}`}
-          open={state.notesSectionOpen}
-          onToggle={() => actions.toggleNotesSection()}
-          resize={{ key: SECTION_NOTES, label: t.workspace.notes }}
-        >
-          <NoteList />
-        </Section>
-
         {explorer.folders.map((folder) => (
           <FolderSection
             key={folder.rootPath}

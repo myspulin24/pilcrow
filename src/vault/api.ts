@@ -113,7 +113,6 @@ export interface RebuildResult {
 
 export interface VaultSettings {
   vaultPath: string
-  dailyFolder: string
   theme: ThemeSetting| 'light' | 'dark'
   editorFontSize: number
   /** Co se ukáže po otevření poznámky. */
@@ -313,7 +312,6 @@ export function vaultError(kind: VaultError['kind'], message: string, extra?: Pa
 
 export const DEFAULT_SETTINGS: VaultSettings = {
   vaultPath: '',
-  dailyFolder: 'daily',
   theme: 'system',
   editorFontSize: 15,
   defaultViewMode: 'split',

@@ -181,10 +181,9 @@ textarea:focus-visible,
   border-bottom: 1px solid var(--border);
 }
 
+/* Skupiny rostou obsahem uvnitř `.sidebar__scroll`. Vlastní posuvník mít
+   nesmí -- dva posuvníky nad sebou se ovládají hůř než jeden. */
 .sidebar__section--grow {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
   border-bottom: none;
 }
 
@@ -196,31 +195,6 @@ textarea:focus-visible,
   margin: 4px 8px 8px;
 }
 
-.sidebar__filter {
-  display: flex;
-  width: 100%;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
-  color: var(--text);
-  font: inherit;
-  cursor: pointer;
-  text-align: left;
-}
-
-.sidebar__filter:hover {
-  background: var(--bg-raised);
-}
-
-.sidebar__filter.is-active {
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 600;
-}
 
 .sidebar__count {
   color: var(--text-faint);
@@ -234,107 +208,17 @@ textarea:focus-visible,
   font-size: 12px;
 }
 
-.sidebar__footer {
-  border-top: 1px solid var(--border);
-  padding: 8px;
-}
-
-.sidebar__vault {
-  display: block;
-  width: 100%;
-  text-align: left;
-  background: transparent;
-  border: none;
-  font: inherit;
-  cursor: pointer;
-  color: var(--text-muted);
-  padding: 4px 6px;
-  border-radius: 6px;
-}
-
-.sidebar__vault:hover {
-  background: var(--bg-raised);
-}
-
-.sidebar__vault-label {
-  display: block;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-faint);
-}
-
-.sidebar__vault-path {
-  display: block;
-  font-size: 11px;
-  font-family: var(--mono);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  direction: rtl;
-}
-
-.tag-tree {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.tag-tree__row {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  border-radius: 6px;
-}
-
-.tag-tree__row:hover {
-  background: var(--bg-raised);
-}
-
-.tag-tree__row.is-active {
-  background: var(--accent-soft);
-}
-
-.tag-tree__row.is-active .tag-tree__name {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.tag-tree__twisty {
-  width: 16px;
-  border: none;
-  background: transparent;
-  color: var(--text-faint);
-  cursor: pointer;
-  font-size: 10px;
-  padding: 0;
-}
-
-.tag-tree__twisty--empty {
-  cursor: default;
-}
-
-.tag-tree__label {
+/* Poznámky a skupiny pod sebou v jednom posuvníku: seznam poznámek si drží
+   výšku jako každý jiný blok a skupiny pod ním dorostou obsahem. */
+.sidebar__scroll {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  border: none;
-  background: transparent;
-  font: inherit;
-  color: var(--text);
-  cursor: pointer;
-  padding: 4px 8px 4px 0;
-  text-align: left;
+  flex-direction: column;
 }
 
-.tag-tree__count {
-  color: var(--text-faint);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-
-/* --- workspace column (search + notes + files) ----------------------------- */
+/* --- workspace column (folders + git) -------------------------------------- */
 
 .workspace {
   position: relative;
@@ -1721,15 +1605,32 @@ textarea:focus-visible,
   background: var(--bg-raised);
 }
 
+/* Řádek s tlačítkem „»“ a hledáním, když je levý panel schovaný. Je tu jen
+   tehdy -- jinak by nad stromem souborů zbyl prázdný pruh. */
+.workspace__reveal {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  padding-left: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.workspace__reveal .workspace__search {
+  flex: 1;
+  min-width: 0;
+  padding-left: 0;
+  border-bottom: none;
+}
+
+.workspace__reveal .workspace__reveal-rail {
+  align-self: center;
+}
+
 .sidebar__heading-row {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin: 4px 6px 6px 10px;
-}
-
-.sidebar__heading-row--spaced {
-  margin-top: 18px;
+  margin: 10px 6px 6px 10px;
 }
 
 .sidebar__heading {

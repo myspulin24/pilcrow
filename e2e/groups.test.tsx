@@ -52,8 +52,15 @@ function renderApp() {
   )
 }
 
-const rail = () => screen.getByLabelText('Skupiny a štítky')
+const rail = () => screen.getByLabelText('Poznámky a skupiny')
 const workspace = () => screen.getByLabelText('Pracovní plocha')
+/**
+ * Seznam skupin, ne celý levý panel.
+ *
+ * Od 0.11 jsou v témže panelu i poznámky, takže hledat jméno souboru „někde
+ * v panelu“ by našlo i řádek v seznamu poznámek.
+ */
+const groups = () => within(rail()).getByRole('list', { name: 'Skupiny' })
 /**
  * A menu item anywhere in the open menu.
  *
@@ -160,7 +167,7 @@ describe('groups', () => {
     await user.click(within(rail()).getByRole('button', { name: 'Smíchané' }))
     await waitFor(() => {
       // A note shows its title; an external file shows its file name.
-      expect(within(rail()).getByText('Poznámka z trezoru')).toBeInTheDocument()
+      expect(within(groups()).getByText('Poznámka z trezoru')).toBeInTheDocument()
       expect(within(rail()).getByText('README')).toBeInTheDocument()
     })
   })
@@ -202,7 +209,7 @@ describe('groups', () => {
     await user.click(await menuItem('Dočasná'))
 
     await user.click(within(rail()).getByRole('button', { name: 'Dočasná' }))
-    const linked = await within(rail()).findByRole('button', { name: /Poznámka z trezoru/ })
+    const linked = await within(groups()).findByRole('button', { name: /Poznámka z trezoru/ })
 
     await rightClick(user, linked)
     await user.click(await menuItem(/Odebrat ze skupiny/))
@@ -351,14 +358,18 @@ describe('the side panel', () => {
   it('hides and comes back', async () => {
     const user = userEvent.setup()
 
-    await user.click(within(rail()).getByRole('button', { name: 'Skrýt boční panel' }))
+    await user.click(within(rail()).getByRole('button', { name: 'Skrýt panel s poznámkami' }))
     await waitFor(() => {
-      expect(screen.queryByLabelText('Skupiny a štítky')).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Poznámky a skupiny')).not.toBeInTheDocument()
     })
+    // Hledání se schovaným panelem nezmizí, jen se přestěhuje vedle: jinak by
+    // Ctrl + \ vzal i jediný způsob, jak prořezat strom souborů. A zůstane
+    // jedno jediné, protože podle něj kurzor hledá Ctrl + F.
+    expect(screen.getAllByLabelText('Hledat v poznámkách a souborech')).toHaveLength(1)
 
-    await user.click(await screen.findByRole('button', { name: 'Zobrazit boční panel' }))
+    await user.click(await screen.findByRole('button', { name: 'Zobrazit panel s poznámkami' }))
     await waitFor(() => {
-      expect(screen.getByLabelText('Skupiny a štítky')).toBeInTheDocument()
+      expect(screen.getByLabelText('Poznámky a skupiny')).toBeInTheDocument()
     })
   })
 
@@ -367,12 +378,12 @@ describe('the side panel', () => {
 
     await user.keyboard('{Control>}\\{/Control}')
     await waitFor(() => {
-      expect(screen.queryByLabelText('Skupiny a štítky')).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Poznámky a skupiny')).not.toBeInTheDocument()
     })
 
     await user.keyboard('{Control>}\\{/Control}')
     await waitFor(() => {
-      expect(screen.getByLabelText('Skupiny a štítky')).toBeInTheDocument()
+      expect(screen.getByLabelText('Poznámky a skupiny')).toBeInTheDocument()
     })
   })
 })

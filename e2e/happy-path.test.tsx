@@ -149,11 +149,14 @@ describe('the core loop', () => {
     expect(preview.querySelector('[data-tag="práce/aurora"]')).not.toBeNull()
     expect(preview.querySelector('[data-wikilink="Seznam ke čtení"]')).not.toBeNull()
 
-    // --- the tag shows up in the sidebar ----------------------------------
-    const sidebar = screen.getByLabelText('Skupiny a štítky')
+    // --- the tag filters the list when clicked in the preview -------------
+    // Strom štítků v panelu skončil v 0.11; klik na štítek v náhledu zůstal
+    // jediným způsobem, jak se k filtru dostat myší, takže se testuje ten.
+    await user.click(preview.querySelector('[data-tag="práce/aurora"]') as HTMLElement)
     await waitFor(() => {
-      expect(within(sidebar).getByText('#práce')).toBeInTheDocument()
+      expect(screen.getByText(/Filtrováno štítkem/)).toBeInTheDocument()
     })
+    await user.click(screen.getByRole('button', { name: 'Zrušit' }))
 
     // --- following the link opens the other note, which shows the backlink -
     await user.click(preview.querySelector('[data-wikilink="Seznam ke čtení"]') as HTMLElement)

@@ -1,82 +1,35 @@
 /**
- * The left rail: your groups first, tags second.
+ * Levý panel: trezor. Poznámky nahoře, skupiny pod nimi.
+ *
+ * Dvě věci, obě tvoje -- co jsi napsal a co sis dal dohromady. Všechno kolem
+ * repozitáře (strom souborů, git) bydlí ve vedlejším panelu, takže je na
+ * první pohled poznat, kde jsi doma a kde v cizím kódu.
  *
  * A **group** is a named list of files you linked yourself. They can live
  * anywhere on the machine -- one in the vault, one in a project folder, one on
  * another drive -- and the group is how you get back to them without going
  * hunting. Right-click any note or file to add it to one.
  *
- * Tags come below, and only describe vault notes: they are read out of the
- * Markdown itself, so they cannot apply to somebody else's files.
+ * Do 0.10.1 tu byla ještě tlačítka „Všechny poznámky / Připnuté / Dnes“
+ * a strom štítků. Filtry šly nahradit hledáním (`is:pinned`, `tag:neco`),
+ * „Dnes“ bylo tlačítko mezi filtry, které místo filtrování zakládalo soubor,
+ * a strom štítků byl přehled, který se nevyplatil za sloupec, který zabíral.
  */
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 
-import { buildTagTree, collectionsContaining, t, type CollectionItem, type TagNode } from '@/core'
+import { collectionsContaining, SECTION_NOTES, t, type CollectionItem } from '@/core'
 import { useActions, useAppState } from '@/state/store'
 import { FileIcon } from './FileTree'
+import { NoteList } from './NoteList'
 import { ResizeHandle } from './ResizeHandle'
-
-function TagBranch({
-  node,
-  activeTag,
-  onSelect,
-  depth,
-}: {
-  node: TagNode
-  activeTag: string | null
-  onSelect: (tag: string) => void
-  depth: number
-}) {
-  const [expanded, setExpanded] = useState(depth < 1)
-  const isActive = activeTag === node.path
-  const hasChildren = node.children.length > 0
-
-  return (
-    <li className="tag-tree__item">
-      <div className={`tag-tree__row ${isActive ? 'is-active' : ''}`} style={{ paddingLeft: `${depth * 12 + 8}px` }}>
-        {hasChildren ? (
-          <button
-            type="button"
-            className="tag-tree__twisty"
-            aria-label={expanded ? t.rail.collapseTag(node.path) : t.rail.expandTag(node.path)}
-            aria-expanded={expanded}
-            onClick={() => setExpanded((value) => !value)}
-          >
-            {expanded ? '▾' : '▸'}
-          </button>
-        ) : (
-          <span className="tag-tree__twisty tag-tree__twisty--empty" aria-hidden="true" />
-        )}
-        <button
-          type="button"
-          className="tag-tree__label"
-          onClick={() => onSelect(node.path)}
-          aria-current={isActive ? 'true' : undefined}
-        >
-          <span className="tag-tree__name">#{node.name}</span>
-          <span className="tag-tree__count">{node.count}</span>
-        </button>
-      </div>
-      {hasChildren && expanded ? (
-        <ul className="tag-tree">
-          {node.children.map((child) => (
-            <TagBranch key={child.path} node={child} activeTag={activeTag} onSelect={onSelect} depth={depth + 1} />
-          ))}
-        </ul>
-      ) : null}
-    </li>
-  )
-}
+import { SearchBox, TagFilterNotice } from './SearchBox'
+import { Section } from './Section'
 
 export function Sidebar() {
   const state = useAppState()
   const actions = useActions()
   const [openGroups, setOpenGroups] = useState<string[]>([])
-  const [tagsOpen, setTagsOpen] = useState(true)
-
-  const tags = useMemo(() => buildTagTree(state.notes.map((note) => note.tags)), [state.notes])
-  const pinnedCount = state.notes.filter((note) => note.pinned).length
 
   const toggleGroup = (id: string) =>
     setOpenGroups((open) => (open.includes(id) ? open.filter((entry) => entry !== id) : [...open, id]))
@@ -169,45 +122,34 @@ export function Sidebar() {
 
   return (
     <nav className="sidebar" aria-label={t.rail.label}>
-      <div className="sidebar__section sidebar__section--top">
-        <div className="sidebar__brand">
-          <span className="sidebar__brand-name">Pilcrow</span>
-          <button
-            type="button"
-            className="sidebar__collapse"
-            title={t.rail.hideHint}
-            aria-label={t.rail.hide}
-            onClick={() => actions.toggleSidebar()}
-          >
-            {'«'}
-          </button>
-        </div>
+      <div className="sidebar__brand">
+        <span className="sidebar__brand-name">Pilcrow</span>
         <button
           type="button"
-          className={`sidebar__filter ${state.activeTag === null && !state.query ? 'is-active' : ''}`}
-          onClick={() => {
-            actions.setActiveTag(null)
-            actions.setQuery('')
-          }}
+          className="sidebar__collapse"
+          title={t.rail.hideHint}
+          aria-label={t.rail.hide}
+          onClick={() => actions.toggleSidebar()}
         >
-          <span>{t.rail.allNotes}</span>
-          <span className="sidebar__count">{state.notes.length}</span>
-        </button>
-        <button
-          type="button"
-          className={`sidebar__filter ${state.query === 'is:pinned' ? 'is-active' : ''}`}
-          onClick={() => actions.setQuery(state.query === 'is:pinned' ? '' : 'is:pinned')}
-        >
-          <span>{t.rail.pinned}</span>
-          <span className="sidebar__count">{pinnedCount}</span>
-        </button>
-        <button type="button" className="sidebar__filter" onClick={() => void actions.openDaily()}>
-          <span>{t.rail.today}</span>
-          <span className="sidebar__count" aria-hidden="true">
-            ↩
-          </span>
+          {'«'}
         </button>
       </div>
+
+
+      <SearchBox />
+      <TagFilterNotice />
+
+      <div className="sidebar__scroll">
+        <Section
+          id="ws-notes"
+          title={t.workspace.notes}
+          meta={`${state.notes.length}`}
+          open={state.notesSectionOpen}
+          onToggle={() => actions.toggleNotesSection()}
+          resize={{ key: SECTION_NOTES, label: t.workspace.notes }}
+        >
+          <NoteList />
+        </Section>
 
       <div className="sidebar__section sidebar__section--grow">
         <div className="sidebar__heading-row">
@@ -226,7 +168,7 @@ export function Sidebar() {
         {state.collections.length === 0 ? (
           <p className="sidebar__hint">{t.rail.groupsEmpty}</p>
         ) : (
-          <ul className="groups">
+          <ul className="groups" aria-label={t.rail.groups}>
             {state.collections.map((collection) => {
               const open = openGroups.includes(collection.id)
               return (
@@ -284,46 +226,7 @@ export function Sidebar() {
           </ul>
         )}
 
-        <div className="sidebar__heading-row sidebar__heading-row--spaced">
-          <button
-            type="button"
-            className="sidebar__heading sidebar__heading--button"
-            aria-expanded={tagsOpen}
-            onClick={() => setTagsOpen((value) => !value)}
-          >
-            <span aria-hidden="true">{tagsOpen ? '▾' : '▸'}</span> {t.rail.tags}
-          </button>
         </div>
-
-        {tagsOpen ? (
-          tags.length === 0 ? (
-            <p className="sidebar__hint">{t.rail.tagsEmpty}</p>
-          ) : (
-            <ul className="tag-tree tag-tree--root">
-              {tags.map((node) => (
-                <TagBranch
-                  key={node.path}
-                  node={node}
-                  activeTag={state.activeTag}
-                  onSelect={(tag) => actions.setActiveTag(state.activeTag === tag ? null : tag)}
-                  depth={0}
-                />
-              ))}
-            </ul>
-          )
-        ) : null}
-      </div>
-
-      <div className="sidebar__footer">
-        <button
-          type="button"
-          className="sidebar__vault"
-          onClick={() => void actions.reveal()}
-          title={state.status?.vaultPath ?? ''}
-        >
-          <span className="sidebar__vault-label">{t.rail.vault}</span>
-          <span className="sidebar__vault-path">{state.status?.vaultPath ?? t.rail.vaultOpening}</span>
-        </button>
       </div>
 
       <ResizeHandle column="sidebar" />

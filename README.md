@@ -25,6 +25,11 @@ bez proprietárního formátu. Vedle vlastního trezoru umí otevřít libovolno
 složku na disku, pracovat s dokumentací v gitovém repozitáři a odpovídat na
 otázky k otevřené poznámce.
 
+Okno je rozdělené podle toho, čí která věc je: vlevo váš trezor (poznámky
+a skupiny), vedle otevřené složky a git, uprostřed dokument a vpravo volitelný
+panel asistenta. Oba levé panely se dají roztáhnout a levý i schovat
+(`Ctrl` `\`).
+
 | | |
 | --- | --- |
 | **Platformy** | Windows 10/11, macOS 12+, Linux |
@@ -63,10 +68,11 @@ Kontrolu lze vypnout v nastavení nebo proměnnou `PILCROW_AUTO_UPDATE=0`.
 Vlastní trezor s poznámkami v Markdownu. Výchozí umístění je
 `Dokumenty/Pilcrow`, lze změnit proměnnou `PILCROW_VAULT_PATH`.
 
-- Štítky (`#projekt/klient`) s hierarchií a filtrováním
+- Štítky (`#projekt/klient`); kliknutím v náhledu se jimi filtruje seznam
 - Odkazy `[[wikilink]]` a automatické zpětné odkazy
 - Fulltextové hledání (SQLite FTS5) s podporou dotazovacích operátorů
-- Denní poznámky, skupiny souborů, paleta příkazů (`Ctrl` `K`)
+  (`is:pinned`, `tag:projekt`, `has:tasks`)
+- Skupiny souborů, paleta příkazů (`Ctrl` `K`)
 - Lišta formátování a editor matematických vzorců (13 zápisů včetně LaTeXu,
   MathML, AsciiMath a Typstu)
 - Třípolohový přepínač zobrazení: zdroj, obojí, náhled

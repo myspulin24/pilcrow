@@ -23,8 +23,6 @@ import {
   applyBodyEdit,
   buildLinkIndex,
   createNoteFile,
-  dailyNotePath,
-  dailyNoteTemplate,
   decideExternalChange,
   hashText,
   isVaultError,
@@ -670,7 +668,6 @@ export interface Actions {
   remove(path: string): Promise<void>
   togglePin(path: string): Promise<void>
   toggleTaskAt(index: number): Promise<void>
-  openDaily(): Promise<void>
   openOrCreateByTitle(title: string): Promise<void>
   insertAtCursor(text: string): void
   resolveConflict(resolution: ConflictResolution): Promise<void>
@@ -1321,27 +1318,6 @@ export function StoreProvider({
     },
     [create, open, reportError],
   )
-
-  const openDaily = useCallback(async () => {
-    const folder = stateRef.current.settings.dailyFolder
-    const path = dailyNotePath(new Date(), folder)
-    try {
-      await vaultRef.current.readNote(path)
-      await open(path)
-      return
-    } catch {
-      // Not there yet: create it below.
-    }
-    try {
-      const content = dailyNoteTemplate(new Date())
-      await vaultRef.current.createNote({ path, content, record: toIndexRecord(path, content) })
-      await open(path)
-      await refresh()
-      toast('success', t.toast.dailyCreated)
-    } catch (error) {
-      reportError(error, t.errors.openDaily)
-    }
-  }, [open, refresh, reportError, toast])
 
   /**
    * Insert text at the caret.
@@ -2331,7 +2307,6 @@ export function StoreProvider({
       remove,
       togglePin,
       toggleTaskAt,
-      openDaily,
       openOrCreateByTitle,
       insertAtCursor,
       resolveConflict,
@@ -2420,7 +2395,6 @@ export function StoreProvider({
       removeCollection,
       removePathFromCollection,
       renameCollection,
-      openDaily,
       openFileFromDisk,
       openFolderFromDisk,
       openFolderAt,

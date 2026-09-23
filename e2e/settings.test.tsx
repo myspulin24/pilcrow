@@ -120,7 +120,7 @@ describe('výchozí stav okna', () => {
 
   it('levý panel se dá vypnout a po startu pak není', async () => {
     await renderApp({ showSidebar: false })
-    expect(screen.queryByLabelText('Skupiny a štítky')).toBeNull()
+    expect(screen.queryByLabelText('Poznámky a skupiny')).toBeNull()
   })
 
   it('lišta formátování se dá vypnout', async () => {

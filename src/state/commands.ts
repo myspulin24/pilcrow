@@ -92,13 +92,6 @@ export function buildCommands({
         }),
     },
     {
-      id: 'note.daily',
-      title: t.commands.dailyNote,
-      group: t.palette.groups.navigate,
-      shortcut: { key: 'd', mod: true },
-      run: () => void actions.openDaily(),
-    },
-    {
       id: 'note.rename',
       title: t.commands.renameNote,
       group: t.palette.groups.note,

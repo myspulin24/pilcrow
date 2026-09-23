@@ -144,14 +144,14 @@ describe('roztahování levého sloupce', () => {
 })
 
 /**
- * Postranní panel se skupinami a štítky.
+ * Panel s poznámkami a skupinami.
  *
  * Roztahuje se stejným úchytem jako sloupec vedle něj -- jen do jiné volby
  * a v jiných mezích. Testuje se hlavně to, že se ty dvě šířky nepletou.
  */
 describe('roztahování postranního panelu', () => {
-  const sidebar = () => screen.getByLabelText('Skupiny a štítky')
-  const railHandle = () => within(sidebar()).getByRole('button', { name: 'Šířka bočního panelu' })
+  const sidebar = () => screen.getByLabelText('Poznámky a skupiny')
+  const railHandle = () => within(sidebar()).getByRole('button', { name: 'Šířka panelu s poznámkami' })
 
   async function dragRail(dx: number) {
     await act(async () => {
@@ -208,7 +208,7 @@ describe('roztahování postranního panelu', () => {
 
 describe('výšky jednotlivých bloků', () => {
   const sectionHandle = (name: RegExp) =>
-    within(workspace()).getByRole('button', { name })
+    within(screen.getByLabelText('Poznámky a skupiny')).getByRole('button', { name })
 
   async function dragSection(name: RegExp, dy: number) {
     await act(async () => {

@@ -223,7 +223,6 @@ export function SettingsDialog() {
     view: useId(),
     sidebar: useId(),
     toolbar: useId(),
-    daily: useId(),
     updates: useId(),
   }
   useEscape(actions.closeSettings)
@@ -305,16 +304,6 @@ export function SettingsDialog() {
           </Section>
 
           <Section title={t.settings.notes}>
-            <Row label={t.settings.dailyFolder} hint={t.settings.dailyFolderHint} htmlFor={ids.daily}>
-              <input
-                id={ids.daily}
-                className="settings__input"
-                value={s.dailyFolder}
-                onChange={(event) => set({ dailyFolder: event.target.value })}
-                spellCheck={false}
-              />
-            </Row>
-
             <Row label={t.settings.vaultPath} hint={t.settings.vaultPathHint}>
               <div className="settings__path">
                 <code>{state.status?.vaultPath ?? ''}</code>

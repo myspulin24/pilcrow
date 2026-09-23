@@ -85,49 +85,6 @@ export function expandTagAncestors(tag: string): string[] {
   return out
 }
 
-export interface TagNode {
-  name: string
-  path: string
-  count: number
-  children: TagNode[]
-}
-
-/** Build the nested tag tree shown in the sidebar. Counts are inclusive. */
-export function buildTagTree(tagLists: string[][]): TagNode[] {
-  const counts = new Map<string, number>()
-  for (const tags of tagLists) {
-    const seen = new Set<string>()
-    for (const tag of tags) {
-      for (const ancestor of expandTagAncestors(tag)) seen.add(ancestor)
-    }
-    for (const path of seen) counts.set(path, (counts.get(path) ?? 0) + 1)
-  }
-
-  const roots: TagNode[] = []
-  const byPath = new Map<string, TagNode>()
-  const paths = [...counts.keys()].sort()
-
-  for (const path of paths) {
-    const segments = path.split('/')
-    const node: TagNode = {
-      name: segments[segments.length - 1]!,
-      path,
-      count: counts.get(path) ?? 0,
-      children: [],
-    }
-    byPath.set(path, node)
-    if (segments.length === 1) {
-      roots.push(node)
-    } else {
-      const parentPath = segments.slice(0, -1).join('/')
-      const parent = byPath.get(parentPath)
-      if (parent) parent.children.push(node)
-      else roots.push(node)
-    }
-  }
-  return roots
-}
-
 /** Rename a tag (and its descendants) inside body text. */
 export function renameTagInBody(body: string, from: string, to: string): string {
   const source = normalizeTag(from)
