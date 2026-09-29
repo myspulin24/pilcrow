@@ -104,3 +104,37 @@ export function withSectionHeight(
   else next[key] = height
   return next
 }
+
+// -- levý panel po spuštění ---------------------------------------------------
+
+/**
+ * Jak má být levý panel po spuštění.
+ *
+ *  - `open`   -- vždycky vidět.
+ *  - `closed` -- vždycky schovaný; ukáže se `Ctrl` `\`.
+ *  - `last`   -- tak, jak ho uživatel naposledy nechal.
+ */
+export type SidebarStart = 'open' | 'closed' | 'last'
+
+/**
+ * Režim z nastavení.
+ *
+ * V nastavení jsou dvě pole, ne jedno: `showSidebar` znaly už starší verze
+ * a znamená „po startu vidět“. `sidebarRemember` jen říká, že se má
+ * `showSidebar` přepisovat pokaždé, když uživatel panel schová nebo ukáže.
+ * Starší verze aplikace tak po návratu otevřou panel, jak byl naposledy --
+ * jen si ho přestanou pamatovat.
+ */
+export function sidebarStart(settings: { showSidebar: boolean; sidebarRemember?: boolean }): SidebarStart {
+  if (settings.sidebarRemember) return 'last'
+  return settings.showSidebar ? 'open' : 'closed'
+}
+
+/** Co zapsat do nastavení, když si uživatel režim vybere. */
+export function sidebarStartSettings(
+  mode: SidebarStart,
+  visibleNow: boolean,
+): { showSidebar: boolean; sidebarRemember: boolean } {
+  if (mode === 'last') return { showSidebar: visibleNow, sidebarRemember: true }
+  return { showSidebar: mode === 'open', sidebarRemember: false }
+}

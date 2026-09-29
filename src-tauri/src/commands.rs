@@ -297,15 +297,27 @@ pub async fn pick_markdown_file(
 }
 
 /// Show a folder picker. Returns the chosen path, or `None` when cancelled.
+///
+/// `title` says what the folder is for -- the same picker opens a folder of
+/// notes, asks where to clone a repository and where its files already are.
+/// `default_path` is where the dialog starts; ignored when it is gone.
 #[tauri::command]
-pub async fn pick_folder(app: AppHandle, state: State<'_, AppState>) -> Result<Option<String>> {
+pub async fn pick_folder(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    title: Option<String>,
+    default_path: Option<String>,
+) -> Result<Option<String>> {
     use tauri_plugin_dialog::DialogExt;
 
-    let picked = app
+    let mut dialog = app
         .dialog()
         .file()
-        .set_title("Otevřít složku se soubory .md")
-        .blocking_pick_folder();
+        .set_title(title.as_deref().unwrap_or("Otevřít složku se soubory .md"));
+    if let Some(start) = default_path.map(PathBuf::from).filter(|path| path.is_dir()) {
+        dialog = dialog.set_directory(start);
+    }
+    let picked = dialog.blocking_pick_folder();
 
     let Some(path) = picked.and_then(|file| file.into_path().ok()) else {
         return Ok(None);
@@ -513,6 +525,14 @@ pub fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static
         crate::git::gh_repos,
         crate::git::scan_clones,
         crate::git::gh_clone,
+        crate::git::git_branches,
+        crate::git::git_branch_log,
+        crate::git::git_diff,
+        crate::git::git_switch,
+        crate::git::git_compare,
+        crate::git::git_restore,
+        crate::git::git_inspect_folder,
+        crate::git::git_link_folder,
         crate::git::open_url
     ]
 }

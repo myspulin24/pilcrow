@@ -33,6 +33,7 @@ import {
   type DroppedPaths,
   type ExportResult,
   type ExternalChange,
+  type FolderDialogOptions,
   type ImportResult,
   type IndexRecord,
   type NoteFile,
@@ -73,6 +74,13 @@ export interface MemoryVaultOptions {
   externalRoots?: string[]
   /** What the file picker returns. Defaults to the first external file. */
   dialogFile?: string
+  /**
+   * Odpovědi na výběr složky, který se ptá na něco konkrétního -- kam stáhnout
+   * repozitář, kde jsou jeho soubory. `null` = uživatel dialog zavřel.
+   *
+   * Obyčejné „Otevřít složku“ (bez titulku) bere dál `externalRoots`.
+   */
+  folderPicks?: Array<string | null>
 }
 
 export class MemoryVault implements VaultApi {
@@ -92,7 +100,11 @@ export class MemoryVault implements VaultApi {
   /** Fronta složek pro výběr; poslední se vrací opakovaně. */
   private externalRoots: string[]
   private dialogFile: string | null
+  private folderPicks: Array<string | null>
   private collections: Collection[] = []
+
+  /** S čím se výběr složky otevřel, k ověření v testech. */
+  readonly folderDialogs: FolderDialogOptions[] = []
 
   constructor(options: MemoryVaultOptions = {}) {
     this.label = options.label ?? t.browser.memoryVault
@@ -107,6 +119,7 @@ export class MemoryVault implements VaultApi {
     this.externalRoot = options.externalRoot ?? null
     this.externalRoots = [...(options.externalRoots ?? [])]
     this.dialogFile = options.dialogFile ?? [...this.externalFiles.keys()][0] ?? null
+    this.folderPicks = [...(options.folderPicks ?? [])]
     this.settings = { ...this.settings, ...options.settings, vaultPath: this.label }
   }
 
@@ -295,7 +308,9 @@ export class MemoryVault implements VaultApi {
     return this.dialogFile
   }
 
-  async openFolderDialog(): Promise<string | null> {
+  async openFolderDialog(options?: FolderDialogOptions): Promise<string | null> {
+    this.folderDialogs.push({ ...options })
+    if (options?.title) return this.folderPicks.length > 0 ? (this.folderPicks.shift() ?? null) : null
     if (this.externalRoots.length > 1) return this.externalRoots.shift() ?? null
     return this.externalRoots[0] ?? this.externalRoot
   }

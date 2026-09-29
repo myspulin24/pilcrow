@@ -3838,3 +3838,396 @@ body.is-resizing-v {
 .git__sync .spinner {
   flex: 1 1 auto;
 }
+
+/* -- větev v hlavičce sekce Git -------------------------------------------- */
+
+/* Jméno větve je tlačítko do okna větví. Šířka má strop: dlouhá větev
+   (`docs/2026-09-22-1710`) by jinak z názvu sekce nenechala nic -- celé jméno
+   je v bublině. */
+.git__branch-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 140px;
+  min-width: 0;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.git__branch-button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.git__branch-button:disabled {
+  cursor: default;
+}
+.git__branch-button:disabled:hover {
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+.git__branch-icon {
+  flex: 0 0 auto;
+}
+.git__branch-caret {
+  flex: 0 0 auto;
+  font-size: 9px;
+}
+
+/* Odkazy pod seznamem změn: porovnání s main. */
+.git__tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.git__tools .workspace__link {
+  margin: 0;
+}
+
+/* -- kam odeslat ----------------------------------------------------------- */
+
+.git__targets {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+.git__target-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 2px 0 8px 22px;
+}
+.git__target-body .git__muted {
+  margin: 0;
+}
+/* Zápis rovnou do výchozí větve obchází pull request. Má to být vidět. */
+.git__target-warning {
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--danger) 7%, transparent);
+  font-size: 12px;
+}
+.git__target-warning p {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+/* -- okno větví ------------------------------------------------------------ */
+
+.branches {
+  width: min(900px, 94vw);
+  max-height: 86vh;
+}
+.branches__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(0, 1.4fr);
+  gap: 12px;
+}
+.branches__pane {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.branches__list {
+  max-height: 52vh;
+}
+.branches__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.branches__list li:last-child .branches__row {
+  border-bottom: 0;
+}
+.branches__row:hover {
+  background: var(--bg-sunken);
+}
+.branches__row.is-selected {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.branches__row-name {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.branches__row-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.branches__row-badges:empty {
+  display: none;
+}
+.branches__row-meta {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.branches__badge--pull {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.branches__detail {
+  min-width: 0;
+  min-height: 0;
+  max-height: 58vh;
+  overflow-y: auto;
+  padding: 2px 4px 2px 0;
+  font-size: 12.5px;
+}
+.branches__detail > p {
+  margin: 6px 0;
+}
+.branches__name {
+  margin: 0 0 6px;
+  font-family: var(--mono);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.branches__meta {
+  line-height: 1.45;
+}
+.branches__heading {
+  margin: 12px 0 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.branches__commits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.branches__commits code {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.branches__dirty {
+  margin: 0;
+}
+/* Odkaz na GitHub doleva, zavřít a hlavní akci doprava. */
+.branches__github {
+  margin-right: auto;
+}
+
+@media (max-width: 720px) {
+  .branches__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* -- porovnání s main ------------------------------------------------------ */
+
+.compare {
+  width: min(760px, 94vw);
+  max-height: 86vh;
+}
+.compare__body {
+  overflow-y: auto;
+}
+.compare__ok {
+  margin: 4px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--success) 45%, transparent);
+  background: color-mix(in srgb, var(--success) 7%, transparent);
+  color: var(--success);
+  font-size: 13px;
+}
+.compare__files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.compare__file + .compare__file {
+  border-top: 1px solid var(--border);
+}
+.compare__file-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.compare__file-head:hover {
+  background: var(--bg-sunken);
+}
+.compare__twisty {
+  flex: 0 0 auto;
+  width: 10px;
+  color: var(--text-faint);
+  font-size: 10px;
+}
+.compare__path {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.compare__counts {
+  flex: 0 0 auto;
+  display: inline-flex;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.compare__plus {
+  color: var(--success);
+}
+.compare__minus {
+  color: var(--danger);
+}
+.compare__patch {
+  padding: 0 10px 8px 28px;
+}
+.compare__patch-empty {
+  margin: 0;
+}
+.compare__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.compare__restore {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  max-height: 160px;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.compare__confirm {
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--danger) 7%, transparent);
+}
+.compare__confirm p {
+  margin: 0 0 4px;
+  color: var(--text);
+}
+
+/* Výpis `git diff`. Vlastní posuvník vodorovně: řádky kódu se nezalamují,
+   a bez něj by jeden dlouhý řádek roztáhl celé okno. */
+.patch {
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  padding: 6px 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-sunken);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.patch__line {
+  display: block;
+  padding: 0 8px;
+  white-space: pre;
+}
+.patch__line--add {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+}
+.patch__line--del {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+.patch__line--hunk {
+  color: var(--text-faint);
+}
+.patch__line--note {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* -- výběr repozitáře: soubory jinde --------------------------------------- */
+
+.repos__row-actions {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.repos__row-actions .workspace__link {
+  margin: 0;
+  font-size: 11.5px;
+}
+.repos__link-card p {
+  overflow-wrap: anywhere;
+}
+.repos__folder--set {
+  flex-wrap: wrap;
+}
+.repos__folder-hint {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 11.5px;
+}
+
+/* Dialog odeslání s volbou cíle bývá vyšší než malé okno. */
+.git__dialog {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+/* Souhrn v dialogu odeslání: cesta a druh změny, ať je vidět i smazání. */
+.git__summary-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 1px 0;
+}
+.git__summary-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+p.git__target-warning {
+  margin: 0 0 8px;
+  color: var(--text);
+  line-height: 1.45;
+}

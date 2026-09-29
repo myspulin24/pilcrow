@@ -61,6 +61,9 @@ mod tests {
         assert_eq!(settings.editor_font_size, 15);
         assert_eq!(settings.default_view_mode, "split");
         assert!(settings.show_sidebar);
+        // Pamatovat si panel je volba navíc; starší nastavení ji nezná.
+        assert!(!settings.sidebar_remember);
+        assert!(settings.repo_folders.is_empty());
         assert!(settings.show_toolbar);
         assert!(settings.check_updates);
         // Asistent je jediný, kdo se v chybějícím souboru nezapne sám.

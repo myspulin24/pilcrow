@@ -16,6 +16,7 @@ import type {
   GitApi,
   GitChunk,
   GitSink,
+  LinkInput,
   MergePrInput,
   PublishInput,
 } from './api'
@@ -35,6 +36,35 @@ export interface MemoryChange {
   path: string
   /** Dva znaky stavu, jak je píše git: ` M`, `??`, `D `, … */
   xy: string
+}
+
+/** Větev, jak ji „vidí“ paměťový git. */
+export interface MemoryBranch {
+  name: string
+  /** Je doma. Výchozí: jen ta, na které se stojí, a výchozí větev. */
+  local?: boolean
+  /** Je na GitHubu. Výchozí: ano. */
+  remote?: boolean
+  subject?: string
+  author?: string
+  /** ISO 8601. */
+  date?: string
+  /** Kolik commitů má větev navíc proti výchozí. */
+  ahead?: number
+  /** Kolik jí chybí z výchozí. */
+  behind?: number
+  /** Kolik commitů má GitHub navíc proti domácí kopii. */
+  behindRemote?: number
+  /** Soubory, které větev změnila proti výchozí. */
+  files?: Array<{ path: string; status?: 'A' | 'M' | 'D' }>
+}
+
+/** Co je vybraná složka zač, když se ptá „soubory mám jinde“. */
+export interface MemoryFolder {
+  /** Kořen repa, ve kterém složka leží. Chybí = obyčejná složka. */
+  root?: string
+  remote?: string
+  markdownFiles?: number
 }
 
 export interface MemoryGitOptions {
@@ -104,6 +134,16 @@ export interface MemoryGitOptions {
    * a test by tvrdil, že ho viděl, aniž by ho viděl.
    */
   holdClone?: boolean
+  /** Větve na „GitHubu“ i doma. Výchozí: jen výchozí větev a ta, na které se stojí. */
+  branches?: MemoryBranch[]
+  /** Nechat přepnutí větve selhat s touhle zprávou. */
+  failSwitch?: string
+  /** Složky, které se dají vybrat jako „soubory mám jinde“: cesta -> co to je. */
+  folders?: Record<string, MemoryFolder>
+  /** Čím se napojená složka liší od main -- změny, které po napojení uvidí git. */
+  linkChanges?: MemoryChange[]
+  /** Nechat napojení selhat s touhle zprávou. */
+  failLink?: string
 }
 
 const STEPS = ['Set up job', 'Run actions/checkout@v4', 'Instalace závislostí', 'Testy', 'Complete job']
@@ -136,6 +176,19 @@ export class MemoryGit implements GitApi {
   finishClone: (() => void) | null = null
   /** Zpráva, se kterou má push selhat. Prázdné = projde. */
   failPush: string
+  /** Na které větve se přepínalo, v pořadí. K ověření v testech. */
+  readonly switched: string[] = []
+  /** Poslední vrácení souborů, k ověření v testech. */
+  restored: { source: string; files: string[] } | null = null
+  /** Poslední napojení složky, k ověření v testech. */
+  linked: LinkInput | null = null
+  /** Na co se ptalo porovnání, v pořadí. K ověření v testech. */
+  readonly compared: string[] = []
+  /** Režim posledního odeslání, k ověření v testech. */
+  publishedMode: 'new' | 'existing' | null = null
+  /** Napojené složky: od napojení jsou kořenem vlastního repa. */
+  private readonly linkedRoots = new Set<string>()
+  private branchList: MemoryBranch[]
 
   /**
    * Složky, na které se aplikace ptala, v pořadí.
@@ -163,6 +216,14 @@ export class MemoryGit implements GitApi {
     this.changes = [...(options.changes ?? [])]
     this.failPush = options.failPush ?? ''
     this.behind = options.behind ?? 0
+    const main = options.defaultBranch ?? 'main'
+    this.branchList = options.branches
+      ? options.branches.map((branch) => ({ ...branch }))
+      : [{ name: main, local: true }, ...(this.branch !== main ? [{ name: this.branch, local: true }] : [])]
+    // Na té, na které se stojí, se stojí doma -- ať to test napíše, nebo ne.
+    for (const branch of this.branchList) {
+      if (branch.name === this.branch || branch.name === main) branch.local = branch.local ?? true
+    }
   }
 
   /** Označit soubor jako změněný, jako by ho někdo přepsal. */
@@ -184,7 +245,11 @@ export class MemoryGit implements GitApi {
     this.probedFolders.push(folder)
     const gitInstalled = this.options.gitInstalled ?? true
     const ghInstalled = this.options.ghInstalled ?? true
-    const repoRoot = this.options.repoRoot === null ? '' : (this.options.repoRoot ?? folder)
+    const repoRoot = this.linkedRoots.has(folder)
+      ? folder
+      : this.options.repoRoot === null
+        ? ''
+        : (this.options.repoRoot ?? folder)
     const identity = this.options.identity ?? true
     return {
       gitInstalled,
@@ -231,10 +296,22 @@ export class MemoryGit implements GitApi {
   async publish(input: PublishInput, sink: GitSink): Promise<void> {
     this.cancelled = false
     const say = (text: string) => sink({ kind: 'out', text })
+    this.publishedMode = input.mode ?? 'new'
 
-    say(`$ git checkout -b ${input.branch}\n`)
-    say(`Switched to a new branch '${input.branch}'\n`)
-    this.branch = input.branch
+    if (input.mode === 'existing') {
+      if (input.branch !== this.branch) {
+        const known = this.branchList.find((branch) => branch.name === input.branch)
+        if (!known) throw new Error(`Větev ${input.branch} není ani tady, ani na GitHubu.`)
+        say(`$ git switch ${input.branch}\n`)
+        known.local = true
+        this.branch = input.branch
+      }
+    } else {
+      say(`$ git checkout -b ${input.branch}\n`)
+      say(`Switched to a new branch '${input.branch}'\n`)
+      this.branch = input.branch
+      this.branchList.push({ name: input.branch, local: true, remote: false, subject: input.message })
+    }
     if (this.cancelled) return
 
     say(`$ git add -- ${input.files.join(' ')}\n`)
@@ -261,6 +338,8 @@ export class MemoryGit implements GitApi {
     }
     sink({ kind: 'out', text: `To ${this.options.remoteUrl ?? 'https://github.com/tester/docs.git'}\n` })
     sink({ kind: 'out', text: ` * [new branch]      ${branch} -> ${branch}\n` })
+    const pushed = this.branchList.find((known) => known.name === branch)
+    if (pushed) pushed.remote = true
     // Běh se na GitHubu objeví až za chvíli; počítá se od pushe.
     this.runQueries = 0
     this.runSha = this.headSha
@@ -382,6 +461,8 @@ export class MemoryGit implements GitApi {
     sink({ kind: 'out', text: `Fast-forward ${this.behind} commitů\n` })
     this.pulled = true
     this.behind = 0
+    const current = this.branchNamed(this.branch)
+    if (current) current.behindRemote = 0
     sink({ kind: 'finished' })
   }
 
@@ -519,18 +600,23 @@ export class MemoryGit implements GitApi {
     )
   }
 
-  async clones(folder: string): Promise<string> {
+  async clones(folder: string, extra: string[] = []): Promise<string> {
     const prefix = folder.replace(/[\\/]+$/, '')
+    const known = { ...(this.options.clones ?? {}), ...this.madeClones }
     return JSON.stringify(
-      Object.entries(this.options.clones ?? {})
-        .filter(([path]) => path.startsWith(prefix))
+      Object.entries(known)
+        .filter(([path]) => (prefix !== '' && path.startsWith(`${prefix}/`)) || extra.includes(path))
         .map(([path, remote]) => ({ path, remote })),
     )
   }
 
+  /** Repozitáře, které vznikly za běhu: stažené nebo napojené. Cesta -> remote. */
+  private readonly madeClones: Record<string, string> = {}
+
   async clone(input: CloneInput, sink: GitSink): Promise<string> {
     const target = `${input.parent.replace(/[\\/]+$/, '')}/${input.folder}`
     this.cloned = { ...input, target }
+    if (!this.options.failClone) this.madeClones[target] = `https://github.com/${input.repo}.git`
     const say = (text: string) => sink({ kind: 'out', text })
 
     say(`$ gh repo clone ${input.repo}\n`)
@@ -554,6 +640,163 @@ export class MemoryGit implements GitApi {
     say('Receiving objects: 100% (683/683), 832.29 KiB | 2.48 MiB/s, done.\r')
     sink({ kind: 'finished' })
     return target
+  }
+
+  // -- větve ------------------------------------------------------------------
+
+  private get defaultBranch(): string {
+    return this.options.defaultBranch ?? 'main'
+  }
+
+  private branchNamed(name: string): MemoryBranch | undefined {
+    return this.branchList.find((branch) => branch.name === name.replace(/^origin\//, ''))
+  }
+
+  /** Přesně tvar `git_branches`: `for-each-ref` s nulami mezi poli. */
+  async branches(): Promise<string> {
+    const line = (refname: string, branch: MemoryBranch, upstream: string, track: string) =>
+      [
+        refname,
+        sha(branch.name.length * 7919).slice(0, 7),
+        branch.date ?? '2026-09-20T10:00:00+02:00',
+        branch.author ?? 'Tester',
+        upstream,
+        track,
+        branch.subject ?? `Poslední commit na ${branch.name}`,
+      ].join('\0')
+
+    const refs: string[] = []
+    for (const branch of this.branchList) {
+      const remote = branch.remote ?? true
+      if (branch.local) {
+        // U větve, na které se stojí, je „pozadu“ totéž, co hlásí stav proti remote.
+        const behind = branch.behindRemote ?? (branch.name === this.branch ? this.behind : 0)
+        const track = remote && behind ? `behind ${behind}` : ''
+        refs.push(line(`refs/heads/${branch.name}`, branch, remote ? `origin/${branch.name}` : '', track))
+      }
+      if (remote) refs.push(line(`refs/remotes/origin/${branch.name}`, branch, '', ''))
+    }
+    refs.push(line('refs/remotes/origin/HEAD', { name: this.defaultBranch }, '', ''))
+
+    return JSON.stringify({
+      current: this.branch,
+      default: this.defaultBranch,
+      fetchError: this.options.failSync ?? '',
+      refs: `${refs.join('\n')}\n`,
+    })
+  }
+
+  async branchLog(_folder: string, _base: string, target: string): Promise<string> {
+    const branch = this.branchNamed(target)
+    if (!branch) throw new Error(`fatal: ambiguous argument '${target}': unknown revision`)
+    const files = branch.files ?? []
+    const ahead = branch.ahead ?? (branch.name === this.defaultBranch ? 0 : 1)
+    return JSON.stringify({
+      ahead,
+      behind: branch.behind ?? 0,
+      log: Array.from({ length: ahead }, (_, index) =>
+        [sha(0xc0ffee + index).slice(0, 7), branch.author ?? 'Tester', branch.date ?? '2026-09-20T10:00:00+02:00', index === 0 ? (branch.subject ?? `Poslední commit na ${branch.name}`) : `Starší commit ${index}`].join('\0'),
+      ).join('\n'),
+      nameStatus: files.map((file) => `${file.status ?? 'M'}\0${file.path}\0`).join(''),
+      numstat: files.map((file) => `${file.status === 'D' ? 0 : 3}\t${file.status === 'A' ? 0 : 1}\t${file.path}\0`).join(''),
+    })
+  }
+
+  /** Rozdíly, na které se okno ptalo. K ověření v testech. */
+  readonly diffs: Array<{ from: string; to: string; path: string }> = []
+
+  async diff(_folder: string, from: string, to: string, path: string): Promise<string> {
+    this.diffs.push({ from, to, path })
+    return [
+      `diff --git a/${path} b/${path}`,
+      'index 1111111..2222222 100644',
+      `--- a/${path}`,
+      `+++ b/${path}`,
+      '@@ -1,2 +1,2 @@',
+      ' # Nadpis',
+      '-stará věta',
+      '+nová věta',
+      '',
+    ].join('\n')
+  }
+
+  async switchBranch(_folder: string, name: string, sink: GitSink): Promise<void> {
+    const branch = this.branchNamed(name)
+    if (!branch) throw new Error(`Větev ${name} není ani tady, ani na GitHubu.`)
+    const say = (text: string) => sink({ kind: 'out', text })
+    say(branch.local ? `$ git switch ${name}\n` : `$ git switch -c ${name} --track origin/${name}\n`)
+    if (this.options.failSwitch) {
+      sink({ kind: 'failed', message: this.options.failSwitch })
+      return
+    }
+    this.switched.push(name)
+    branch.local = true
+    this.branch = name
+    if (branch.behindRemote) {
+      say(`$ git merge --ff-only origin/${name}\n`)
+      branch.behindRemote = 0
+    }
+    // Na jiné větvi je jiný stav proti GitHubu -- ten výchozí už neplatí.
+    this.behind = 0
+    sink({ kind: 'finished' })
+  }
+
+  // -- porovnání s výchozí větví ----------------------------------------------
+
+  /** Tvar `git_compare`, spočítaný z rozdělaných změn -- ty jsou po napojení přesně rozdílem proti main. */
+  async compare(_folder: string, base: string): Promise<string> {
+    this.compared.push(base)
+    if (this.options.failSync && !this.linked) throw new Error(this.options.failSync)
+    const tracked = this.changes.filter((change) => change.xy !== '??')
+    const untracked = this.changes.filter((change) => change.xy === '??')
+    const status = (xy: string) => (xy.includes('D') ? 'D' : xy.includes('A') ? 'A' : 'M')
+    return JSON.stringify({
+      base,
+      branch: this.branch,
+      ahead: this.options.ahead ?? 0,
+      behind: this.behind,
+      nameStatus: tracked.map((change) => `${status(change.xy)}\0${change.path}\0`).join(''),
+      numstat: tracked.map((change) => `${change.xy.includes('D') ? 0 : 2}\t1\t${change.path}\0`).join(''),
+      untracked: untracked.map((change) => `${change.path}\0`).join(''),
+      fetchError: '',
+    })
+  }
+
+  async restore(_folder: string, source: string, files: string[]): Promise<void> {
+    this.restored = { source, files: [...files] }
+    this.changes = this.changes.filter((change) => !files.includes(change.path))
+  }
+
+  // -- napojení složky --------------------------------------------------------
+
+  async inspectFolder(folder: string): Promise<string> {
+    const known = this.options.folders?.[folder] ?? {}
+    return JSON.stringify({
+      root: known.root ?? '',
+      remote: known.remote ?? '',
+      isRoot: !!known.root && known.root === folder,
+      markdownFiles: known.markdownFiles ?? 3,
+    })
+  }
+
+  async linkFolder(input: LinkInput, sink: GitSink): Promise<void> {
+    const say = (text: string) => sink({ kind: 'out', text })
+    say('$ git init\n')
+    say(`$ git remote add origin ${input.remoteUrl}\n`)
+    say('$ git fetch origin\n')
+    if (this.options.failLink) {
+      sink({ kind: 'failed', message: this.options.failLink })
+      return
+    }
+    say(`$ git update-ref refs/heads/${input.defaultBranch} origin/${input.defaultBranch}\n`)
+    say('$ git reset\n')
+    this.linked = { ...input }
+    this.linkedRoots.add(input.folder)
+    this.madeClones[input.folder] = input.remoteUrl
+    this.branch = input.defaultBranch
+    this.behind = 0
+    this.changes = [...(this.options.linkChanges ?? [])]
+    sink({ kind: 'finished' })
   }
 }
 

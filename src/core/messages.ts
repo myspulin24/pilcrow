@@ -548,12 +548,36 @@ export const t = {
       done: 'Hotovo',
     } as Record<string, string>,
 
-    folderLabel: 'Stahovat do:',
-    folderUnset: 'Složka pro repozitáře není vybraná.',
-    folderUnsetBody: 'Vyber složku, kam se mají stažené repozitáře ukládat. Zapamatuje se.',
+    folderLabel: 'Výchozí složka:',
+    folderHint: 'Při každém stažení se zeptám, kam repozitář uložit, a začnu tady. Hledám tu i to, co už na disku je.',
+    folderUnset: 'Výchozí složka pro repozitáře není vybraná.',
+    folderUnsetBody:
+      'Při stažení se zeptám, kam repozitář uložit. Výchozí složka není nutná -- jen se v ní pak hledá, co už na disku je.',
     pickFolder: 'Vybrat složku...',
     changeFolder: 'Změnit',
-    pickFolderTitle: 'Kam ukládat stažené repozitáře',
+    pickFolderTitle: 'Výchozí složka pro stažené repozitáře',
+    cloneWhere: (name: string) => `Kam stáhnout ${name}`,
+
+    inspecting: 'Zjišťuji, co je ve složce…',
+    linkOne: 'Soubory mám jinde…',
+    linkOneHint:
+      'Vybrat složku, kde k tomuhle repozitáři už soubory máš. Pilcrow ji napojí na GitHub a ukáže, čím se liší od výchozí větve.',
+    linkWhere: (name: string) => `Kde máš soubory k ${name}?`,
+    linkTitle: 'Napojit složku na repozitář',
+    linkBody: (folder: string, repo: string, base: string) =>
+      `Ze složky ${folder} se stane pracovní kopie ${repo}. Soubory v ní zůstanou, jak jsou: Pilcrow do ní přidá skrytou složku .git, napojí ji na GitHub a postaví na větvi ${base}. Potom ukáže, čím se soubory od ${base} liší a co s tím jde dělat.`,
+    linkMarkdown: (n: number) =>
+      `Ve složce ${plural(n, 'je', 'jsou', 'je')} ${withCount(n, 'soubor .md', 'soubory .md', 'souborů .md')}.`,
+    linkNothingSent: 'Nic se nepřepíše a nic se nikam neodešle.',
+    linkConfirm: 'Napojit',
+    linkBack: 'Zpět',
+    linking: (repo: string) => `Napojuji složku na ${repo}…`,
+    linkFailed: 'Složku se nepodařilo napojit.',
+    linkOther: (remote: string) =>
+      `Tahle složka už je repozitář, a to jiný: ${remote || 'bez remote'}. Napojit ji nejde -- nebylo by jasné, kam se co odesílá.`,
+    linkInside: (root: string) =>
+      `Složka leží uvnitř jiného repozitáře (${root}). Vyber složku, která v žádném není.`,
+    linkNeedsDefault: 'U repozitáře se nepodařilo zjistit výchozí větev.',
 
     failed: 'GitHub se nepodařilo oslovit.',
     cloneFailed: 'Repozitář se nepodařilo stáhnout.',
@@ -608,10 +632,28 @@ export const t = {
 
     publish: 'Odeslat do gitu…',
     publishTitle: 'Odeslat do gitu',
-    publishBody: (count: number, base: string) =>
-      `${withCount(count, 'vybraný soubor půjde', 'vybrané soubory půjdou', 'vybraných souborů půjde')} v novém commitu na novou větev a na remote. Do větve ${base} se nic nemění -- změny sloučíš přes PR.`,
+    publishBody: (count: number) =>
+      `${withCount(count, 'vybraný soubor půjde', 'vybrané soubory půjdou', 'vybraných souborů půjde')} v jednom commitu na GitHub.`,
     messageLabel: 'Zpráva commitu',
     branchLabel: 'Větev',
+    targetLabel: 'Kam odeslat',
+    targetNew: 'Na novou větev',
+    targetNewHint: (base: string) => `Do větve ${base} se nic nemění -- změny sloučíš přes PR.`,
+    targetExisting: 'Na větev, která už je',
+    targetExistingHint: (current: string) =>
+      `Commit se přidá na konec vybrané větve a dorovná se s GitHubem. Když to není ${current}, Pilcrow se na ni nejdřív přepne a rozdělané změny vezme s sebou.`,
+    targetExistingLabel: 'Existující větev',
+    targetExistingLoading: 'Načítám větve…',
+    targetExistingNone: 'Kromě výchozí tu žádná větev není.',
+    targetDefault: (base: string) => `Přímo do ${base}`,
+    targetDefaultWarning: (base: string) =>
+      `Commit půjde rovnou do ${base} -- bez pull requestu a bez toho, aby ho někdo viděl předem. Když je ${base} na GitHubu chráněná, GitHub ho odmítne.`,
+    targetDefaultConfirm: (base: string) => `Rozumím, odeslat přímo do ${base}`,
+    targetDefaultUnconfirmed: (base: string) => `Zápis přímo do ${base} je potřeba potvrdit.`,
+    targetMissing: 'Vyber větev, na kterou se má odeslat.',
+    publishDeletes: (n: number) =>
+      `${withCount(n, 'soubor se', 'soubory se', 'souborů se')} odesláním na GitHubu smaže -- u tebe ${plural(n, 'chybí', 'chybí', 'chybí')}. Jestli to nechceš, zruš a odškrtni ${plural(n, 'ho', 'je', 'je')} v seznamu změn.`,
+    sendTo: (branch: string) => `Odeslat do ${branch}`,
     messageEmpty: 'Zpráva commitu nemůže být prázdná.',
     branchInvalid: 'Tohle se větev jmenovat nemůže: bez mezer a „..“, nesmí začínat pomlčkou ani končit lomítkem.',
     send: 'Odeslat',
@@ -620,6 +662,7 @@ export const t = {
     cancel: 'Zrušit',
     output: 'Výstup',
     published: (branch: string) => `Větev ${branch} je odeslaná.`,
+    publishedDirect: (branch: string) => `Commit je přímo ve větvi ${branch}.`,
     pushFailed: (branch: string) => `Commit na větvi ${branch} je, ale push selhal.`,
     openPr: 'Otevřít PR',
     openPrHint: 'Otevře stránku GitHubu s předvyplněným PR. Založíš ho tam, ne tady.',
@@ -675,7 +718,8 @@ export const t = {
         'novější commity',
         'novějších commitů',
       )}.`,
-    pullNow: 'Stáhnout',
+    pullNow: 'Stáhnout…',
+    pullNowHint: 'Vybrat, ze které větve stáhnout',
     syncDirty: 'Nejdřív ulož nebo odešli rozdělané změny -- stažení by je mohlo rozbít.',
     syncAhead: (n: number) => `Máš ${withCount(n, 'neodeslaný commit', 'neodeslané commity', 'neodeslaných commitů')}.`,
     syncDiverged: 'Větve se rozešly. Vyřeš to v terminálu -- tady by z toho byl konflikt.',
@@ -711,6 +755,117 @@ export const t = {
 
     failed: 'Git vrátil chybu.',
     statusFailed: 'Změny se nepodařilo načíst.',
+    switchFailed: 'Na větev se nepodařilo přepnout.',
+    restoreFailed: 'Soubory se nepodařilo vrátit.',
+
+    branchesButton: 'Větve…',
+    branchesHint: 'Procházet větve na GitHubu, podívat se, co přinesly, a přepnout na jinou',
+    compareLink: (base: string) => `Porovnat s ${base}…`,
+    compareLinkHint: 'Čím se složka liší od výchozí větve na GitHubu, a co s tím jde dělat',
+  },
+
+  branches: {
+    titleBrowse: 'Větve',
+    titlePull: 'Stáhnout z GitHubu',
+    introBrowse: (base: string) =>
+      `Vyber větev a uvidíš, co přinesla proti ${base}. Stáhne se a otevře, až když o to tlačítkem dole řekneš.`,
+    introPull: (current: string) =>
+      `Vyber, ze které větve stáhnout. Stáhne se jen ta, kterou vybereš; když je to jiná než ${current}, Pilcrow se na ni přepne.`,
+    loading: 'Ptám se GitHubu na větve…',
+    fetchFailed: (message: string) => `GitHub se nepodařilo oslovit, větve jsou z minula. ${message}`.trim(),
+    failed: 'Větve se nepodařilo načíst.',
+    search: 'Hledat větev',
+    listLabel: 'Větve',
+    empty: 'V repozitáři není žádná větev.',
+    noMatches: 'Žádná větev neodpovídá hledání.',
+    current: 'tady jsi',
+    isDefault: 'výchozí',
+    remoteOnly: 'jen na GitHubu',
+    localOnly: 'jen u tebe',
+    gone: 'na GitHubu smazaná',
+    toPull: (n: number) => `${n} ke stažení`,
+    toPullHint: (n: number) =>
+      `Na GitHubu ${plural(n, 'je', 'jsou', 'je')} ${withCount(n, 'commit', 'commity', 'commitů')}, které tu nejsou.`,
+    unpushed: (n: number) => `${n} neodeslané`,
+    unpushedHint: (n: number) =>
+      `Tady ${plural(n, 'je', 'jsou', 'je')} ${withCount(n, 'commit', 'commity', 'commitů')}, které na GitHubu nejsou.`,
+    by: (author: string, when: string) => [author, when].filter(Boolean).join(', '),
+
+    detailLoading: 'Načítám, co větev přinesla…',
+    detailFailed: 'Co větev přinesla, se nepodařilo zjistit.',
+    noDefault: 'Výchozí větev repozitáře se nepodařilo zjistit, takže není s čím porovnávat.',
+    defaultSelected: (base: string) => `Tohle je výchozí větev. Ostatní se porovnávají s ní -- s ${base}.`,
+    ahead: (n: number, base: string) =>
+      `${withCount(n, 'commit', 'commity', 'commitů')} navíc proti ${base}`,
+    behind: (n: number, base: string) =>
+      `z ${base} jí ${plural(n, 'chybí', 'chybí', 'chybí')} ${withCount(n, 'commit', 'commity', 'commitů')}`,
+    upToDate: (base: string) => `Nic navíc proti ${base}.`,
+    commits: 'Commity',
+    files: 'Změněné soubory .md',
+    noFiles: 'Žádný soubor .md se nezměnil.',
+    others: (n: number) =>
+      `a ${withCount(n, 'další soubor', 'další soubory', 'dalších souborů')} mimo .md`,
+    showDiff: (path: string) => `Ukázat rozdíl v ${path}`,
+    diffLoading: 'Načítám rozdíl…',
+    diffFailed: 'Rozdíl se nepodařilo načíst.',
+    diffEmpty: 'Obsah se neliší.',
+
+    dirty: (n: number) =>
+      `Máš ${withCount(n, 'rozdělanou změnu', 'rozdělané změny', 'rozdělaných změn')}. Git si je při přepnutí vezme s sebou; kdyby se s cílovou větví praly, přepnutí odmítne a nic se nezmění.`,
+    stayHere: 'Tady už jsi',
+    pullHere: (branch: string) => `Stáhnout do ${branch}`,
+    switchTo: (branch: string) => `Přepnout na ${branch}`,
+    download: (branch: string) => `Stáhnout a otevřít ${branch}`,
+    switchAndPull: (branch: string) => `Přepnout na ${branch} a stáhnout`,
+    working: 'Pracuji…',
+    openOnGitHub: 'Otevřít na GitHubu',
+    nothingToPull: (branch: string) => `Větev ${branch} je aktuální, není co stáhnout.`,
+  },
+
+  compare: {
+    title: (base: string) => `Porovnání s ${base}`,
+    loading: 'Porovnávám s GitHubem…',
+    failed: 'Porovnat se nepodařilo.',
+    fetchFailed: (message: string) => `GitHub se nepodařilo oslovit, porovnává se s tím, co je známé z minula. ${message}`.trim(),
+    intro: (branch: string, base: string) =>
+      branch === base
+        ? `Soubory ve složce proti ${base} na GitHubu.`
+        : `Soubory ve složce (větev ${branch}) proti ${base} na GitHubu.`,
+    identical: (base: string) => `Soubory odpovídají ${base}. Není co dělat.`,
+    listLabel: 'Rozdílné soubory',
+    kind: {
+      modified: 'liší se',
+      added: 'nový',
+      deleted: 'chybí u tebe',
+      local: 'jen u tebe',
+    } as Record<string, string>,
+    others: (n: number) =>
+      `a ${withCount(n, 'další soubor', 'další soubory', 'dalších souborů')} mimo .md`,
+    localOnly: (base: string) => `Soubor je jen u tebe, v ${base} není -- není s čím porovnat.`,
+    steps: 'Co s tím jde dělat',
+    publishTitle: 'Odeslat rozdíly na GitHub',
+    publishBody: (n: number, base: string) =>
+      `${withCount(n, 'rozdělanou změnu', 'rozdělané změny', 'rozdělaných změn')} pošleš na novou větev a založíš pull request -- nebo, když chceš, rovnou do ${base}. Kam, si vybereš v dalším kroku.`,
+    publishButton: 'Odeslat…',
+    publishSkipsMissing: (n: number) =>
+      `${withCount(n, 'soubor, který u tebe chybí, se nepředvybere', 'soubory, které u tebe chybí, se nepředvyberou', 'souborů, které u tebe chybí, se nepředvybere')} -- odesláním by se na GitHubu smazaly. Zaškrtnout je jde v seznamu změn.`,
+    restoreTitle: (base: string) => `Vrátit soubory na verzi z ${base}`,
+    restoreBody:
+      'Vybrané soubory se přepíšou tím, co je na GitHubu. Soubory, které jsou jen u tebe, zůstanou -- ty tahle volba nikdy nemaže.',
+    restoreButton: (n: number) => `Vrátit ${withCount(n, 'soubor', 'soubory', 'souborů')}…`,
+    restoreConfirm: (n: number, base: string) =>
+      `Opravdu přepsat ${withCount(n, 'soubor', 'soubory', 'souborů')} verzí z ${base}? Tvoje úpravy v nich se ztratí a nedá se to vzít zpět.`,
+    restoreYes: 'Přepsat',
+    restoreNo: 'Nechat být',
+    restoring: 'Vracím soubory…',
+    pullTitle: (base: string) => `Stáhnout novinky z ${base}`,
+    pullBody: (n: number, base: string) =>
+      `V ${base} na GitHubu ${plural(n, 'je', 'jsou', 'je')} ${withCount(n, 'commit', 'commity', 'commitů')}, které tu nejsou.`,
+    pullButton: 'Stáhnout…',
+    aheadTitle: (base: string) => `Commity, které v ${base} nejsou`,
+    aheadBody: (n: number, branch: string, base: string) =>
+      `Na větvi ${branch} ${plural(n, 'je', 'jsou', 'je')} ${withCount(n, 'commit', 'commity', 'commitů')} navíc. Do ${base} se dostanou přes pull request.`,
+    keep: 'Nechat, jak to je',
   },
 
   assistant: {
@@ -806,11 +961,17 @@ export const t = {
     fontSize: 'Velikost písma v editoru',
     fontSizeHint: 'Týká se jen psaní, ne náhledu.',
 
+    launch: 'Po spuštění',
+    sidebarStart: 'Levý panel',
+    sidebarStartHint:
+      'Poznámky a skupiny. Během práce ho schováš a zase ukážeš klávesou Ctrl + \\. Změna platí od příštího spuštění.',
+    sidebarOpen: 'Otevřený',
+    sidebarClosed: 'Zavřený',
+    sidebarLast: 'Jak jsem ho nechal',
+
     startup: 'Po otevření poznámky',
     defaultView: 'Výchozí zobrazení',
     defaultViewHint: 'Čím se začíná. Přepnout jde kdykoli nahoře vpravo nebo přes Ctrl + E.',
-    showSidebar: 'Zobrazit levý panel',
-    showSidebarHint: 'Skupiny a štítky. Skrýt jde i klávesou Ctrl + \.',
     showToolbar: 'Zobrazit lištu formátování',
     showToolbarHint: 'Tlačítka nad editorem pro tučné písmo, nadpisy, tabulky a vzorce.',
 

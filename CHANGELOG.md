@@ -10,6 +10,55 @@ uživateli vyskočí okno s prázdnou kolonkou.
 Píše se pro toho, kdo aplikaci používá, ne pro toho, kdo ji píše: co se změní
 na obrazovce, ne které soubory se upravily. Nejnovější verze je nahoře.
 
+## 0.12.0 — 2026-09-29
+
+### Přidáno
+
+- **Okno větví.** Klikni v sekci Git na jméno větve (třeba `main`) a otevře
+  se přehled všech větví — těch u tebe i těch na GitHubu. U každé je vidět,
+  kdo a kdy na ní naposledy pracoval, a po vybrání i to, co přinesla proti
+  `main`: commity, změněné soubory a u každého souboru rozdíl řádek po řádku.
+  Prohlížení nic nestahuje; větev se stáhne a otevře až tlačítkem dole.
+- **Odeslat jde i na větev, která už je, nebo rovnou do `main`.** Dialog
+  odeslání se ptá, kam: na novou větev (jako dosud), na existující větev
+  z GitHubu, nebo přímo do výchozí větve. Poslední možnost je označená
+  varováním a odešle se až po výslovném potvrzení — obchází pull request.
+  U každého souboru je v dialogu vidět, jestli je upravený, nový, nebo
+  smazaný, a když by odeslání něco na GitHubu smazalo, dialog to řekne.
+- **„Soubory mám jinde…“** u repozitáře v okně Otevřít repozitář. Vybereš
+  složku, kde k repozitáři soubory opravdu máš, a Pilcrow z ní udělá jeho
+  pracovní kopii: soubory v ní zůstanou, jak jsou, jen se napojí na GitHub.
+  Hned potom ukáže, čím se liší od `main`, a nabídne, co s tím: odeslat
+  rozdíly, vrátit vybrané soubory na verzi z `main`, nebo stáhnout novinky.
+  Kopie cizího repozitáře se nenapojí nikdy.
+- **Porovnání s `main`** kdykoli ze sekce Git — seznam rozdílných souborů
+  s rozdílem na rozkliknutí a nabídka dalších kroků.
+- **Levý panel po spuštění: otevřený, zavřený, nebo jak jsem ho nechal.**
+  Dosavadní přepínač v nastavení se změnil na výběr ze tří možností; třetí
+  si pamatuje, jestli jsi panel naposledy schoval (`Ctrl` `\`).
+
+### Změněno
+
+- **Stažení repozitáře se pokaždé zeptá, kam ho uložit.** Dialog začne ve
+  složce, kam se stahovalo minule, ale vybrat jde jakákoli jiná. Repozitář
+  stažený jinam se příště pozná jako „na disku“ i tak.
+- **Nic se nestahuje bez ptaní.** Otevření staženého repozitáře už samo
+  nestahuje novinky z GitHubu: když nějaké jsou, otevře se okno, ve kterém
+  si vybereš, z které větve stáhnout — nebo ho zavřeš a nestane se nic.
+  Totéž dělá tlačítko **Stáhnout…** v sekci Git.
+- Po přepnutí větve nebo stažení se strom souborů i otevřený soubor načtou
+  znovu z disku. Rozepsaný text se nepřepíše nikdy.
+
+### Opraveno
+
+- **Soubor s hranatými závorkami ve jménu** (třeba `poznamky[1].md`) už při
+  odeslání nezahrne i podobně pojmenované soubory (`poznamky1.md`). Git
+  jméno četl jako vzor.
+- Do commitu jde jen to, co je zaškrtnuté, i když v gitu bylo připravené
+  ještě něco dalšího.
+- Popisek u volby levého panelu mluvil o „skupinách a štítcích“ a klávesová
+  zkratka v něm přišla o zpětné lomítko.
+
 ## 0.11.1 — 2026-09-23
 
 ### Změněno

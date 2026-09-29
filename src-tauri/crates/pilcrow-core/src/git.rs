@@ -158,6 +158,20 @@ pub struct PublishRequest {
     pub files: Vec<String>,
     pub message: String,
     pub branch: String,
+    /// Kam commit míří: [`PublishMode::New`] založí větev, [`PublishMode::Existing`]
+    /// přidá commit na větev, která už je -- i na výchozí, když o to uživatel
+    /// výslovně řekne. Chybějící pole je nová větev, jak to bylo odjakživa.
+    #[serde(default)]
+    pub mode: PublishMode,
+}
+
+/// Na jakou větev se odesílá.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PublishMode {
+    #[default]
+    New,
+    Existing,
 }
 
 /// Kde hledat `git`, v pořadí, ve kterém se to má zkoušet.
@@ -263,6 +277,23 @@ pub fn is_safe_repo_path(path: &str) -> bool {
         && !path.contains('\0')
         && !path.split('/').any(|part| part.is_empty() || part == "..")
         && !(path.len() > 1 && path.as_bytes()[1] == b':')
+}
+
+/// Nejvýš `limit` bajtů textu, uříznuté na hranici znaku.
+///
+/// Rozdíl jednoho souboru se posílá do okna celý, a vygenerovaný soubor
+/// o několika megabajtech by ho zasekl. Řez uprostřed vícebajtového znaku
+/// by `String` ani nedovolil -- odtud hledání hranice. Druhá hodnota říká,
+/// jestli se něco uřízlo, aby to okno mohlo přiznat.
+pub fn truncate_text(text: &str, limit: usize) -> (String, bool) {
+    if text.len() <= limit {
+        return (text.to_string(), false);
+    }
+    let mut end = limit;
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    (text[..end].to_string(), true)
 }
 
 /// Otevírat se smí jen https. Adresy staví náš kód nebo přijdou z API GitHubu,
@@ -430,5 +461,24 @@ mod tests {
         assert_eq!(request.folder, "C:/r/docs");
         assert_eq!(request.files, vec!["docs/a.md"]);
         assert_eq!(request.branch, "docs/x");
+        // Bez `mode` je to nová větev -- tak odesílala každá dřívější verze.
+        assert_eq!(request.mode, PublishMode::New);
+
+        let existing: PublishRequest = serde_json::from_str(
+            r#"{"folder":"C:/r","files":["a.md"],"message":"m","branch":"main","mode":"existing"}"#,
+        )
+        .unwrap();
+        assert_eq!(existing.mode, PublishMode::Existing);
+    }
+
+    #[test]
+    fn diff_text_is_cut_on_a_character_boundary() {
+        let text = "ž".repeat(10);
+        let (cut, truncated) = truncate_text(&text, 5);
+        assert!(truncated);
+        assert_eq!(cut, "žž");
+        let (whole, truncated) = truncate_text("krátké", 100);
+        assert!(!truncated);
+        assert_eq!(whole, "krátké");
     }
 }

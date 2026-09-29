@@ -8,7 +8,10 @@ import {
   matchClones,
   parseClones,
   parseRepos,
+  repoKey,
+  sameRemote,
   sortRepos,
+  withRepoFolder,
   type Repo,
 } from './repos'
 
@@ -151,6 +154,46 @@ describe('matchClones', () => {
     ]
     expect(matchClones(repos, clones)[0]?.localPath).toBe('/a/original')
     expect(matchClones(repos, [...clones].reverse())[0]?.localPath).toBe('/a/original')
+  })
+
+  it('složka, kterou si uživatel vybral, vyhrává nad tou, co se najde', () => {
+    // „Soubory mám jinde“: od té chvíle je zdrojem ta složka, ne původní kopie.
+    const repos = [repo({ fullName: 'o/R' })]
+    const clones = [
+      { path: '/a/original', remote: 'https://github.com/o/r.git' },
+      { path: 'C:\\Docs\\moje', remote: 'git@github.com:o/r.git' },
+    ]
+    expect(matchClones(repos, clones, { [repoKey('o/R')]: 'c:/docs/moje/' })[0]?.localPath).toBe('C:\\Docs\\moje')
+  })
+
+  it('vybraná složka, která přestala platit, repozitář neschová', () => {
+    const repos = [repo()]
+    const clones = [
+      { path: '/a/original', remote: 'https://github.com/o/r.git' },
+      // Na zapamatované cestě je teď něco jiného.
+      { path: '/b/jinde', remote: 'https://github.com/jiny/repo.git' },
+    ]
+    expect(matchClones(repos, clones, { 'o/r': '/b/jinde' })[0]?.localPath).toBe('/a/original')
+    expect(matchClones(repos, clones, { 'o/r': '/c/zmizela' })[0]?.localPath).toBe('/a/original')
+  })
+})
+
+describe('umístění repozitářů', () => {
+  it('klíč je jméno malými písmeny', () => {
+    expect(repoKey('myspulin24/Notes_MJ')).toBe('myspulin24/notes_mj')
+  })
+
+  it('zapamatování vrací novou mapu a starou nemění', () => {
+    const before = { 'a/b': '/x' }
+    const after = withRepoFolder(before, 'O/R', '/y')
+    expect(after).toEqual({ 'a/b': '/x', 'o/r': '/y' })
+    expect(before).toEqual({ 'a/b': '/x' })
+  })
+
+  it('sameRemote porovná tvary adres a nic nepovažuje za shodu s prázdnem', () => {
+    expect(sameRemote('https://github.com/O/R.git', 'git@github.com:o/r')).toBe(true)
+    expect(sameRemote('https://github.com/o/r.git', 'https://github.com/o/jine.git')).toBe(false)
+    expect(sameRemote('', '')).toBe(false)
   })
 })
 

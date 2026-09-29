@@ -14,7 +14,7 @@
  * z GitHubu. Nic víc. Běhy se nikdy nespouštějí a workflow se nemění.
  */
 
-import type { GhProbe, GitProbe, MergeMethod } from '@/core'
+import type { GhProbe, GitProbe, MergeMethod, PublishMode } from '@/core'
 
 /** Kus výstupu z běžícího procesu, tak jak přišel. */
 export type GitChunk =
@@ -31,6 +31,11 @@ export interface PublishInput {
   files: string[]
   message: string
   branch: string
+  /**
+   * `new` založí větev, `existing` přidá commit na větev, která už je --
+   * přepne se na ni, když se na ní nestojí. Chybí = `new`.
+   */
+  mode?: PublishMode
 }
 
 export interface GitApi {
@@ -123,8 +128,13 @@ export interface GitApi {
   /** Surový JSON repozitářů z `gh api user/repos`. Čte ho `parseRepos`. */
   repos(): Promise<string>
 
-  /** Co ve složce s repozitáři už leží: cesty a jejich `origin`. Čte `parseClones`. */
-  clones(folder: string): Promise<string>
+  /**
+   * Co ve složce s repozitáři už leží: cesty a jejich `origin`. Čte `parseClones`.
+   *
+   * `extra` jsou jednotlivé repozitáře jinde -- stažené do jiné složky nebo
+   * napojené. Ty se neprocházejí, jen se ověří.
+   */
+  clones(folder: string, extra?: string[]): Promise<string>
 
   /**
    * Stáhnout repozitář. Vrací cílovou cestu hned, průběh chodí do `sink`.
@@ -132,6 +142,57 @@ export interface GitApi {
    * Existující složku nikdy nepřepíše -- to je chyba, ne přepis.
    */
   clone(input: CloneInput, sink: GitSink): Promise<string>
+
+  // --- větve ---------------------------------------------------------------
+
+  /** Větve tady i na GitHubu, po `git fetch`. Čte `parseBranches`. */
+  branches(folder: string): Promise<string>
+
+  /** Co větev `target` přinesla proti `base`: commity a soubory. Čte `parseBranchReport`. */
+  branchLog(folder: string, base: string, target: string): Promise<string>
+
+  /**
+   * Rozdíl jednoho souboru. Bez `to` pracovní strom proti `from`, jinak
+   * `from...to`. Surový `git diff`; čte ho `patchLines`.
+   */
+  diff(folder: string, from: string, to: string, path: string): Promise<string>
+
+  /**
+   * Přepnout na větev a dorovnat ji s GitHubem. Větev, která je jen na
+   * GitHubu, se stáhne jako sledující. Průběh chodí do `sink`.
+   */
+  switchBranch(folder: string, branch: string, sink: GitSink): Promise<void>
+
+  // --- porovnání s výchozí větví ------------------------------------------
+
+  /** Čím se složka liší od `base` (typicky `origin/main`), po fetchi. Čte `parseCompare`. */
+  compare(folder: string, base: string): Promise<string>
+
+  /**
+   * Vrátit soubory na podobu ze `source`. Přepisuje rozdělanou práci --
+   * volá se jen po potvrzení.
+   */
+  restore(folder: string, source: string, files: string[]): Promise<void>
+
+  // --- napojení složky -----------------------------------------------------
+
+  /** Je vybraná složka v nějakém repozitáři, a v jakém? Čte `parseFolderInspection`. */
+  inspectFolder(folder: string): Promise<string>
+
+  /**
+   * Udělat z obyčejné složky pracovní kopii repozitáře. Soubory zůstanou,
+   * jak jsou; git pak ukáže, čím se liší od výchozí větve.
+   */
+  linkFolder(input: LinkInput, sink: GitSink): Promise<void>
+}
+
+export interface LinkInput {
+  /** Složka se soubory. Musí být vybraná v dialogu -- tím se k ní udělí přístup. */
+  folder: string
+  /** Adresa repozitáře, `https://github.com/vlastnik/nazev.git`. */
+  remoteUrl: string
+  /** Výchozí větev repozitáře, na které se kopie postaví. */
+  defaultBranch: string
 }
 
 export interface CreatePrInput {

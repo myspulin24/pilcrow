@@ -123,6 +123,61 @@ describe('výchozí stav okna', () => {
     expect(screen.queryByLabelText('Poznámky a skupiny')).toBeNull()
   })
 
+  it('volba levého panelu nabízí otevřený, zavřený a „jak jsem ho nechal“', async () => {
+    const user = userEvent.setup()
+    await renderApp()
+    const panel = await openSettings(user)
+    const select = within(panel).getByLabelText('Levý panel')
+    expect(select).toHaveValue('open')
+
+    await user.selectOptions(select, 'closed')
+    await waitFor(async () => {
+      const saved = await vault.loadSettings()
+      expect(saved.showSidebar).toBe(false)
+      expect(saved.sidebarRemember).toBe(false)
+    })
+    // Platí od příštího spuštění -- teď se panel neschová pod rukama.
+    expect(screen.getByLabelText('Poznámky a skupiny')).toBeInTheDocument()
+
+    await user.selectOptions(select, 'last')
+    await waitFor(async () => {
+      const saved = await vault.loadSettings()
+      expect(saved.sidebarRemember).toBe(true)
+      // „Jak jsem ho nechal“ = jak je právě teď.
+      expect(saved.showSidebar).toBe(true)
+    })
+  })
+
+  it('„jak jsem ho nechal“ si pamatuje schování i po restartu', async () => {
+    const user = userEvent.setup()
+    await renderApp({ sidebarRemember: true, showSidebar: true })
+    expect(screen.getByLabelText('Poznámky a skupiny')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Skrýt panel s poznámkami' }))
+    await waitFor(async () => expect((await vault.loadSettings()).showSidebar).toBe(false))
+
+    // Restart: nový start se stejným nastavením.
+    const saved = await vault.loadSettings()
+    cleanup()
+    await renderApp(saved)
+    expect(screen.queryByLabelText('Poznámky a skupiny')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Zobrazit panel s poznámkami' }))
+    await waitFor(async () => expect((await vault.loadSettings()).showSidebar).toBe(true))
+  })
+
+  it('pevná volba se schováním během práce nepřepíše', async () => {
+    const user = userEvent.setup()
+    await renderApp({ sidebarRemember: false, showSidebar: true })
+
+    await user.click(screen.getByRole('button', { name: 'Skrýt panel s poznámkami' }))
+    expect(screen.queryByLabelText('Poznámky a skupiny')).toBeNull()
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    })
+    expect((await vault.loadSettings()).showSidebar).toBe(true)
+  })
+
   it('lišta formátování se dá vypnout', async () => {
     await renderApp({ showToolbar: false })
     expect(screen.queryByRole('toolbar', { name: 'Formátování' })).toBeNull()

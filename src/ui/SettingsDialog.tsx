@@ -12,7 +12,15 @@
 
 import { useEffect, useId, useState } from 'react'
 
-import { t, VIEW_MODES, type ThemeSetting, type ViewMode } from '@/core'
+import {
+  sidebarStart,
+  sidebarStartSettings,
+  t,
+  VIEW_MODES,
+  type SidebarStart,
+  type ThemeSetting,
+  type ViewMode,
+} from '@/core'
 import {
   frontendVersions,
   loadAppInfo,
@@ -278,6 +286,23 @@ export function SettingsDialog() {
             </Row>
           </Section>
 
+          <Section title={t.settings.launch}>
+            <Row label={t.settings.sidebarStart} hint={t.settings.sidebarStartHint} htmlFor={ids.sidebar}>
+              <select
+                id={ids.sidebar}
+                className="settings__select"
+                value={sidebarStart(s)}
+                onChange={(event) =>
+                  set(sidebarStartSettings(event.target.value as SidebarStart, state.sidebarVisible))
+                }
+              >
+                <option value="open">{t.settings.sidebarOpen}</option>
+                <option value="closed">{t.settings.sidebarClosed}</option>
+                <option value="last">{t.settings.sidebarLast}</option>
+              </select>
+            </Row>
+          </Section>
+
           <Section title={t.settings.startup}>
             <Row label={t.settings.defaultView} hint={t.settings.defaultViewHint} htmlFor={ids.view}>
               <select
@@ -292,10 +317,6 @@ export function SettingsDialog() {
                   </option>
                 ))}
               </select>
-            </Row>
-
-            <Row label={t.settings.showSidebar} hint={t.settings.showSidebarHint} htmlFor={ids.sidebar}>
-              <Toggle id={ids.sidebar} checked={s.showSidebar} onChange={(v) => set({ showSidebar: v })} />
             </Row>
 
             <Row label={t.settings.showToolbar} hint={t.settings.showToolbarHint} htmlFor={ids.toolbar}>

@@ -6,14 +6,17 @@
  * disku je, nebo ho nejdřív stáhne. Odtamtud přebírá `git-store`, který
  * pracuje s otevřenou složkou.
  *
- * Dvě věci, na kterých to stojí:
+ * Tři věci, na kterých to stojí:
  *
  *  1. **Naklonováno se pozná podle remote, ne podle jména složky.** Kdyby se
  *     porovnávala jména, `things-3` by aplikace nespárovala s `Notes_MJ`
  *     a stahovala by podruhé, co už na disku je.
- *  2. **Složku, kam se stahuje, vybírá uživatel v dialogu.** Tam se zároveň
- *     udělí přístup. Pilcrow si žádnou cestu nevymýšlí -- je to jediné místo,
- *     kam aplikace zapisuje mimo trezor.
+ *  2. **Kam se stahuje, vybírá uživatel pokaždé znovu.** Dialog začne ve
+ *     složce, kam se stahovalo minule, ale zeptá se vždycky. Tam se zároveň
+ *     udělí přístup -- Pilcrow si žádnou cestu nevymýšlí.
+ *  3. **„Soubory mám jinde“ na soubory nesahá.** Vybraná složka se napojí na
+ *     repozitář tak, že v ní zůstane všechno, jak bylo; git pak jen ukáže,
+ *     čím se liší od main. Cizí repozitář se nenapojí nikdy.
  */
 
 import {
@@ -31,16 +34,22 @@ import {
   cloneProgress,
   filterRepos,
   findDeviceCode,
+  findFolder,
   ghProbeStep,
+  inspectionKind,
   matchClones,
   parseClones,
+  parseFolderInspection,
   parseGhAuth,
   parseRepos,
+  sameFolder,
   sortRepos,
   t,
+  withRepoFolder,
   type CloneProgress,
   type GhAccount,
   type GhProbe,
+  type InspectionKind,
   type Repo,
 } from '@/core'
 import { gitMessage } from '@/git'
@@ -48,7 +57,19 @@ import { gitMessage } from '@/git'
 import { useGit } from './git-store'
 import { useStore } from './store'
 
-export type ReposBusy = 'probe' | 'login' | 'clone' | null
+export type ReposBusy = 'probe' | 'login' | 'clone' | 'inspect' | 'link' | null
+
+/** Rozdělané „soubory mám jinde“: složka je vybraná, čeká se na potvrzení. */
+export interface PendingLink {
+  repo: Repo
+  folder: string
+  kind: InspectionKind
+  /** Kořen repozitáře, ve kterém složka leží, když v nějakém leží. */
+  root: string
+  /** `origin` toho repozitáře. */
+  remote: string
+  markdownFiles: number
+}
 
 export interface ReposView {
   open: boolean
@@ -60,11 +81,16 @@ export interface ReposView {
   /** Repozitáře i s tím, které z nich už leží na disku. */
   repos: Repo[]
   query: string
-  /** Kam se stahuje. Prázdné, dokud si uživatel složku nevybere. */
+  /**
+   * Výchozí složka: tam začne dialog „kam stáhnout“ a tam se hledá, co už je
+   * na disku. Prázdné, dokud se nic nestahovalo.
+   */
   folder: string
   /** Které repo se zrovna stahuje, jménem. */
   cloning: string | null
   progress: CloneProgress | null
+  /** Napojení složky, které čeká na potvrzení nebo právě běží. */
+  link: PendingLink | null
   transcript: string
   deviceCode: string | null
   error: string | null
@@ -77,11 +103,20 @@ export interface ReposActions {
   setQuery(query: string): void
   login(): Promise<void>
   cancelLogin(): Promise<void>
+  /** Vybrat výchozí složku pro repozitáře. */
   pickFolder(): Promise<void>
   /** Otevřít repozitář, který už na disku je. */
   openRepo(repo: Repo): Promise<void>
-  /** Stáhnout a otevřít. */
+  /** Zeptat se, kam stáhnout, stáhnout a otevřít. */
   cloneRepo(repo: Repo): Promise<void>
+  /** „Soubory mám jinde“: vybrat složku a zjistit, jestli se dá napojit. */
+  linkRepo(repo: Repo): Promise<void>
+  /** Potvrdit napojení vybrané složky. */
+  confirmLink(): Promise<void>
+  /** Zahodit rozdělané napojení a vrátit se k seznamu. */
+  cancelLink(): void
+  /** Zastavit napojení, které právě běží. Co stihlo vzniknout, se uklidí. */
+  stopLink(): Promise<void>
 }
 
 interface ReposValue {
@@ -103,6 +138,7 @@ const initialView: ReposView = {
   folder: '',
   cloning: null,
   progress: null,
+  link: null,
   transcript: '',
   deviceCode: null,
   error: null,
@@ -123,6 +159,16 @@ export function ReposProvider({ children }: { children: ReactNode }) {
     (next: Partial<ReposView>) => update((current) => ({ ...current, ...next })),
     [update],
   )
+
+  /**
+   * Nastavení a průzkumník, jak platí teď.
+   *
+   * Obsluha stahování a napojení běží dlouho po vykreslení, které ji
+   * spustilo; mapu `repoFolders` z té doby by přepsala tím, co v ní bylo
+   * před minutou.
+   */
+  const stateRef = useRef(state)
+  stateRef.current = state
 
   /**
    * Zjistit stav `gh` a načíst seznam.
@@ -148,29 +194,46 @@ export function ReposProvider({ children }: { children: ReactNode }) {
 
       const repos = parseRepos(await api.repos())
       const folder = viewRef.current.folder
+      const chosen = stateRef.current.settings.repoFolders ?? {}
+      const extra = Object.values(chosen)
       let clones: ReturnType<typeof parseClones> = []
-      if (folder) {
+      if (folder || extra.length > 0) {
         try {
-          clones = parseClones(await api.clones(folder))
+          clones = parseClones(await api.clones(folder, extra))
         } catch {
           /* disk se přečíst nedá; seznam dává smysl i bez značek */
         }
       }
-      patch({ busy: null, repos: sortRepos(matchClones(repos, clones)) })
+      patch({ busy: null, repos: sortRepos(matchClones(repos, clones, chosen)) })
     } catch (error) {
       patch({ busy: null, probed: true, error: gitMessage(error, t.repos.failed) })
     }
   }, [api, patch])
 
+  /**
+   * Rozběhnuté napojení se zavřením okna nezastaví -- takže o něm okno nesmí
+   * zapomenout. Po znovuotevření ukáže, že pořád běží.
+   */
+  const keepLink = () => (viewRef.current.busy === 'link' ? viewRef.current.link : null)
+
   const open = useCallback(() => {
-    patch({ open: true, folder: state.settings.reposFolder, error: null })
+    patch({ open: true, folder: state.settings.reposFolder, error: null, link: keepLink() })
     // Ref musí složku vidět dřív, než ji `refresh` použije pro čtení disku.
     viewRef.current = { ...viewRef.current, folder: state.settings.reposFolder }
     void refresh()
   }, [patch, refresh, state.settings.reposFolder])
 
   const close = useCallback(() => {
-    patch({ open: false, query: '', error: null, transcript: '', progress: null, cloning: null })
+    const running = viewRef.current.busy === 'link'
+    patch({
+      open: false,
+      query: '',
+      error: null,
+      transcript: running ? viewRef.current.transcript : '',
+      progress: null,
+      cloning: null,
+      link: keepLink(),
+    })
   }, [patch])
 
   // -- přihlášení ------------------------------------------------------------
@@ -205,14 +268,17 @@ export function ReposProvider({ children }: { children: ReactNode }) {
   // -- složka ----------------------------------------------------------------
 
   /**
-   * Vybrat složku, kam se budou repozitáře stahovat.
+   * Vybrat výchozí složku pro repozitáře.
    *
-   * Přístup se uděluje právě tady, v nativním dialogu. Uloží se do nastavení,
-   * aby ji příště nebylo nutné vybírat znovu.
+   * Přístup se uděluje právě tady, v nativním dialogu. Uloží se do nastavení;
+   * při stažení se dialog „kam“ otevře v ní.
    */
   const pickFolder = useCallback(async () => {
     try {
-      const picked = await vault.pickFolder(t.repos.pickFolderTitle)
+      const picked = await vault.openFolderDialog({
+        title: t.repos.pickFolderTitle,
+        defaultPath: viewRef.current.folder || undefined,
+      })
       if (!picked) return
       await storeActions.updateSettings({ reposFolder: picked })
       patch({ folder: picked })
@@ -223,17 +289,29 @@ export function ReposProvider({ children }: { children: ReactNode }) {
     }
   }, [patch, refresh, storeActions, vault])
 
+  /** Zapamatovat si, kde repozitář leží, ať ho příště najde i mimo výchozí složku. */
+  const remember = useCallback(
+    async (repo: Repo, path: string, extra: { reposFolder?: string } = {}) => {
+      const folders = stateRef.current.settings.repoFolders ?? {}
+      await storeActions
+        .updateSettings({ ...extra, repoFolders: withRepoFolder(folders, repo.fullName, path) })
+        .catch(() => undefined)
+    },
+    [storeActions],
+  )
+
   // -- otevření a stažení ----------------------------------------------------
 
   const openRepo = useCallback(
     async (repo: Repo) => {
       if (!repo.localPath) return
       close()
-      // Otevřít už stažené repo znamená „dej mi aktuální dokumentaci“, ne tu
-      // z minulého týdne. Záměr se ohlásí *před* otevřením: otevření stav
-      // sekce resetuje, takže potom by se ztratil. Stáhne se jen bezpečné
-      // převinutí -- rozhodnutí je v `canFastForward`, ne tady.
-      gitActions.requestAutoPull()
+      // Otevřít už stažené repo znamená nejspíš „dej mi aktuální
+      // dokumentaci“, ne tu z minulého týdne. Samo se ale nestáhne nic:
+      // když je na GitHubu něco nového, otevře se okno, ve kterém si
+      // uživatel vybere, odkud a jestli vůbec. Záměr se ohlásí *před*
+      // otevřením, protože otevření stav sekce resetuje.
+      gitActions.requestSyncPrompt(repo.localPath)
       await storeActions.openFolderAt(repo.localPath)
     },
     [close, gitActions, storeActions],
@@ -241,11 +319,18 @@ export function ReposProvider({ children }: { children: ReactNode }) {
 
   const cloneRepo = useCallback(
     async (repo: Repo) => {
-      const folder = viewRef.current.folder
-      if (!folder) {
-        await pickFolder()
+      // Kam, se ptá pokaždé -- začne se tam, kam se stahovalo minule.
+      let parent: string | null
+      try {
+        parent = await vault.openFolderDialog({
+          title: t.repos.cloneWhere(repo.fullName),
+          defaultPath: viewRef.current.folder || undefined,
+        })
+      } catch (error) {
+        patch({ error: gitMessage(error, t.repos.cloneFailed) })
         return
       }
+      if (!parent) return
       patch({ busy: 'clone', cloning: repo.fullName, transcript: '', progress: null, error: null })
 
       /**
@@ -259,14 +344,19 @@ export function ReposProvider({ children }: { children: ReactNode }) {
       const finish = () => {
         if (done.opened || !done.finished || !done.target) return
         done.opened = true
+        const target = done.target
         close()
-        void storeActions.openFolderAt(done.target)
+        // Příště se dialog otevře tady, a repozitář se najde, i kdyby tahle
+        // složka přestala být výchozí.
+        void remember(repo, target, { reposFolder: parent ?? undefined }).then(() =>
+          storeActions.openFolderAt(target),
+        )
       }
 
       let transcript = ''
       try {
         done.target = await api.clone(
-          { repo: repo.fullName, parent: folder, folder: cloneFolderName(repo) },
+          { repo: repo.fullName, parent, folder: cloneFolderName(repo) },
           (chunk) => {
             if (chunk.kind === 'out') {
               transcript += chunk.text
@@ -287,8 +377,108 @@ export function ReposProvider({ children }: { children: ReactNode }) {
         patch({ busy: null, cloning: null, progress: null, error: gitMessage(error, t.repos.cloneFailed) })
       }
     },
-    [api, close, patch, pickFolder, storeActions],
+    [api, close, patch, remember, storeActions, vault],
   )
+
+  // -- soubory mám jinde -----------------------------------------------------
+
+  /**
+   * Začít používat složku jako zdroj souborů repozitáře.
+   *
+   * Stará kopie -- pokud je otevřená -- uhne: dvě složky téhož repozitáře
+   * vedle sebe by jen mátly, do které se píše. A první, co se po otevření
+   * ukáže, je porovnání s výchozí větví.
+   */
+  const adopt = useCallback(
+    async (repo: Repo, folder: string) => {
+      await remember(repo, folder)
+      close()
+      const explorer = stateRef.current.explorer
+      if (repo.localPath && !sameFolder(repo.localPath, folder) && findFolder(explorer.folders, repo.localPath)) {
+        storeActions.closeFolder(repo.localPath)
+      }
+      const alreadyActive = sameFolder(explorer.active ?? '', folder)
+      gitActions.requestCompare(folder)
+      await storeActions.openFolderAt(folder)
+      // Sekce Git se přestaví sama jen při změně aktivní složky. Když to
+      // byla ta, co už byla otevřená, musí se o nový stav říct.
+      if (alreadyActive) void gitActions.refresh()
+    },
+    [close, gitActions, remember, storeActions],
+  )
+
+  const linkRepo = useCallback(
+    async (repo: Repo) => {
+      let folder: string | null
+      try {
+        folder = await vault.openFolderDialog({
+          title: t.repos.linkWhere(repo.fullName),
+          defaultPath: repo.localPath ?? (viewRef.current.folder || undefined),
+        })
+      } catch (error) {
+        patch({ error: gitMessage(error, t.repos.linkFailed) })
+        return
+      }
+      if (!folder) return
+
+      patch({ busy: 'inspect', error: null, link: null })
+      try {
+        const inspection = parseFolderInspection(await api.inspectFolder(folder))
+        if (!inspection) throw new Error(t.repos.linkFailed)
+        const kind = inspectionKind(inspection, repo.cloneUrl)
+        if (kind === 'same') {
+          // Už je to kopie téhož repozitáře: není co zakládat.
+          patch({ busy: null })
+          await adopt(repo, folder)
+          return
+        }
+        patch({
+          busy: null,
+          link: {
+            repo,
+            folder,
+            kind,
+            root: inspection.root,
+            remote: inspection.remote,
+            markdownFiles: inspection.markdownFiles,
+          },
+        })
+      } catch (error) {
+        patch({ busy: null, error: gitMessage(error, t.repos.linkFailed) })
+      }
+    },
+    [adopt, api, patch, vault],
+  )
+
+  const confirmLink = useCallback(async () => {
+    const link = viewRef.current.link
+    if (!link || link.kind !== 'plain' || viewRef.current.busy) return
+    const { repo, folder } = link
+    if (!repo.defaultBranch) {
+      patch({ error: t.repos.linkNeedsDefault })
+      return
+    }
+    patch({ busy: 'link', transcript: '', error: null })
+
+    let transcript = ''
+    try {
+      await api.linkFolder({ folder, remoteUrl: repo.cloneUrl, defaultBranch: repo.defaultBranch }, (chunk) => {
+        if (chunk.kind === 'out') {
+          transcript += chunk.text
+          patch({ transcript })
+          return
+        }
+        if (chunk.kind === 'failed') {
+          patch({ busy: null, error: chunk.message || t.repos.linkFailed })
+          return
+        }
+        patch({ busy: null })
+        void adopt(repo, folder)
+      })
+    } catch (error) {
+      patch({ busy: null, error: gitMessage(error, t.repos.linkFailed) })
+    }
+  }, [adopt, api, patch])
 
   const actions = useMemo<ReposActions>(
     () => ({
@@ -301,8 +491,14 @@ export function ReposProvider({ children }: { children: ReactNode }) {
       pickFolder,
       openRepo,
       cloneRepo,
+      linkRepo,
+      confirmLink,
+      cancelLink: () => patch({ link: null, error: null, transcript: '' }),
+      stopLink: async () => {
+        await api.cancel().catch(() => undefined)
+      },
     }),
-    [cancelLogin, cloneRepo, close, login, open, openRepo, patch, pickFolder, refresh],
+    [api, cancelLogin, cloneRepo, close, confirmLink, linkRepo, login, open, openRepo, patch, pickFolder, refresh],
   )
 
   const value = useMemo<ReposValue>(() => ({ view, actions }), [actions, view])

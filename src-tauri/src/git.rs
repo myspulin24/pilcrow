@@ -27,10 +27,11 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, State};
 
 use pilcrow_core::error::{CoreError, Result};
+use pilcrow_core::explorer::{self, ScanLimits};
 use pilcrow_core::git::{
     failure_reason, gh_candidates, git_candidates, install_commands, is_https_url, is_safe_branch,
-    is_safe_folder_name, is_safe_repo_path, is_safe_repo_slug, GhProbe, GitChunk, GitProbe,
-    PublishRequest,
+    is_safe_folder_name, is_safe_repo_path, is_safe_repo_slug, truncate_text, GhProbe, GitChunk,
+    GitProbe, PublishMode, PublishRequest,
 };
 
 use crate::assistant::{hide_console, home, pump, Killable};
@@ -57,6 +58,10 @@ fn base_command(program: &str) -> Command {
         // Bez terminálu by git čekal na heslo, které nikdo nezadá; takhle
         // rovnou selže a chyba dojde do panelu.
         .env("GIT_TERMINAL_PROMPT", "0")
+        // Cesty souborů jsou jména, ne vzory. Bez tohohle by `notes[1].md`
+        // v `git add` nebo `git restore` zasáhlo i `notes1.md` -- a hranaté
+        // závorky jsou ve jménech souborů na Windows úplně běžné.
+        .env("GIT_LITERAL_PATHSPECS", "1")
         .env("GCM_INTERACTIVE", "never")
         .env("GH_PROMPT_DISABLED", "1")
         .env("GH_NO_UPDATE_NOTIFIER", "1")
@@ -167,6 +172,132 @@ fn git_value(git: &str, dir: &Path, args: &[&str]) -> String {
         .unwrap_or_default()
 }
 
+/// Výstup gitu tak, jak je, i s nulami a koncovými mezerami -- nebo chyba
+/// s tím, co git řekl. Pro výpisy, které čte parser, ne člověk.
+fn git_raw(git: &str, dir: &Path, args: &[&str]) -> Result<String> {
+    let output = run_in(git, Some(dir), args).map_err(|error| {
+        CoreError::Io(format!("`git {}` se nepodařilo spustit: {error}", args.first().unwrap_or(&"")))
+    })?;
+    if !output.status.success() {
+        let details = stderr_of(&output);
+        return Err(CoreError::Io(if details.is_empty() {
+            format!("`git {}` selhal.", args.first().unwrap_or(&""))
+        } else {
+            details
+        }));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// Existuje ta reference? `rev-parse --verify` bez výstupu, jen návratový kód.
+fn ref_exists(git: &str, dir: &Path, reference: &str) -> bool {
+    run_in(git, Some(dir), &["rev-parse", "--verify", "--quiet", reference])
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
+/// Výchozí větev podle `origin/HEAD`, bez `origin/`. Prázdná, když ji klon nezná.
+///
+/// `origin/HEAD` může chybět (repo založené bez klonu) nebo ukazovat na větev,
+/// která už není (přejmenování `master` na `main`). Pak se zkusí `main`
+/// a `master` -- bez výchozí větve by se ztratilo varování před zápisem do ní.
+fn default_branch(git: &str, root: &Path) -> String {
+    let named = git_value(git, root, &["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
+        .strip_prefix("origin/")
+        .unwrap_or_default()
+        .to_string();
+    if !named.is_empty() && ref_exists(git, root, &format!("refs/remotes/origin/{named}")) {
+        return named;
+    }
+    ["main", "master"]
+        .into_iter()
+        .find(|name| ref_exists(git, root, &format!("refs/remotes/origin/{name}")))
+        .map(String::from)
+        .unwrap_or(named)
+}
+
+/// Dvě čísla z `rev-list --left-right --count A...B`: co má jen A, co má jen B.
+fn left_right(git: &str, root: &Path, range: &str) -> (i64, i64) {
+    let counts = git_value(git, root, &["rev-list", "--left-right", "--count", range]);
+    let mut numbers = counts.split_whitespace();
+    let left = numbers.next().and_then(|v| v.parse().ok()).unwrap_or(0);
+    let right = numbers.next().and_then(|v| v.parse().ok()).unwrap_or(0);
+    (left, right)
+}
+
+/// Kolik commitů má sledovaná větev navíc proti té, na které se stojí.
+fn behind_upstream(git: &str, root: &Path) -> i64 {
+    if git_value(git, root, &["rev-parse", "--abbrev-ref", "@{upstream}"]).is_empty() {
+        return 0;
+    }
+    left_right(git, root, "HEAD...@{upstream}").1
+}
+
+/// `gh` a jestli jde o GitHub -- to, co potřebuje každý příkaz, který sahá na síť.
+fn remote_credentials(state: &GitState, git: &str, root: &Path) -> (Option<String>, bool) {
+    let gh = locate_gh(state).map(|(path, _)| path);
+    let github = git_value(git, root, &["remote", "get-url", "origin"]).contains("github.com");
+    (gh, github)
+}
+
+/// `git fetch --prune origin` s půjčeným přihlášením. Vrací chybu jako text:
+/// bez sítě se pořád dá pracovat s tím, co se stáhlo minule, a volající
+/// o tom má jen říct.
+///
+/// `--prune` proto, aby větev smazaná na GitHubu zmizela i z výpisu větví --
+/// jinak by se nabízela ke stažení věc, která už neexistuje.
+fn fetch_origin(git: &str, root: &Path, gh: Option<&str>, github: bool) -> String {
+    let mut args = credential_args(gh, github);
+    args.extend(["fetch", "--quiet", "--prune", "origin"].map(String::from));
+    let fetch: Vec<&str> = args.iter().map(String::as_str).collect();
+    match run_in(git, Some(root), &fetch) {
+        Ok(output) if output.status.success() => String::new(),
+        Ok(output) => stderr_of(&output),
+        Err(error) => format!("`git fetch` se nepodařilo spustit: {error}"),
+    }
+}
+
+/// Jak se přepnout na větev: na tu, co už doma je, nebo založit sledující
+/// z `origin`. Vrací popisek kroku a argumenty.
+///
+/// `git switch` schválně, ne `checkout`: s rozdělanou prací, která by se
+/// s cílovou větví prala, odmítne a nic nezahodí. Změny, které se nepřou,
+/// si uživatel vezme s sebou -- to je obyčejné chování gitu.
+fn switch_step(git: &str, root: &Path, branch: &str) -> Result<(String, Vec<String>)> {
+    // `origin/HEAD` je ukazatel, ne větev; `switch -c HEAD` by nadělalo zmatek.
+    if branch == "HEAD" {
+        return Err(CoreError::InvalidName("HEAD není větev.".into()));
+    }
+    if ref_exists(git, root, &format!("refs/heads/{branch}")) {
+        return Ok((format!("git switch {branch}"), vec!["switch".into(), branch.into()]));
+    }
+    if ref_exists(git, root, &format!("refs/remotes/origin/{branch}")) {
+        return Ok((
+            format!("git switch -c {branch} --track origin/{branch}"),
+            vec![
+                "switch".into(),
+                "-c".into(),
+                branch.into(),
+                "--track".into(),
+                format!("origin/{branch}"),
+            ],
+        ));
+    }
+    Err(CoreError::NotFound(format!(
+        "Větev {branch} není ani tady, ani na GitHubu."
+    )))
+}
+
+/// Dvě cesty míří na tutéž složku? Porovnává se po `canonicalize`, protože
+/// git hlásí kořen po svém -- s lomítky, jinou velikostí písmen i jinou
+/// jednotkou.
+fn same_dir(a: &Path, b: &Path) -> bool {
+    match (a.canonicalize(), b.canonicalize()) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => a == b,
+    }
+}
+
 // -- stav -------------------------------------------------------------------
 
 /// Co je na tomhle počítači a v téhle složce.
@@ -200,10 +331,7 @@ pub async fn git_probe(
         probe.branch = git_value(&git, &root, &["rev-parse", "--abbrev-ref", "HEAD"]);
         // `origin/HEAD` ukazuje na výchozí větev; `git remote set-head` ji
         // umí doplnit, ale klon ji nastavuje sám, takže tu skoro vždycky je.
-        probe.default_branch = git_value(&git, &root, &["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
-            .strip_prefix("origin/")
-            .unwrap_or_default()
-            .to_string();
+        probe.default_branch = default_branch(&git, &root);
         probe.head_sha = git_value(&git, &root, &["rev-parse", "HEAD"]);
         probe.remote_url = git_value(&git, &root, &["remote", "get-url", "origin"]);
         probe.user_name = git_value(&git, &root, &["config", "user.name"]);
@@ -389,6 +517,18 @@ fn credential_args(gh: Option<&str>, github: bool) -> Vec<String> {
     ]
 }
 
+/// Commit jen vybraných souborů, ne celého indexu.
+///
+/// V indexu může být i něco, co si uživatel nevybral -- třeba soubory, které
+/// „Vrátit na verzi z main“ nastavilo podle GitHubu, nebo co přidal v
+/// terminálu. `git commit -- <cesty>` vezme přesně ty cesty a zbytek nechá
+/// ležet, kde je.
+fn commit_args(message: &str, files: &[String]) -> Vec<String> {
+    let mut args = vec!["commit".to_string(), "-m".into(), message.to_string(), "--".into()];
+    args.extend(files.iter().cloned());
+    args
+}
+
 fn push_args(gh: Option<&str>, github: bool, branch: &str) -> Vec<String> {
     let mut args = credential_args(gh, github);
     args.extend(["push", "-u", "origin", branch].map(String::from));
@@ -396,30 +536,35 @@ fn push_args(gh: Option<&str>, github: bool, branch: &str) -> Vec<String> {
 }
 
 /// Cesta souboru v repu musí ležet v otevřené složce. Smazaný soubor už na
-/// disku není, tak se ověří jeho složka.
+/// disku není, tak se ověří nejbližší složka nad ním, která je -- u souboru,
+/// který je jen na main, může chybět i celá jeho podsložka.
 fn require_inside(app: &AppState, root: &Path, file: &str) -> Result<()> {
     if !is_safe_repo_path(file) {
         return Err(CoreError::InvalidName(format!(
             "{file} není platná cesta v repozitáři."
         )));
     }
-    let absolute = root.join(file);
-    let check = if absolute.exists() {
-        absolute
-    } else {
-        absolute
-            .parent()
-            .map(Path::to_path_buf)
-            .unwrap_or(absolute)
-    };
+    let mut check = root.join(file);
+    while !check.exists() {
+        match check.parent() {
+            Some(parent) => check = parent.to_path_buf(),
+            None => break,
+        }
+    }
     app.with_access(|access| access.require(&check))
 }
 
-/// Odeslat vybrané soubory: nová větev, add, commit, push.
+/// Odeslat vybrané soubory: větev, add, commit, push.
 ///
-/// Čtyři kroky za sebou na vlastním vlákně; první neúspěch zastaví zbytek
-/// a repo zůstane v poctivém stavu -- třeba na nové větvi s commitem, ale
-/// bez pushe, což jde napravit `git_push`.
+/// Kroky za sebou na vlastním vlákně; první neúspěch zastaví zbytek a repo
+/// zůstane v poctivém stavu -- třeba na nové větvi s commitem, ale bez
+/// pushe, což jde napravit `git_push`.
+///
+/// Větev je buď nová (`checkout -b`), nebo existující. U existující se na ni
+/// nejdřív přepne, pokud se na ní nestojí, a dorovná se s GitHubem --
+/// commit na zastaralém základu by GitHub při pushi odmítl. Že jde o
+/// výchozí větev, tady nehraje roli: varovat a nechat potvrdit je práce
+/// dialogu, tenhle příkaz dělá, co se mu řekne.
 #[tauri::command]
 pub async fn git_publish(
     app: State<'_, AppState>,
@@ -450,35 +595,65 @@ pub async fn git_publish(
         require_inside(&app, &root, file)?;
     }
 
-    let gh = locate_gh(&state).map(|(path, _)| path);
-    let github = git_value(&git, &root, &["remote", "get-url", "origin"]).contains("github.com");
+    // Přepnutí se zjistí hned, ne až ve vlákně: větev, která neexistuje,
+    // je chyba volání, ne krok, který spadne v půlce.
+    let switch = match request.mode {
+        PublishMode::New => None,
+        PublishMode::Existing => {
+            let current = git_value(&git, &root, &["rev-parse", "--abbrev-ref", "HEAD"]);
+            if current == request.branch {
+                None
+            } else {
+                Some(switch_step(&git, &root, &request.branch)?)
+            }
+        }
+    };
 
+    let (gh, github) = remote_credentials(&state, &git, &root);
     let slot = Arc::clone(&state.running);
 
     std::thread::spawn(move || {
+        let run = |label: &str, args: &[String]| -> bool {
+            let mut command = base_command(&git);
+            command.current_dir(&root).args(args);
+            run_step(command, label, &channel, &slot)
+        };
+
+        match request.mode {
+            PublishMode::New => {
+                let args = vec!["checkout".into(), "-b".into(), request.branch.clone()];
+                if !run(&format!("git checkout -b {}", request.branch), &args) {
+                    return;
+                }
+            }
+            PublishMode::Existing => {
+                if let Some((label, args)) = &switch {
+                    if !run(label, args) {
+                        return;
+                    }
+                }
+                // Až po přepnutí: teprve teď je jasné, proti čemu se počítá.
+                if behind_upstream(&git, &root) > 0 {
+                    let args = ["merge", "--ff-only", "@{upstream}"].map(String::from);
+                    if !run(&format!("git merge --ff-only origin/{}", request.branch), &args) {
+                        return;
+                    }
+                }
+            }
+        }
+
         let mut add: Vec<String> = vec!["add".into(), "--".into()];
         add.extend(request.files.iter().cloned());
-
         let steps: Vec<(String, Vec<String>)> = vec![
-            (
-                format!("git checkout -b {}", request.branch),
-                vec!["checkout".into(), "-b".into(), request.branch.clone()],
-            ),
             (format!("git add -- {}", request.files.join(" ")), add),
-            (
-                "git commit".into(),
-                vec!["commit".into(), "-m".into(), request.message.clone()],
-            ),
+            ("git commit".into(), commit_args(&request.message, &request.files)),
             (
                 format!("git push -u origin {}", request.branch),
                 push_args(gh.as_deref(), github, &request.branch),
             ),
         ];
-
-        for (label, args) in steps {
-            let mut command = base_command(&git);
-            command.current_dir(&root).args(&args);
-            if !run_step(command, &label, &channel, &slot) {
+        for (label, args) in &steps {
+            if !run(label, args) {
                 return;
             }
         }
@@ -762,33 +937,17 @@ pub async fn git_sync(
     let git = require_git(&state)?;
     let root = require_root(&git, &folder)?;
 
-    let gh = locate_gh(&state).map(|(path, _)| path);
-    let github = git_value(&git, &root, &["remote", "get-url", "origin"]).contains("github.com");
-
-    let mut fetch_args = credential_args(gh.as_deref(), github);
-    fetch_args.extend(["fetch", "--quiet", "origin"].map(String::from));
-    let fetch: Vec<&str> = fetch_args.iter().map(String::as_str).collect();
-    let fetch_error = match run_in(&git, Some(&root), &fetch) {
-        Ok(output) if output.status.success() => String::new(),
-        Ok(output) => stderr_of(&output),
-        Err(error) => format!("`git fetch` se nepodařilo spustit: {error}"),
-    };
+    let (gh, github) = remote_credentials(&state, &git, &root);
+    let fetch_error = fetch_origin(&git, &root, gh.as_deref(), github);
 
     let branch = git_value(&git, &root, &["rev-parse", "--abbrev-ref", "HEAD"]);
     let upstream = git_value(&git, &root, &["rev-parse", "--abbrev-ref", "@{upstream}"]);
     // `--left-right --count` vrací "napřed<TAB>pozadu" proti sledované větvi.
-    let counts = if upstream.is_empty() {
-        String::new()
+    let (ahead, behind) = if upstream.is_empty() {
+        (0, 0)
     } else {
-        git_value(
-            &git,
-            &root,
-            &["rev-list", "--left-right", "--count", "HEAD...@{upstream}"],
-        )
+        left_right(&git, &root, "HEAD...@{upstream}")
     };
-    let mut numbers = counts.split_whitespace();
-    let ahead: i64 = numbers.next().and_then(|v| v.parse().ok()).unwrap_or(0);
-    let behind: i64 = numbers.next().and_then(|v| v.parse().ok()).unwrap_or(0);
 
     let dirty = run_in(&git, Some(&root), &["status", "--porcelain"])
         .ok()
@@ -1051,35 +1210,59 @@ pub async fn gh_repos(state: State<'_, GitState>) -> Result<String> {
 /// Složku přitom povolí. Je z nastavení, kam se dostala výběrem v dialogu,
 /// takže je to stejná úmluva jako u [`reopen_folder`](crate::commands::reopen_folder):
 /// cestu vybral uživatel, jen v jiném spuštění.
+///
+/// `extra` jsou jednotlivé repozitáře, které leží jinde: stažené do složky,
+/// kterou uživatel vybral jen pro ně, nebo napojené jako „soubory mám
+/// jinde“. Ty se neprocházejí, jen se ověří, že tam repozitář pořád je --
+/// a povolí se stejně jako složka nahoře, ze stejného důvodu.
 #[tauri::command]
 pub async fn scan_clones(
     app: State<'_, AppState>,
     state: State<'_, GitState>,
     folder: String,
+    extra: Option<Vec<String>>,
 ) -> Result<String> {
     let root = PathBuf::from(&folder);
-    if !root.is_dir() {
+    let extra: Vec<PathBuf> = extra
+        .unwrap_or_default()
+        .into_iter()
+        .map(PathBuf::from)
+        .filter(|path| path.join(".git").exists())
+        .collect();
+    if !root.is_dir() && extra.is_empty() {
         return Ok("[]".into());
     }
-    app.with_access(|access| {
-        access.grant_dir(&root);
-        Ok(())
-    })?;
     let git = require_git(&state)?;
 
-    let Ok(entries) = std::fs::read_dir(&root) else {
-        return Ok("[]".into());
-    };
+    let mut candidates = Vec::new();
+    if root.is_dir() {
+        app.with_access(|access| {
+            access.grant_dir(&root);
+            Ok(())
+        })?;
+        if let Ok(entries) = std::fs::read_dir(&root) {
+            candidates.extend(entries.filter_map(std::result::Result::ok).map(|entry| entry.path()));
+        }
+    }
+    for path in extra {
+        app.with_access(|access| {
+            access.grant_dir(&path);
+            Ok(())
+        })?;
+        candidates.push(path);
+    }
+
     let mut found = Vec::new();
-    for entry in entries.filter_map(std::result::Result::ok) {
-        let path = entry.path();
-        if !path.join(".git").exists() {
+    let mut seen: Vec<PathBuf> = Vec::new();
+    for path in candidates {
+        if !path.join(".git").exists() || seen.iter().any(|known| same_dir(known, &path)) {
             continue;
         }
         found.push(serde_json::json!({
             "path": path.to_string_lossy(),
             "remote": git_value(&git, &path, &["remote", "get-url", "origin"]),
         }));
+        seen.push(path);
     }
 
     serde_json::to_string(&found)
@@ -1151,6 +1334,407 @@ pub async fn gh_clone(
         }
     });
     Ok(target_text)
+}
+
+// -- větve ------------------------------------------------------------------
+
+/// Jeden řádek `for-each-ref`. Pole oddělená nulou, předmět commitu poslední:
+/// je to jediné pole, ve kterém může být cokoli -- kromě konce řádku, a ten
+/// odděluje záznamy.
+const REF_FORMAT: &str = "--format=%(refname)%00%(objectname:short)%00%(committerdate:iso-strict)%00%(authorname)%00%(upstream:short)%00%(upstream:track,nobracket)%00%(subject)";
+
+/// Kolik bajtů rozdílu jednoho souboru se pošle do okna.
+const DIFF_LIMIT: usize = 256 * 1024;
+
+/// Větve tady i na GitHubu.
+///
+/// Napřed `git fetch --prune`, jinak by se ukazovalo, co bylo na GitHubu
+/// naposledy, když se někdo ptal -- a z toho se pak vybírá, co stáhnout.
+/// Fetch sahá jen na sledovací větve, pracovní strom nechá být. Když se
+/// nepovede, vypíše se to, co je známé, a chyba jde vedle.
+///
+/// Surové řádky čte `parseBranches` v `src/core/branches.ts`.
+#[tauri::command]
+pub async fn git_branches(
+    app: State<'_, AppState>,
+    state: State<'_, GitState>,
+    folder: String,
+) -> Result<String> {
+    let folder = granted_folder(&app, &folder)?;
+    let git = require_git(&state)?;
+    let root = require_root(&git, &folder)?;
+
+    let (gh, github) = remote_credentials(&state, &git, &root);
+    let fetch_error = fetch_origin(&git, &root, gh.as_deref(), github);
+    branch_list(&git, &root, &fetch_error)
+}
+
+fn branch_list(git: &str, root: &Path, fetch_error: &str) -> Result<String> {
+    let refs = git_raw(git, root, &["for-each-ref", REF_FORMAT, "refs/heads", "refs/remotes/origin"])?;
+    serde_json::to_string(&serde_json::json!({
+        "current": git_value(git, root, &["rev-parse", "--abbrev-ref", "HEAD"]),
+        "default": default_branch(git, root),
+        "fetchError": fetch_error,
+        "refs": refs,
+    }))
+    .map_err(|error| CoreError::Io(format!("Seznam větví se nepodařilo sestavit: {error}")))
+}
+
+/// Co větev přinesla proti základu: commity a soubory v otevřené složce.
+///
+/// Soubory jsou `základ...větev` -- tři tečky, tedy od místa, kde se větev
+/// odpojila. Dvě tečky by do seznamu přimíchaly i to, co mezitím přibylo
+/// v základu, a vypadalo by to, že to větev maže.
+#[tauri::command]
+pub async fn git_branch_log(
+    app: State<'_, AppState>,
+    state: State<'_, GitState>,
+    folder: String,
+    base: String,
+    target: String,
+) -> Result<String> {
+    let folder = granted_folder(&app, &folder)?;
+    let git = require_git(&state)?;
+    let root = require_root(&git, &folder)?;
+    if !is_safe_branch(&base) || !is_safe_branch(&target) {
+        return Err(CoreError::InvalidName("Tohle se větev jmenovat nemůže.".into()));
+    }
+    branch_report(&git, &root, &folder.to_string_lossy(), &base, &target)
+}
+
+fn branch_report(git: &str, root: &Path, pathspec: &str, base: &str, target: &str) -> Result<String> {
+    let range = format!("{base}...{target}");
+    let (behind, ahead) = left_right(git, root, &range);
+    let log = git_raw(
+        git,
+        root,
+        &["log", "--format=%h%x00%an%x00%cI%x00%s", "-n", "50", &format!("{base}..{target}")],
+    )?;
+    let name_status = git_raw(
+        git,
+        root,
+        &["diff", "--no-renames", "--name-status", "-z", &range, "--", pathspec],
+    )?;
+    let numstat = git_raw(git, root, &["diff", "--no-renames", "--numstat", "-z", &range, "--", pathspec])?;
+
+    serde_json::to_string(&serde_json::json!({
+        "ahead": ahead,
+        "behind": behind,
+        "log": log,
+        "nameStatus": name_status,
+        "numstat": numstat,
+    }))
+    .map_err(|error| CoreError::Io(format!("Přehled větve se nepodařilo sestavit: {error}")))
+}
+
+/// Rozdíl jednoho souboru, jak ho vypíše `git diff`.
+///
+/// Bez `to` je to pracovní strom proti `from` -- „co mám jinak než main“.
+/// S `to` je to `from...to`, tedy co změnila větev. Jen čtení.
+#[tauri::command]
+pub async fn git_diff(
+    app: State<'_, AppState>,
+    state: State<'_, GitState>,
+    folder: String,
+    from: String,
+    to: String,
+    path: String,
+) -> Result<String> {
+    let folder = granted_folder(&app, &folder)?;
+    let git = require_git(&state)?;
+    let root = require_root(&git, &folder)?;
+    if !is_safe_branch(&from) || (!to.is_empty() && !is_safe_branch(&to)) {
+        return Err(CoreError::InvalidName("Tohle se větev jmenovat nemůže.".into()));
+    }
+    require_inside(&app, &root, &path)?;
+
+    let range = if to.is_empty() { from } else { format!("{from}...{to}") };
+    let text = git_raw(&git, &root, &["diff", "--no-renames", "--no-color", &range, "--", &path])?;
+    let (text, truncated) = truncate_text(&text, DIFF_LIMIT);
+    Ok(if truncated {
+        format!("{text}\n… (rozdíl je delší, zbytek se nezobrazuje)\n")
+    } else {
+        text
+    })
+}
+
+/// Přepnout na větev -- stáhnout ji, když je jen na GitHubu -- a dorovnat ji.
+///
+/// Dorovná se jen převinutím. Když se větev rozešla s GitHubem, přepnutí
+/// platí a dorovnání skončí chybou; nic se neslučuje samo.
+#[tauri::command]
+pub async fn git_switch(
+    app: State<'_, AppState>,
+    state: State<'_, GitState>,
+    folder: String,
+    branch: String,
+    channel: Channel<GitChunk>,
+) -> Result<()> {
+    let folder = granted_folder(&app, &folder)?;
+    let git = require_git(&state)?;
+    let root = require_root(&git, &folder)?;
+    if !is_safe_branch(&branch) {
+        return Err(CoreError::InvalidName("Tohle se větev jmenovat nemůže.".into()));
+    }
+    let (label, args) = switch_step(&git, &root, &branch)?;
+    let slot = Arc::clone(&state.running);
+
+    std::thread::spawn(move || {
+        let mut command = base_command(&git);
+        command.current_dir(&root).args(&args);
+        if !run_step(command, &label, &channel, &slot) {
+            return;
+        }
+        if behind_upstream(&git, &root) > 0 {
+            let mut merge = base_command(&git);
+            merge.current_dir(&root).args(["merge", "--ff-only", "@{upstream}"]);
+            if !run_step(merge, &format!("git merge --ff-only origin/{branch}"), &channel, &slot) {
+                return;
+            }
+        }
+        let _ = channel.send(GitChunk::Finished);
+    });
+    Ok(())
+}
+
+// -- porovnání s výchozí větví ----------------------------------------------
+
+/// Čím se otevřená složka liší od větve na GitHubu, typicky `origin/main`.
+///
+/// Pracovní strom proti commitu, ne commit proti commitu: rozdělaná práce je
+/// přesně to, na co se uživatel ptá. Soubory, které git nesleduje, `diff`
+/// nevidí, takže jdou zvlášť z `ls-files --others`.
+///
+/// Napřed fetch -- „kontrola na main“ má znamenat main na GitHubu dnes.
+#[tauri::command]
+pub async fn git_compare(
+    app: State<'_, AppState>,
+    state: State<'_, GitState>,
+    folder: String,
+    base: String,
+) -> Result<String> {
+    let folder = granted_folder(&app, &folder)?;
+    let git = require_git(&state)?;
+    let root = require_root(&git, &folder)?;
+    if !is_safe_branch(&base) {
+        return Err(CoreError::InvalidName("Tohle se větev jmenovat nemůže.".into()));
+    }
+
+    let (gh, github) = remote_credentials(&state, &git, &root);
+    let fetch_error = fetch_origin(&git, &root, gh.as_deref(), github);
+    compare_report(&git, &root, &folder.to_string_lossy(), &base, &fetch_error)
+}
+
+fn compare_report(git: &str, root: &Path, pathspec: &str, base: &str, fetch_error: &str) -> Result<String> {
+    if !ref_exists(git, root, &format!("{base}^{{commit}}")) {
+        return Err(CoreError::NotFound(
+            format!("Větev {base} není k dispozici. {fetch_error}").trim().to_string(),
+        ));
+    }
+    let (ahead, behind) = left_right(git, root, &format!("HEAD...{base}"));
+    let name_status = git_raw(git, root, &["diff", "--no-renames", "--name-status", "-z", base, "--", pathspec])?;
+    let numstat = git_raw(git, root, &["diff", "--no-renames", "--numstat", "-z", base, "--", pathspec])?;
+    let untracked = git_raw(git, root, &["ls-files", "--others", "--exclude-standard", "-z", "--", pathspec])?;
+
+    serde_json::to_string(&serde_json::json!({
+        "base": base,
+        "branch": git_value(git, root, &["rev-parse", "--abbrev-ref", "HEAD"]),
+        "ahead": ahead,
+        "behind": behind,
+        "nameStatus": name_status,
+        "numstat": numstat,
+        "untracked": untracked,
+        "fetchError": fetch_error,
+    }))
+    .map_err(|error| CoreError::Io(format!("Porovnání se nepodařilo sestavit: {error}")))
+}
+
+/// Vrátit soubory na podobu z `source`, typicky `origin/main`.
+///
+/// Přepisuje rozdělanou práci, takže se sem jde jen po potvrzení v okně,
+/// kde je vypsané, které soubory to jsou. Soubory, které v `source` nejsou,
+/// git odmítne -- ty tahle akce nikdy nemaže.
+#[tauri::command]
+pub async fn git_restore(
+    app: State<'_, AppState>,
+    state: State<'_, GitState>,
+    folder: String,
+    source: String,
+    files: Vec<String>,
+) -> Result<()> {
+    let folder = granted_folder(&app, &folder)?;
+    let git = require_git(&state)?;
+    let root = require_root(&git, &folder)?;
+    if !is_safe_branch(&source) {
+        return Err(CoreError::InvalidName("Tohle se větev jmenovat nemůže.".into()));
+    }
+    if files.is_empty() {
+        return Err(CoreError::InvalidName("Není co vrátit: žádný soubor není vybraný.".into()));
+    }
+    for file in &files {
+        require_inside(&app, &root, file)?;
+    }
+
+    let args = restore_args(&source, &files);
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    git_raw(&git, &root, &args).map(|_| ())
+}
+
+// -- napojení složky --------------------------------------------------------
+
+/// Co je vybraná složka zač, než se na ni napojí repozitář.
+///
+/// Rozhodnutí -- jestli je to tentýž repozitář, cizí, nebo obyčejná složka --
+/// dělá `inspectionKind` ve frontendu podle remote. Tady se jen zjišťuje.
+#[tauri::command]
+pub async fn git_inspect_folder(
+    app: State<'_, AppState>,
+    state: State<'_, GitState>,
+    folder: String,
+) -> Result<String> {
+    let folder = granted_folder(&app, &folder)?;
+    let git = require_git(&state)?;
+
+    let (root, remote, is_root) = match repo_root(&git, &folder) {
+        Some(root) => {
+            let remote = git_value(&git, &root, &["remote", "get-url", "origin"]);
+            let is_root = same_dir(&root, &folder);
+            (root.to_string_lossy().to_string(), remote, is_root)
+        }
+        None => (String::new(), String::new(), false),
+    };
+    let markdown = explorer::scan_folder(&folder, ScanLimits::default())
+        .map(|tree| tree.file_count)
+        .unwrap_or(0);
+
+    serde_json::to_string(&serde_json::json!({
+        "root": root,
+        "remote": remote,
+        "isRoot": is_root,
+        "markdownFiles": markdown,
+    }))
+    .map_err(|error| CoreError::Io(format!("Složku se nepodařilo prozkoumat: {error}")))
+}
+
+/// Kroky napojení: popisek, argumenty, a jestli se po jeho neúspěchu má
+/// smazat `.git` -- do fetche včetně ano, potom už je repozitář skoro hotový
+/// a mazat ho by bylo horší než ho nechat.
+fn link_steps(branch: &str, remote_url: &str, fetch: Vec<String>) -> Vec<(String, Vec<String>, bool)> {
+    vec![
+        ("git init".into(), vec!["init".into()], true),
+        (
+            format!("git symbolic-ref HEAD refs/heads/{branch}"),
+            vec!["symbolic-ref".into(), "HEAD".into(), format!("refs/heads/{branch}")],
+            true,
+        ),
+        (
+            format!("git remote add origin {remote_url}"),
+            vec!["remote".into(), "add".into(), "origin".into(), remote_url.into()],
+            true,
+        ),
+        ("git fetch origin".into(), fetch, true),
+        (
+            format!("git update-ref refs/heads/{branch} origin/{branch}"),
+            vec!["update-ref".into(), format!("refs/heads/{branch}"), format!("refs/remotes/origin/{branch}")],
+            true,
+        ),
+        // Index podle větve, pracovní strom beze změny. Tady se ze souborů ve
+        // složce stanou „změny proti main“.
+        ("git reset".into(), vec!["reset".into(), "-q".into()], false),
+        (
+            format!("git branch --set-upstream-to=origin/{branch}"),
+            vec!["branch".into(), format!("--set-upstream-to=origin/{branch}")],
+            false,
+        ),
+        (
+            format!("git remote set-head origin {branch}"),
+            vec!["remote".into(), "set-head".into(), "origin".into(), branch.into()],
+            false,
+        ),
+    ]
+}
+
+/// Udělat z obyčejné složky pracovní kopii repozitáře, bez sáhnutí na soubory.
+///
+/// `init`, `origin`, `fetch`, a pak větev postavená na `origin/<výchozí>`
+/// s indexem podle ní -- pracovní strom zůstane, jak byl. Git potom vidí
+/// přesně to, čím se soubory ve složce liší od main: změněné, chybějící
+/// a nové. Nic se nepřepíše a nic se nikam neodešle.
+///
+/// Když to spadne dřív, než je hotový fetch, `.git`, které tohle volání
+/// založilo, se zase smaže -- složka zůstane, jak ji uživatel vybral.
+#[tauri::command]
+pub async fn git_link_folder(
+    app: State<'_, AppState>,
+    state: State<'_, GitState>,
+    folder: String,
+    remote_url: String,
+    default_branch: String,
+    channel: Channel<GitChunk>,
+) -> Result<()> {
+    let folder = granted_folder(&app, &folder)?;
+    let git = require_git(&state)?;
+    if !is_https_url(&remote_url) {
+        return Err(CoreError::InvalidName(format!("{remote_url} není adresa repozitáře.")));
+    }
+    if !is_safe_branch(&default_branch) {
+        return Err(CoreError::InvalidName("Tohle se větev jmenovat nemůže.".into()));
+    }
+    if folder.join(".git").exists() || repo_root(&git, &folder).is_some() {
+        return Err(CoreError::Duplicate(format!(
+            "{} už v repozitáři gitu je.",
+            folder.display()
+        )));
+    }
+
+    let gh = locate_gh(&state).map(|(path, _)| path);
+    let github = remote_url.contains("github.com");
+    let slot = Arc::clone(&state.running);
+
+    std::thread::spawn(move || {
+        let mut fetch = credential_args(gh.as_deref(), github);
+        fetch.extend(["fetch", "--progress", "origin"].map(String::from));
+
+        let steps = link_steps(&default_branch, &remote_url, fetch);
+        if run_link(&git, &folder, steps, &channel, &slot) {
+            let _ = channel.send(GitChunk::Finished);
+        }
+    });
+    Ok(())
+}
+
+/// Projít kroky napojení; při neúspěchu v první půlce po sobě uklidit.
+fn run_link(
+    git: &str,
+    folder: &Path,
+    steps: Vec<(String, Vec<String>, bool)>,
+    channel: &Channel<GitChunk>,
+    slot: &Arc<Mutex<Option<Child>>>,
+) -> bool {
+    for (label, args, undo) in steps {
+        let mut command = base_command(git);
+        command.current_dir(folder).args(&args);
+        if !run_step(command, &label, channel, slot) {
+            if undo {
+                let _ = std::fs::remove_dir_all(folder.join(".git"));
+            }
+            return false;
+        }
+    }
+    true
+}
+
+/// Argumenty pro `git restore` ze `source`, do indexu i pracovního stromu.
+fn restore_args(source: &str, files: &[String]) -> Vec<String> {
+    let mut args = vec![
+        "restore".to_string(),
+        format!("--source={source}"),
+        "--staged".into(),
+        "--worktree".into(),
+        "--".into(),
+    ];
+    args.extend(files.iter().cloned());
+    args
 }
 
 #[cfg(test)]
@@ -1245,7 +1829,7 @@ mod tests {
         let steps: Vec<(&str, Vec<String>)> = vec![
             ("git checkout -b docs/test", vec!["checkout".into(), "-b".into(), "docs/test".into()]),
             ("git add -- docs/a.md", vec!["add".into(), "--".into(), "docs/a.md".into()]),
-            ("git commit", vec!["commit".into(), "-m".into(), "Dokumentace: a.md".into()]),
+            ("git commit", commit_args("Dokumentace: a.md", &["docs/a.md".into()])),
             ("git push -u origin docs/test", push_args(None, false, "docs/test")),
         ];
         for (label, args) in steps {
@@ -1354,6 +1938,254 @@ mod tests {
             child.kill_now();
             let _ = child.wait_now();
         }
+    }
+
+    /// Druhý klon téhož remote -- „někdo jiný“, kdo mezitím pushuje.
+    fn second_clone(dir: &Path, origin: &Path) -> PathBuf {
+        let other = dir.join("other");
+        git(dir, &["clone", "-q", origin.to_str().unwrap(), other.to_str().unwrap()]);
+        git(&other, &["config", "user.name", "Jiný"]);
+        git(&other, &["config", "user.email", "jiny@example.com"]);
+        other
+    }
+
+    /// Obsah souboru bez ohledu na konce řádků -- git na Windows při
+    /// checkoutu dělá z `\n` `\r\n` a o to v testu nejde.
+    fn text(path: &Path) -> String {
+        fs::read_to_string(path).unwrap().replace("\r\n", "\n")
+    }
+
+    fn run_all(dir: &Path, steps: Vec<(String, Vec<String>)>) -> String {
+        let (channel, seen) = collecting_channel();
+        let slot: Arc<Mutex<Option<Child>>> = Arc::new(Mutex::new(None));
+        for (label, args) in steps {
+            let mut command = base_command("git");
+            command.current_dir(dir).args(&args);
+            assert!(run_step(command, &label, &channel, &slot), "{label}: {:?}", seen.lock().unwrap());
+        }
+        let transcript = seen.lock().unwrap().join("\n");
+        transcript
+    }
+
+    #[test]
+    fn linking_a_plain_folder_keeps_its_files_and_shows_the_difference_from_main() {
+        let (dir, origin, _work) = repo_with_remote();
+        // Soubory k repozitáři, které má uživatel jinde: jeden upravený, jeden
+        // nový, a README, které tu vůbec není.
+        let plain = dir.path().join("moje-docs");
+        fs::create_dir_all(plain.join("docs")).unwrap();
+        fs::write(plain.join("docs/a.md"), "# A\n\nmoje verze\n").unwrap();
+        fs::write(plain.join("docs/nové.md"), "# N\n").unwrap();
+
+        let (channel, seen) = collecting_channel();
+        let slot: Arc<Mutex<Option<Child>>> = Arc::new(Mutex::new(None));
+        let fetch = vec!["fetch".into(), "origin".into()];
+        let steps = link_steps("main", origin.to_str().unwrap(), fetch);
+        assert!(run_link("git", &plain, steps, &channel, &slot), "{:?}", seen.lock().unwrap());
+
+        // Soubory zůstaly bajt po bajtu, jak byly.
+        assert_eq!(fs::read_to_string(plain.join("docs/a.md")).unwrap(), "# A\n\nmoje verze\n");
+        assert!(!plain.join("README.md").exists(), "nic se nedopsalo");
+
+        // Git vidí přesně rozdíl proti main. (`git()` ořízne úvodní mezeru
+        // prvního řádku, proto se hledá bez ní.)
+        let status = git(&plain, &["status", "--porcelain=v1", "--untracked-files=all"]);
+        assert!(status.contains(" M docs/a.md"), "{status}");
+        assert!(status.contains("D README.md"), "{status}");
+        assert!(status.contains("?? \"docs/nov") || status.contains("?? docs/nov"), "{status}");
+
+        // A je to plnohodnotná kopie: větev, sledování i výchozí větev.
+        assert_eq!(git(&plain, &["rev-parse", "--abbrev-ref", "HEAD"]), "main");
+        assert_eq!(git(&plain, &["rev-parse", "--abbrev-ref", "@{upstream}"]), "origin/main");
+        assert_eq!(default_branch("git", &plain), "main");
+
+        let report: serde_json::Value = serde_json::from_str(
+            &compare_report("git", &plain, plain.to_str().unwrap(), "origin/main", "").unwrap(),
+        )
+        .unwrap();
+        assert_eq!(report["ahead"], 0);
+        assert_eq!(report["behind"], 0);
+        let names = report["nameStatus"].as_str().unwrap();
+        assert!(names.contains("M\0docs/a.md\0"), "{names:?}");
+        assert!(names.contains("D\0README.md\0"), "{names:?}");
+        assert!(report["untracked"].as_str().unwrap().contains("docs/nové.md\0"));
+        assert!(report["numstat"].as_str().unwrap().contains("docs/a.md"));
+    }
+
+    #[test]
+    fn a_failed_link_leaves_the_folder_as_it_was() {
+        let (dir, _origin, _work) = repo_with_remote();
+        let plain = dir.path().join("docs-bez-remote");
+        fs::create_dir_all(&plain).unwrap();
+        fs::write(plain.join("a.md"), "# A\n").unwrap();
+
+        let (channel, seen) = collecting_channel();
+        let slot: Arc<Mutex<Option<Child>>> = Arc::new(Mutex::new(None));
+        let missing = dir.path().join("neexistuje.git");
+        let steps = link_steps("main", missing.to_str().unwrap(), vec!["fetch".into(), "origin".into()]);
+        assert!(!run_link("git", &plain, steps, &channel, &slot));
+
+        assert!(!plain.join(".git").exists(), "po neúspěchu zbylo .git");
+        assert_eq!(fs::read_to_string(plain.join("a.md")).unwrap(), "# A\n");
+        assert!(seen.lock().unwrap().join("\n").contains("\"kind\":\"failed\""));
+    }
+
+    #[test]
+    fn a_branch_that_is_only_on_github_is_downloaded_and_tracked() {
+        let (dir, origin, work) = repo_with_remote();
+        let other = second_clone(dir.path(), &origin);
+        git(&other, &["checkout", "-q", "-b", "feature/x"]);
+        fs::write(other.join("docs/a.md"), "# A\n\nz větve\n").unwrap();
+        git(&other, &["commit", "-qam", "Na větvi"]);
+        git(&other, &["push", "-q", "-u", "origin", "feature/x"]);
+
+        git(&work, &["fetch", "-q", "origin"]);
+        let (label, args) = switch_step("git", &work, "feature/x").unwrap();
+        assert_eq!(label, "git switch -c feature/x --track origin/feature/x");
+        run_all(&work, vec![(label, args)]);
+
+        assert_eq!(git(&work, &["rev-parse", "--abbrev-ref", "HEAD"]), "feature/x");
+        assert_eq!(git(&work, &["rev-parse", "--abbrev-ref", "@{upstream}"]), "origin/feature/x");
+        assert_eq!(text(&work.join("docs/a.md")), "# A\n\nz větve\n");
+
+        // Podruhé už je doma, takže se jen přepne.
+        git(&work, &["switch", "-q", "main"]);
+        assert_eq!(switch_step("git", &work, "feature/x").unwrap().0, "git switch feature/x");
+        assert!(switch_step("git", &work, "nikde-neni").is_err());
+    }
+
+    #[test]
+    fn the_branch_list_names_local_and_remote_branches() {
+        let (dir, origin, work) = repo_with_remote();
+        git(&work, &["remote", "set-head", "origin", "main"]);
+        let other = second_clone(dir.path(), &origin);
+        git(&other, &["checkout", "-q", "-b", "docs/nova"]);
+        fs::write(other.join("docs/b.md"), "# B\n").unwrap();
+        git(&other, &["add", "."]);
+        git(&other, &["commit", "-qm", "Přidat b"]);
+        git(&other, &["push", "-q", "-u", "origin", "docs/nova"]);
+        git(&work, &["fetch", "-q", "origin"]);
+
+        let list: serde_json::Value = serde_json::from_str(&branch_list("git", &work, "").unwrap()).unwrap();
+        assert_eq!(list["current"], "main");
+        assert_eq!(list["default"], "main");
+        let refs = list["refs"].as_str().unwrap();
+        assert!(refs.contains("refs/heads/main\0"), "{refs:?}");
+        assert!(refs.contains("refs/remotes/origin/docs/nova\0"), "{refs:?}");
+        assert!(refs.contains("\0Přidat b\n") || refs.ends_with("\0Přidat b"), "{refs:?}");
+
+        let report: serde_json::Value = serde_json::from_str(
+            &branch_report("git", &work, work.to_str().unwrap(), "origin/main", "origin/docs/nova").unwrap(),
+        )
+        .unwrap();
+        assert_eq!(report["ahead"], 1);
+        assert_eq!(report["behind"], 0);
+        assert!(report["log"].as_str().unwrap().contains("Přidat b"));
+        assert!(report["nameStatus"].as_str().unwrap().contains("A\0docs/b.md\0"));
+    }
+
+    #[test]
+    fn publishing_to_an_existing_branch_catches_up_before_the_commit() {
+        let (dir, origin, work) = repo_with_remote();
+        // Někdo mezitím přispěl do main.
+        let other = second_clone(dir.path(), &origin);
+        fs::write(other.join("README.md"), "# R\n\nod kolegy\n").unwrap();
+        git(&other, &["commit", "-qam", "Kolega"]);
+        git(&other, &["push", "-q", "origin", "main"]);
+
+        fs::write(work.join("docs/a.md"), "# A\n\nmoje\n").unwrap();
+        git(&work, &["fetch", "-q", "origin"]);
+        assert_eq!(behind_upstream("git", &work), 1);
+
+        run_all(
+            &work,
+            vec![
+                ("git merge --ff-only origin/main".into(), ["merge", "--ff-only", "@{upstream}"].map(String::from).to_vec()),
+                ("git add -- docs/a.md".into(), vec!["add".into(), "--".into(), "docs/a.md".into()]),
+                ("git commit".into(), vec!["commit".into(), "-m".into(), "Rovnou do main".into()]),
+                ("git push -u origin main".into(), push_args(None, false, "main")),
+            ],
+        );
+
+        // Na main je kolegův commit a na něm ten náš -- nic se nepřepsalo.
+        let log = git(&origin, &["log", "--format=%s", "main"]);
+        assert_eq!(log.lines().collect::<Vec<_>>(), vec!["Rovnou do main", "Kolega", "init"]);
+    }
+
+    #[test]
+    fn restore_puts_back_the_version_from_main() {
+        let (_dir, _origin, work) = repo_with_remote();
+        fs::write(work.join("docs/a.md"), "# A\n\nrozdělané\n").unwrap();
+        fs::remove_file(work.join("README.md")).unwrap();
+
+        let args = restore_args("origin/main", &["docs/a.md".into(), "README.md".into()]);
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        git_raw("git", &work, &args).unwrap();
+
+        assert_eq!(text(&work.join("docs/a.md")), "# A\n");
+        assert!(work.join("README.md").exists());
+        assert_eq!(git(&work, &["status", "--porcelain"]), "");
+    }
+
+    #[test]
+    fn file_names_with_brackets_are_names_not_patterns() {
+        // `notes[1].md` jako vzor odpovídá i `notes1.md`. Vrátit nebo odeslat
+        // se smí jen ten soubor, který se jmenuje přesně tak.
+        let (_dir, _origin, work) = repo_with_remote();
+        fs::write(work.join("notes[1].md"), "# Závorky\n").unwrap();
+        fs::write(work.join("notes1.md"), "# Bez závorek\n").unwrap();
+        git(&work, &["add", "."]);
+        git(&work, &["commit", "-qm", "dva soubory"]);
+        fs::write(work.join("notes[1].md"), "# Závorky\n\nzměna\n").unwrap();
+        fs::write(work.join("notes1.md"), "# Bez závorek\n\nrozdělané\n").unwrap();
+
+        let args = restore_args("HEAD", &["notes[1].md".into()]);
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        git_raw("git", &work, &args).unwrap();
+
+        assert_eq!(text(&work.join("notes[1].md")), "# Závorky\n");
+        assert_eq!(text(&work.join("notes1.md")), "# Bez závorek\n\nrozdělané\n", "cizí soubor zůstal");
+
+        // A totéž u `git add`: do indexu jde jen jmenovaný soubor.
+        fs::write(work.join("notes[1].md"), "# Závorky\n\nznovu\n").unwrap();
+        run_all(&work, vec![("git add".into(), vec!["add".into(), "--".into(), "notes[1].md".into()])]);
+        let staged = git(&work, &["diff", "--cached", "--name-only"]);
+        assert_eq!(staged, "notes[1].md");
+    }
+
+    #[test]
+    fn a_commit_takes_only_the_chosen_files_even_with_more_in_the_index() {
+        let (_dir, _origin, work) = repo_with_remote();
+        fs::write(work.join("docs/a.md"), "# A\n\nvybrané\n").unwrap();
+        fs::write(work.join("README.md"), "# R\n\nv indexu, ale nevybrané\n").unwrap();
+        git(&work, &["add", "README.md"]);
+
+        run_all(
+            &work,
+            vec![
+                ("git add".into(), vec!["add".into(), "--".into(), "docs/a.md".into()]),
+                ("git commit".into(), commit_args("Jen a.md", &["docs/a.md".into()])),
+            ],
+        );
+
+        let files = git(&work, &["show", "--name-only", "--format=", "HEAD"]);
+        assert_eq!(files.trim(), "docs/a.md");
+        // README zůstalo v indexu, nikam neodešlo.
+        assert_eq!(git(&work, &["diff", "--cached", "--name-only"]), "README.md");
+    }
+
+    #[test]
+    fn the_default_branch_is_found_even_without_origin_head() {
+        let (_dir, _origin, work) = repo_with_remote();
+        // `push -u` do bare repa `origin/HEAD` nenastaví -- přesně případ repa
+        // založeného bez klonu.
+        assert!(git_value("git", &work, &["symbolic-ref", "refs/remotes/origin/HEAD"]).is_empty());
+        assert_eq!(default_branch("git", &work), "main");
+
+        // Ukazatel na větev, která už není, se nepoužije.
+        git(&work, &["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/master"]);
+        assert_eq!(default_branch("git", &work), "main");
+        assert!(switch_step("git", &work, "HEAD").is_err());
     }
 
     #[test]

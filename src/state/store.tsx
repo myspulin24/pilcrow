@@ -423,7 +423,8 @@ function reducer(state: AppState, action: Action): AppState {
         fatal: null,
         // Nastavení, která říkají „jak to má vypadat po otevření“. Platí jen
         // teď, při startu -- co si uživatel během práce přepne, mu nastavení
-        // nepřepíše zpátky.
+        // nepřepíše zpátky. U levého panelu je `showSidebar` buď pevná volba,
+        // nebo -- se `sidebarRemember` -- to, jak ho uživatel minule nechal.
         viewMode: action.settings.defaultViewMode,
         sidebarVisible: action.settings.showSidebar,
       }
@@ -747,6 +748,12 @@ export interface Actions {
    * Bez argumentu tu aktivní.
    */
   refreshTree(rootPath?: string): Promise<void>
+  /**
+   * Načíst složku znovu poté, co ji změnil git -- přepnutí větve, stažení,
+   * vrácení souborů. Strom, a k tomu otevřený soubor z téhle složky, pokud
+   * v něm nejsou neuložené změny; rozepsaný text se nepřepíše nikdy.
+   */
+  reloadFolder(rootPath: string): Promise<void>
   /** Open a file the explorer is showing. Jeho složka se tím stane aktivní. */
   openFromTree(path: string): Promise<void>
   toggleTreeFolder(rootPath: string, path: string): void
@@ -1555,7 +1562,7 @@ export function StoreProvider({
   }, [])
 
   const loadTree = useCallback(
-    async (rootPath: string, keepExpanded: string[] = []) => {
+    async (rootPath: string, keepExpanded: string[] = [], options: { quiet?: boolean } = {}) => {
       dispatch({ type: 'explorer-loading', rootPath })
       try {
         const folder = await vaultRef.current.readFolderTree(rootPath)
@@ -1568,6 +1575,9 @@ export function StoreProvider({
           truncated: folder.truncated,
           expanded: keepExpanded,
         })
+        // Znovunačtení po přepnutí větve nebo stažení není otevření složky:
+        // o tom, že je velká nebo prázdná, už uživatel ví.
+        if (options.quiet) return
         if (folder.fileCount === 0) {
           toast('info', t.toast.emptyFolder)
         } else if (folder.truncated) {
@@ -1616,6 +1626,38 @@ export function StoreProvider({
       const folder = rootPath ? findFolder(folders, rootPath) : activeFolder(folders, active)
       if (!folder) return
       await loadTree(folder.rootPath, folder.expanded)
+    },
+    [loadTree],
+  )
+
+  const reloadFolder = useCallback(
+    async (rootPath: string) => {
+      const folder = findFolder(stateRef.current.explorer.folders, rootPath)
+      if (!folder) return
+      await loadTree(folder.rootPath, folder.expanded, { quiet: true })
+
+      const current = stateRef.current
+      const editor = current.editor
+      if (!editor?.external || editor.dirty || !current.activePath) return
+      const owner = folderOf(current.explorer.folders, current.activePath)
+      if (!owner || !sameFolder(owner.rootPath, rootPath)) return
+
+      const path = current.activePath
+      try {
+        const file = await vaultRef.current.readExternalFile(path)
+        if (file.hash === editor.baseHash) return
+        dispatch({
+          type: 'open',
+          file,
+          parsed: parseNote(file.content, { path }),
+          external: true,
+          ...(current.linked ? { linked: current.linked } : {}),
+        })
+      } catch {
+        // Na nové větvi ten soubor není. Nechat ho v editoru by znamenalo
+        // psát do něčeho, co na disku neexistuje.
+        dispatch({ type: 'close' })
+      }
     },
     [loadTree],
   )
@@ -2183,6 +2225,18 @@ export function StoreProvider({
     void updateSettings({ lastFolder, lastFile, openFolders }).catch(() => {})
   }, [state.explorer.folders, state.explorer.active, state.explorer.loneFile, state.settings, updateSettings])
 
+  /**
+   * Zapsat, jak uživatel levý panel nechal -- jen když si to v nastavení
+   * vybral („jak jsem ho nechal“). Jinak se `showSidebar` mění jen v nastavení
+   * a `Ctrl` `\` platí do konce sezení.
+   */
+  useEffect(() => {
+    if (state.phase !== 'ready') return
+    const { sidebarRemember, showSidebar } = state.settings
+    if (!sidebarRemember || showSidebar === state.sidebarVisible) return
+    void updateSettings({ showSidebar: state.sidebarVisible }).catch(() => {})
+  }, [state.phase, state.sidebarVisible, state.settings, updateSettings])
+
   // Debounced search whenever the query or the tag filter changes.
   useEffect(() => {
     if (state.phase !== 'ready') return
@@ -2348,6 +2402,7 @@ export function StoreProvider({
       openFolderFromDisk,
       openFolderAt,
       refreshTree,
+      reloadFolder,
       openFromTree,
       toggleTreeFolder: (rootPath, path) => dispatch({ type: 'explorer-toggle-dir', rootPath, path }),
       expandAllFolders,
@@ -2410,6 +2465,7 @@ export function StoreProvider({
       closeFolder,
       updateSettings,
       refreshTree,
+      reloadFolder,
       remove,
       rename,
       resolveConflict,

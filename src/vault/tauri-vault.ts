@@ -25,6 +25,7 @@ import {
   type DroppedPaths,
   type ExportResult,
   type ExternalChange,
+  type FolderDialogOptions,
   type ImportResult,
   type IndexRecord,
   type NoteFile,
@@ -207,8 +208,8 @@ export class TauriVault implements VaultApi {
     return call<string | null>('pick_markdown_file')
   }
 
-  openFolderDialog(): Promise<string | null> {
-    return call<string | null>('pick_folder')
+  openFolderDialog(options?: FolderDialogOptions): Promise<string | null> {
+    return call<string | null>('pick_folder', { title: options?.title, defaultPath: options?.defaultPath })
   }
 
   readFolderTree(path: string): Promise<FolderTree> {

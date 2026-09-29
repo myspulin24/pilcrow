@@ -19,7 +19,9 @@ import {
   currentPublishStep,
   isCommittable,
   defaultMergeMethod,
+  existingTargets,
   isValidBranchName,
+  parseBranches,
   mergeBlocker,
   outcome,
   overallOutcome,
@@ -36,9 +38,13 @@ import {
   type WorkflowJob,
   type WorkflowRun,
 } from '@/core'
+import { gitMessage } from '@/git'
 import { useGit } from '@/state/git-store'
 import { useAppState } from '@/state/store'
+import { BranchDialog } from './BranchDialog'
+import { CompareDialog } from './CompareDialog'
 import { Spinner } from './Feedback'
+import { Transcript } from './GitParts'
 import { SectionResize } from './SectionResize'
 import { Backdrop, useEscape } from './Modal'
 import { Section } from './Section'
@@ -78,14 +84,15 @@ function State({ outcome: state, small = false }: { outcome: Outcome; small?: bo
   )
 }
 
-/** Výstup gitu. Ne dekorace: tady se pozná, co selhalo. */
-function Transcript({ text }: { text: string }) {
-  if (!text.trim()) return null
+/** Ikona větve: dvě koleje, které se rozcházejí. */
+function BranchIcon() {
   return (
-    <details className="git__output">
-      <summary>{t.git.output}</summary>
-      <pre>{text}</pre>
-    </details>
+    <svg className="git__branch-icon" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+      <circle cx="4.5" cy="3" r="1.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="4.5" cy="13" r="1.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="11.5" cy="4.5" r="1.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M4.5 4.5v7M11.5 6c0 3-3.5 3-6.2 5.6" fill="none" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
   )
 }
 
@@ -186,7 +193,15 @@ function SyncNotice() {
       {action === 'pull' ? (
         <>
           <span className="git__muted">{t.git.behind(view.sync?.behind ?? 0)}</span>
-          <button type="button" className="button button--primary" onClick={() => void actions.pull()}>
+          {/* Neptat se = nestahovat. Okno ukáže, odkud se stahuje, a nechá
+              vybrat i jinou větev. */}
+          <button
+            type="button"
+            className="button button--primary"
+            title={t.git.pullNowHint}
+            disabled={view.busy !== null}
+            onClick={() => actions.openBranches('pull')}
+          >
             {t.git.pullNow}
           </button>
         </>
@@ -263,13 +278,33 @@ function Changes() {
             type="button"
             className="button button--primary"
             disabled={view.selected.length === 0}
-            onClick={actions.openPublish}
+            onClick={() => actions.openPublish()}
           >
             {t.git.publish}
           </button>
         </div>
       )}
       <Transcript text={publishing || view.error ? view.transcript : ''} />
+    </div>
+  )
+}
+
+/** Odkaz na porovnání s výchozí větví, pod seznamem změn. */
+function CompareLink() {
+  const { view, actions } = useGit()
+  const base = view.probe?.defaultBranch || view.probe?.branch || ''
+  if (!base) return null
+  return (
+    <div className="git__tools">
+      <button
+        type="button"
+        className="workspace__link"
+        title={t.git.compareLinkHint}
+        disabled={view.busy !== null}
+        onClick={actions.openComparison}
+      >
+        {t.git.compareLink(base)}
+      </button>
     </div>
   )
 }
@@ -285,18 +320,22 @@ function PublishedCard() {
   if (!published && !view.pr && !view.mergedNumber) return null
   if (view.busy === 'publish' || view.busy === 'push') return null
 
-  const label = published
-    ? published.pushed
-      ? t.git.published(published.branch)
-      : t.git.pushFailed(published.branch)
-    : t.git.prOpenState(view.pr?.number ?? 0)
+  const pushedLabel = (entry: NonNullable<typeof published>) =>
+    !entry.pushed
+      ? t.git.pushFailed(entry.branch)
+      : entry.direct
+        ? t.git.publishedDirect(entry.branch)
+        : t.git.published(entry.branch)
+  const label = published ? pushedLabel(published) : t.git.prOpenState(view.pr?.number ?? 0)
+  // Commit rovnou do výchozí větve nemá co slučovat; nabízet PR by lhalo.
+  const offersPr = !!published?.pushed && !published.direct
 
   return (
     <div className="git__card" aria-label={label}>
       {published ? (
         <p className="git__ready">
           <State outcome={published.pushed ? 'success' : 'failure'} />
-          <span>{published.pushed ? t.git.published(published.branch) : t.git.pushFailed(published.branch)}</span>
+          <span>{pushedLabel(published)}</span>
         </p>
       ) : null}
       {view.mergedNumber ? (
@@ -334,12 +373,12 @@ function PublishedCard() {
             {t.git.prOpenInBrowser}
           </button>
         ) : null}
-        {published?.pushed && view.gh === 'ready' && !view.prUrl && !view.pr && !view.mergedNumber ? (
+        {offersPr && view.gh === 'ready' && !view.prUrl && !view.pr && !view.mergedNumber ? (
           <button type="button" className="button button--primary" onClick={actions.openPr}>
             {t.git.openPr}
           </button>
         ) : null}
-        {published?.pushed && view.gh !== 'ready' && view.gh !== 'not-github' ? (
+        {offersPr && view.gh !== 'ready' && view.gh !== 'not-github' ? (
           <button
             type="button"
             className="button button--primary"
@@ -489,18 +528,85 @@ function Recent() {
 
 // -- dialog odeslání --------------------------------------------------------
 
+/** Kam odeslat: nová větev, větev, která už je, nebo rovnou výchozí. */
+type Target = 'new' | 'existing' | 'default'
+
+/**
+ * Větve, na které se dá odeslat „do existující“. Načtou se až tehdy, když si
+ * je uživatel vybere -- načtení znamená fetch, a kdo jde na novou větev,
+ * nemá na něj čekat.
+ */
+function useExistingTargets(enabled: boolean, base: string) {
+  const { view, api } = useGit()
+  const [branches, setBranches] = useState<string[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const folder = view.folder
+
+  useEffect(() => {
+    if (!enabled || !folder || branches !== null) return
+    let cancelled = false
+    api
+      .branches(folder)
+      .then((raw) => {
+        if (cancelled) return
+        const list = parseBranches(raw)
+        // Výchozí větev tady být nesmí, i když ji klon nezná -- má vlastní
+        // volbu s varováním.
+        const names = existingTargets(list, list.defaultBranch || base).map((branch) => branch.name)
+        setBranches(names.filter((name) => name !== base))
+      })
+      .catch((reason) => {
+        if (!cancelled) {
+          setBranches([])
+          setError(gitMessage(reason, t.branches.failed))
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [api, base, branches, enabled, folder])
+
+  return { branches, error }
+}
+
 function PublishDialog() {
   const { view, actions } = useGit()
   const files = view.changes.filter((file) => view.selected.includes(file.path))
+  const deletions = files.filter((file) => file.kind === 'deleted').length
+  const current = view.probe?.branch ?? ''
+  const base = view.probe?.defaultBranch || current
+  const preset = view.publishPreset
   const [message, setMessage] = useState(() => suggestMessage(files))
-  const [branch, setBranch] = useState(() => suggestBranch(new Date()))
+  const [branch, setBranch] = useState(() =>
+    preset?.mode === 'new' && preset.branch ? preset.branch : suggestBranch(new Date()),
+  )
+  const [target, setTarget] = useState<Target>(() =>
+    preset?.mode === 'existing' ? (preset.branch === base ? 'default' : 'existing') : 'new',
+  )
+  const [existing, setExisting] = useState(() =>
+    preset?.mode === 'existing' && preset.branch !== base ? preset.branch : current !== base ? current : '',
+  )
+  const [directOk, setDirectOk] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const labelId = useId()
+  const targets = useExistingTargets(target === 'existing', base)
   useEscape(actions.closePublish)
 
   useEffect(() => {
     document.getElementById(`${labelId}-message`)?.focus()
   }, [labelId])
+
+  // Když se seznam načte a vybraná větev v něm není, vezme se první.
+  useEffect(() => {
+    const list = targets.branches
+    if (!list || list.length === 0 || list.includes(existing)) return
+    setExisting(list[0] ?? '')
+  }, [existing, targets.branches])
+
+  const choose = (next: Target) => {
+    setTarget(next)
+    setError(null)
+  }
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault()
@@ -508,12 +614,31 @@ function PublishDialog() {
       setError(t.git.messageEmpty)
       return
     }
-    if (!isValidBranchName(branch.trim())) {
-      setError(t.git.branchInvalid)
+    if (target === 'new') {
+      if (!isValidBranchName(branch.trim())) {
+        setError(t.git.branchInvalid)
+        return
+      }
+      void actions.publish(message.trim(), branch.trim(), 'new')
       return
     }
-    void actions.publish(message.trim(), branch.trim())
+    if (target === 'existing') {
+      if (!existing) {
+        setError(t.git.targetMissing)
+        return
+      }
+      void actions.publish(message.trim(), existing, 'existing')
+      return
+    }
+    if (!directOk) {
+      setError(t.git.targetDefaultUnconfirmed(base))
+      return
+    }
+    void actions.publish(message.trim(), base, 'existing')
   }
+
+  const sendLabel =
+    target === 'default' ? t.git.sendTo(base) : target === 'existing' && existing ? t.git.sendTo(existing) : t.git.send
 
   return (
     <Backdrop onClose={actions.closePublish}>
@@ -521,12 +646,22 @@ function PublishDialog() {
         <h2 className="modal__title" id={labelId}>
           {t.git.publishTitle}
         </h2>
-        <p className="modal__body">{t.git.publishBody(files.length, view.probe?.branch ?? '')}</p>
+        <p className="modal__body">{t.git.publishBody(files.length)}</p>
         <ul className="git__summary">
           {files.map((file) => (
-            <li key={file.path}>{file.path}</li>
+            <li key={file.path} className="git__summary-item">
+              <span className="git__summary-path">{file.path}</span>
+              <span className={`git__badge git__badge--${file.kind}`}>{t.git.kind[file.kind] ?? file.kind}</span>
+            </li>
           ))}
         </ul>
+        {/* Smazání se odesílá stejně snadno jako úprava -- a na GitHubu po něm
+            soubor zmizí. Má to být vidět dřív, než se klikne. */}
+        {deletions > 0 ? (
+          <p className="git__target-warning" role="note">
+            {t.git.publishDeletes(deletions)}
+          </p>
+        ) : null}
 
         <label className="modal__label" htmlFor={`${labelId}-message`}>
           {t.git.messageLabel}
@@ -542,20 +677,105 @@ function PublishDialog() {
           }}
         />
 
-        <label className="modal__label" htmlFor={`${labelId}-branch`}>
-          {t.git.branchLabel}
-        </label>
-        <input
-          id={`${labelId}-branch`}
-          className="modal__input"
-          value={branch}
-          spellCheck={false}
-          onChange={(event) => {
-            setBranch(event.target.value)
-            setError(null)
-          }}
-          aria-invalid={error ? 'true' : 'false'}
-        />
+        <fieldset className="git__methods git__targets">
+          <legend className="modal__label">{t.git.targetLabel}</legend>
+
+          <label className="git__method">
+            <input
+              type="radio"
+              name={`${labelId}-target`}
+              checked={target === 'new'}
+              onChange={() => choose('new')}
+            />
+            <span>{t.git.targetNew}</span>
+          </label>
+          {target === 'new' ? (
+            <div className="git__target-body">
+              <label className="modal__label" htmlFor={`${labelId}-branch`}>
+                {t.git.branchLabel}
+              </label>
+              <input
+                id={`${labelId}-branch`}
+                className="modal__input"
+                value={branch}
+                spellCheck={false}
+                onChange={(event) => {
+                  setBranch(event.target.value)
+                  setError(null)
+                }}
+                aria-invalid={error ? 'true' : 'false'}
+              />
+              <p className="git__muted">{t.git.targetNewHint(base)}</p>
+            </div>
+          ) : null}
+
+          <label className="git__method">
+            <input
+              type="radio"
+              name={`${labelId}-target`}
+              checked={target === 'existing'}
+              onChange={() => choose('existing')}
+            />
+            <span>{t.git.targetExisting}</span>
+          </label>
+          {target === 'existing' ? (
+            <div className="git__target-body">
+              {targets.branches === null ? (
+                <Spinner label={t.git.targetExistingLoading} />
+              ) : targets.branches.length === 0 ? (
+                <p className="git__muted">{targets.error ?? t.git.targetExistingNone}</p>
+              ) : (
+                <>
+                  <label className="modal__label" htmlFor={`${labelId}-existing`}>
+                    {t.git.targetExistingLabel}
+                  </label>
+                  <select
+                    id={`${labelId}-existing`}
+                    className="modal__input"
+                    value={existing}
+                    onChange={(event) => {
+                      setExisting(event.target.value)
+                      setError(null)
+                    }}
+                  >
+                    {targets.branches.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
+              <p className="git__muted">{t.git.targetExistingHint(current)}</p>
+            </div>
+          ) : null}
+
+          <label className="git__method">
+            <input
+              type="radio"
+              name={`${labelId}-target`}
+              checked={target === 'default'}
+              onChange={() => choose('default')}
+            />
+            <span>{t.git.targetDefault(base)}</span>
+          </label>
+          {target === 'default' ? (
+            <div className="git__target-body git__target-warning" role="note">
+              <p>{t.git.targetDefaultWarning(base)}</p>
+              <label className="git__method">
+                <input
+                  type="checkbox"
+                  checked={directOk}
+                  onChange={(event) => {
+                    setDirectOk(event.target.checked)
+                    setError(null)
+                  }}
+                />
+                <span>{t.git.targetDefaultConfirm(base)}</span>
+              </label>
+            </div>
+          ) : null}
+        </fieldset>
 
         {error ? (
           <p className="modal__error" role="alert">
@@ -566,8 +786,11 @@ function PublishDialog() {
           <button type="button" className="button" onClick={actions.closePublish}>
             {t.common.cancel}
           </button>
-          <button type="submit" className="button button--primary">
-            {t.git.send}
+          <button
+            type="submit"
+            className={`button ${target === 'default' ? 'button--danger' : 'button--primary'}`}
+          >
+            {sendLabel}
           </button>
         </div>
       </form>
@@ -767,7 +990,7 @@ export function GitSection() {
   // v hlavičce nezbylo nic. Teď je tam po celou dobu „zjišťuji…“ a pak čas,
   // kdy to doběhlo -- takže je vidět i to, že se právě nic nezměnilo.
   const checking = view.busy === 'probe' || view.busy === 'status'
-  const meta = view.probe?.branch ? <span className="git__branch">{view.probe.branch}</span> : null
+  const branch = view.probe?.branch ?? ''
 
   /**
    * Kdy se stav naposled zjišťoval.
@@ -798,12 +1021,30 @@ export function GitSection() {
           </>
         }
         titleHint={folder.rootPath}
-        meta={meta}
         open={open}
         onToggle={() => setOpen((value) => !value)}
         resize={{ key: SECTION_GIT, label: t.git.section }}
         actions={
-          <button
+          <>
+            {/* Jméno větve je zároveň vstup do okna větví: tam, kde člověk
+                vidí „main“, čeká, že na to jde kliknout a vybrat jinou. */}
+            {branch ? (
+              <button
+                type="button"
+                className="git__branch-button"
+                title={`${branch} — ${t.git.branchesHint}`}
+                aria-label={t.git.branchesButton}
+                disabled={view.step !== 'ready' || view.busy !== null}
+                onClick={() => actions.openBranches('browse')}
+              >
+                <BranchIcon />
+                <span className="git__branch">{branch}</span>
+                <span className="git__branch-caret" aria-hidden="true">
+                  ▾
+                </span>
+              </button>
+            ) : null}
+            <button
             type="button"
             className={`ws-icon-button ${checking ? 'is-busy' : ''}`}
             title={t.git.recheckHint}
@@ -814,6 +1055,7 @@ export function GitSection() {
           >
             <span aria-hidden="true">{'↻'}</span>
           </button>
+          </>
         }
       >
         <div className="git">
@@ -830,6 +1072,7 @@ export function GitSection() {
               <GhNotice />
               <SyncNotice />
               <Changes />
+              <CompareLink />
               <PublishedCard />
               <CiCard />
               <Recent />
@@ -846,6 +1089,8 @@ export function GitSection() {
       {view.publishOpen ? <PublishDialog /> : null}
       {view.prOpen ? <PrDialog /> : null}
       {view.mergeOpen ? <MergeDialog /> : null}
+      {view.branches && view.step === 'ready' ? <BranchDialog /> : null}
+      {view.compareOpen && view.step === 'ready' ? <CompareDialog /> : null}
     </>
   )
 }

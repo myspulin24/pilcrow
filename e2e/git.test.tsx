@@ -66,6 +66,8 @@ const workspace = () => screen.getByLabelText('Pracovní plocha')
 /** Přepínač sekce Git. `null`, když sekce není. */
 const gitToggle = () => within(workspace()).queryByRole('button', { name: /^Git\b/ })
 const gitBody = () => document.getElementById('ws-git-body') as HTMLElement
+/** Jméno větve v hlavičce sekce -- zároveň tlačítko do okna větví. */
+const branchButton = () => within(workspace()).queryByRole('button', { name: 'Větve…' })
 const changesList = () => within(gitBody()).findByRole('list', { name: 'Změněné soubory' })
 
 async function openTheFolder(user: User) {
@@ -126,7 +128,7 @@ describe('kdy se sekce ukáže', () => {
     await renderApp()
     await openTheFolder(user)
     await waitForGit()
-    expect(gitToggle()).toHaveTextContent('main')
+    expect(branchButton()).toHaveTextContent('main')
     expect(within(gitBody()).getByText('Žádné změny v souborech .md.')).toBeInTheDocument()
   })
 
@@ -147,7 +149,8 @@ describe('kdy se sekce ukáže', () => {
     await waitFor(() => expect(gitBody()).toHaveTextContent(/zjištěno v \d\d:\d\d:\d\d/))
     // V hlavičce je větev, ne čas: tam se o místo dělí s názvem sekce
     // a jménem složky a dlouhá větev by z něj stejně nic nenechala.
-    expect(gitToggle()).toHaveTextContent('main')
+    expect(branchButton()).toHaveTextContent('main')
+    expect(gitToggle()).not.toHaveTextContent(/zjištěno/)
   })
 
   it('kliknutí na „Zkontrolovat znovu“ se opravdu zeptá gitu', async () => {
@@ -275,7 +278,7 @@ describe('odeslání', () => {
     expect(await within(gitBody()).findByText('Větev docs/test je odeslaná.')).toBeInTheDocument()
     // Seznam změn je po odeslání prázdný a záhlaví ukazuje novou větev.
     await waitFor(() => expect(within(gitBody()).getByText('Žádné změny v souborech .md.')).toBeInTheDocument())
-    expect(gitToggle()).toHaveTextContent('docs/test')
+    expect(branchButton()).toHaveTextContent('docs/test')
 
     // Běh se objeví a doběhne; kroky jsou vidět jmény.
     const ci = await within(gitBody()).findByLabelText('Běh Actions')
@@ -371,7 +374,7 @@ describe('odeslání', () => {
     })
     // Tlačítko ↻ je v záhlaví sekce, ne v jejím těle.
     await user.click(within(workspace()).getByRole('button', { name: 'Zkontrolovat znovu' }))
-    await waitFor(() => expect(gitToggle()).toHaveTextContent('docs/prvni'))
+    await waitFor(() => expect(branchButton()).toHaveTextContent('docs/prvni'))
     await user.click(await within(gitBody()).findByRole('checkbox', { name: /README.md/ }))
     await publish(user, 'docs/druha')
     await within(gitBody()).findByText('Větev docs/druha je odeslaná.')
@@ -634,5 +637,268 @@ describe('pull request z minulého spuštění', () => {
 
     expect(within(gitBody()).queryByText(/je otevřený/)).toBeNull()
     expect(within(gitBody()).queryByRole('button', { name: 'Sloučit…' })).toBeNull()
+  })
+})
+
+describe('okno větví', () => {
+  const BRANCHES = [
+    { name: 'main', local: true },
+    {
+      name: 'feature/navod',
+      local: false,
+      subject: 'Nový návod k instalaci',
+      author: 'Kolegyně',
+      ahead: 2,
+      files: [{ path: 'docs/navod.md', status: 'A' as const }, { path: 'src/app.ts', status: 'M' as const }],
+    },
+    { name: 'docs/rozpracovano', local: true, subject: 'Rozpracované', ahead: 1, files: [{ path: 'docs/guide.md' }] },
+  ]
+
+  async function openBranches(user: User) {
+    await user.click(branchButton()!)
+    return screen.findByRole('dialog', { name: 'Větve' })
+  }
+
+  it('ukáže větve z GitHubu i domácí, a co která přinesla proti main', async () => {
+    const user = userEvent.setup()
+    await renderApp({ branches: BRANCHES })
+    await openTheFolder(user)
+    await waitForGit()
+
+    const dialog = await openBranches(user)
+    const list = await within(dialog).findByRole('list', { name: 'Větve' })
+    const rows = within(list).getAllByRole('button')
+    // Kde jsem, nahoře; výchozí je zároveň ta, kde se stojí.
+    expect(rows[0]).toHaveTextContent('main')
+    expect(rows[0]).toHaveTextContent('tady jsi')
+    expect(rows[0]).toHaveTextContent('výchozí')
+    const feature = rows.find((row) => row.textContent?.includes('feature/navod'))!
+    expect(feature).toHaveTextContent('jen na GitHubu')
+
+    await user.click(feature)
+    const detail = await within(dialog).findByLabelText('feature/navod')
+    expect(await within(detail).findByText('2 commity navíc proti main')).toBeInTheDocument()
+    expect(within(detail).getByText('Nový návod k instalaci', { selector: '.branches__subject' })).toBeInTheDocument()
+    // Jen Markdown jménem, zbytek počtem -- a cesta od otevřené složky.
+    const files = within(detail).getByRole('list', { name: 'Změněné soubory .md' })
+    expect(within(files).getByText('navod.md')).toBeInTheDocument()
+    expect(within(detail).getByText('a 1 další soubor mimo .md')).toBeInTheDocument()
+
+    // Rozdíl až na rozkliknutí.
+    await user.click(within(files).getByRole('button', { name: 'Ukázat rozdíl v navod.md' }))
+    expect(await within(detail).findByText('+nová věta')).toBeInTheDocument()
+    expect(git.diffs.at(-1)).toEqual({ from: 'origin/main', to: 'origin/feature/navod', path: 'docs/navod.md' })
+
+    // Prohlížení nic nestáhlo.
+    expect(git.switched).toEqual([])
+  })
+
+  it('větev jen na GitHubu se stáhne a otevře až tlačítkem', async () => {
+    const user = userEvent.setup()
+    await renderApp({ branches: BRANCHES })
+    await openTheFolder(user)
+    await waitForGit()
+
+    const dialog = await openBranches(user)
+    const list = await within(dialog).findByRole('list', { name: 'Větve' })
+    await user.click(within(list).getByRole('button', { name: /feature\/navod/ }))
+    await user.click(within(dialog).getByRole('button', { name: 'Stáhnout a otevřít feature/navod' }))
+
+    await waitFor(() => expect(git.switched).toEqual(['feature/navod']))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Větve' })).toBeNull())
+    await waitFor(() => expect(branchButton()).toHaveTextContent('feature/navod'))
+  })
+
+  it('s rozdělanou prací varuje, a když git přepnutí odmítne, řekne proč', async () => {
+    const user = userEvent.setup()
+    await renderApp({
+      branches: BRANCHES,
+      changes: [{ path: 'docs/guide.md', xy: ' M' }],
+      failSwitch: 'error: Your local changes to the following files would be overwritten by checkout',
+    })
+    await openTheFolder(user)
+    await waitForGit()
+
+    const dialog = await openBranches(user)
+    const list = await within(dialog).findByRole('list', { name: 'Větve' })
+    await user.click(within(list).getByRole('button', { name: /docs\/rozpracovano/ }))
+    expect(within(dialog).getByText(/Máš 1 rozdělanou změnu/)).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Přepnout na docs/rozpracovano' }))
+    await waitFor(() => expect(within(dialog).getByRole('alert')).toHaveTextContent('would be overwritten'))
+    // Okno zůstává -- chyba patří k tomu, co se v něm vybralo.
+    expect(screen.getByRole('dialog', { name: 'Větve' })).toBeInTheDocument()
+    expect(branchButton()).toHaveTextContent('main')
+  })
+
+  it('„Stáhnout…“ v sekci se napřed zeptá, odkud', async () => {
+    const user = userEvent.setup()
+    await renderApp({ behind: 2 })
+    await openTheFolder(user)
+    await waitForGit()
+
+    await user.click(await within(gitBody()).findByRole('button', { name: 'Stáhnout…' }))
+    const ask = await screen.findByRole('dialog', { name: 'Stáhnout z GitHubu' })
+    expect(git.pulled).toBe(false)
+    await user.click(await within(ask).findByRole('button', { name: 'Stáhnout do main' }))
+    await waitFor(() => expect(git.pulled).toBe(true))
+  })
+})
+
+describe('kam odeslat', () => {
+  async function openPublish(user: User) {
+    await user.click(within(await changesList()).getByRole('checkbox', { name: /guide\.md/ }))
+    await user.click(within(gitBody()).getByRole('button', { name: 'Odeslat do gitu…' }))
+    return screen.findByRole('dialog', { name: 'Odeslat do gitu' })
+  }
+
+  it('na větev, která už je: vybere se ze seznamu z GitHubu', async () => {
+    const user = userEvent.setup()
+    await renderApp({
+      changes: [{ path: 'docs/guide.md', xy: ' M' }],
+      branches: [{ name: 'main', local: true }, { name: 'docs/rozpracovano', local: false }],
+    })
+    await openTheFolder(user)
+    await waitForGit()
+
+    const dialog = await openPublish(user)
+    await user.click(within(dialog).getByRole('radio', { name: 'Na větev, která už je' }))
+    const select = await within(dialog).findByLabelText('Existující větev')
+    expect(within(select).getAllByRole('option').map((option) => option.textContent)).toEqual(['docs/rozpracovano'])
+    await user.click(within(dialog).getByRole('button', { name: 'Odeslat do docs/rozpracovano' }))
+
+    await waitFor(() => expect(git.published?.branch).toBe('docs/rozpracovano'))
+    expect(git.publishedMode).toBe('existing')
+    expect(await within(gitBody()).findByText('Větev docs/rozpracovano je odeslaná.')).toBeInTheDocument()
+    expect(branchButton()).toHaveTextContent('docs/rozpracovano')
+  })
+
+  it('přímo do main jen po výslovném potvrzení -- a pak bez nabídky PR', async () => {
+    const user = userEvent.setup()
+    await renderApp({ changes: [{ path: 'docs/guide.md', xy: ' M' }] })
+    await openTheFolder(user)
+    await waitForGit()
+
+    const dialog = await openPublish(user)
+    await user.click(within(dialog).getByRole('radio', { name: 'Přímo do main' }))
+    expect(within(dialog).getByRole('note')).toHaveTextContent('bez pull requestu')
+
+    await user.click(within(dialog).getByRole('button', { name: 'Odeslat do main' }))
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('potřeba potvrdit')
+    expect(git.published).toBeNull()
+
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Rozumím, odeslat přímo do main' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Odeslat do main' }))
+
+    await waitFor(() => expect(git.published?.branch).toBe('main'))
+    expect(git.publishedMode).toBe('existing')
+    expect(await within(gitBody()).findByText('Commit je přímo ve větvi main.')).toBeInTheDocument()
+    expect(within(gitBody()).queryByRole('button', { name: 'Otevřít PR' })).toBeNull()
+  })
+})
+
+describe('porovnání s main', () => {
+  it('vypíše rozdíly, ukáže rozdíl souboru a nabídne, co s tím', async () => {
+    const user = userEvent.setup()
+    await renderApp({ changes: [{ path: 'docs/guide.md', xy: ' M' }, { path: 'docs/novy.md', xy: '??' }] })
+    await openTheFolder(user)
+    await waitForGit()
+
+    await user.click(within(gitBody()).getByRole('button', { name: 'Porovnat s main…' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Porovnání s main' })
+    const files = await within(dialog).findByRole('list', { name: 'Rozdílné soubory' })
+    expect(within(files).getByText('guide.md').closest('li')).toHaveTextContent('liší se')
+    expect(within(files).getByText('novy.md').closest('li')).toHaveTextContent('jen u tebe')
+    expect(git.compared).toEqual(['origin/main'])
+
+    await user.click(within(files).getByRole('button', { name: 'Ukázat rozdíl v guide.md' }))
+    expect(await within(files).findByText('-stará věta')).toBeInTheDocument()
+    expect(git.diffs.at(-1)).toEqual({ from: 'origin/main', to: '', path: 'docs/guide.md' })
+
+    // Soubor, který je jen tady, nemá s čím porovnat -- a vrátit ho nejde.
+    await user.click(within(files).getByRole('button', { name: 'Ukázat rozdíl v novy.md' }))
+    expect(within(files).getByText(/Soubor je jen u tebe/)).toBeInTheDocument()
+    const restore = within(dialog).getByRole('list', { name: 'Vrátit soubory na verzi z main' })
+    expect(within(restore).getAllByRole('checkbox')).toHaveLength(1)
+  })
+
+  it('vrácení na verzi z main se potvrzuje a pak se porovnání obnoví', async () => {
+    const user = userEvent.setup()
+    await renderApp({ changes: [{ path: 'docs/guide.md', xy: ' M' }, { path: 'docs/novy.md', xy: '??' }] })
+    await openTheFolder(user)
+    await waitForGit()
+
+    await user.click(within(gitBody()).getByRole('button', { name: 'Porovnat s main…' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Porovnání s main' })
+    await user.click(await within(dialog).findByRole('button', { name: 'Vrátit 1 soubor…' }))
+    expect(git.restored).toBeNull()
+    const confirm = within(dialog).getByRole('alertdialog')
+    expect(confirm).toHaveTextContent('nedá se to vzít zpět')
+    await user.click(within(confirm).getByRole('button', { name: 'Přepsat' }))
+
+    await waitFor(() => expect(git.restored).toEqual({ source: 'origin/main', files: ['docs/guide.md'] }))
+    // Porovnání se načetlo znovu: vrácený soubor v něm už není, ten jen můj ano.
+    await waitFor(() => expect(within(dialog).queryByText('guide.md')).toBeNull())
+    expect(within(dialog).getByText('novy.md')).toBeInTheDocument()
+  })
+
+  it('odeslání z porovnání vede do obvyklého dialogu s vybranými změnami', async () => {
+    const user = userEvent.setup()
+    await renderApp({ changes: [{ path: 'docs/guide.md', xy: ' M' }] })
+    await openTheFolder(user)
+    await waitForGit()
+
+    await user.click(within(gitBody()).getByRole('button', { name: 'Porovnat s main…' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Porovnání s main' })
+    await user.click(await within(dialog).findByRole('button', { name: 'Odeslat…' }))
+
+    const publish = await screen.findByRole('dialog', { name: 'Odeslat do gitu' })
+    expect(within(publish).getByText('docs/guide.md')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Porovnání s main' })).toBeNull()
+  })
+
+  it('když se nic neliší, řekne to a nic nenabízí', async () => {
+    const user = userEvent.setup()
+    await renderApp()
+    await openTheFolder(user)
+    await waitForGit()
+
+    await user.click(within(gitBody()).getByRole('button', { name: 'Porovnat s main…' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Porovnání s main' })
+    expect(await within(dialog).findByText('Soubory odpovídají main. Není co dělat.')).toBeInTheDocument()
+    expect(within(dialog).queryByText('Co s tím jde dělat')).toBeNull()
+  })
+})
+
+describe('pojistky proti smazání', () => {
+  it('odeslání z porovnání nepředvybere soubory, které u tebe chybí', async () => {
+    // Napojená složka s jen částí repa: co v ní chybí, git vidí jako smazané.
+    const user = userEvent.setup()
+    await renderApp({ changes: [{ path: 'docs/guide.md', xy: ' M' }, { path: 'docs/stary.md', xy: ' D' }] })
+    await openTheFolder(user)
+    await waitForGit()
+
+    await user.click(within(gitBody()).getByRole('button', { name: 'Porovnat s main…' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Porovnání s main' })
+    expect(await within(dialog).findByText(/1 soubor, který u tebe chybí, se nepředvybere/)).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Odeslat…' }))
+
+    const publish = await screen.findByRole('dialog', { name: 'Odeslat do gitu' })
+    expect(within(publish).getByText('docs/guide.md')).toBeInTheDocument()
+    expect(within(publish).queryByText('docs/stary.md')).toBeNull()
+    expect(within(publish).queryByRole('note')).toBeNull()
+  })
+
+  it('dialog odeslání u smazaného souboru varuje, že zmizí i z GitHubu', async () => {
+    const user = userEvent.setup()
+    await renderApp({ changes: [{ path: 'docs/stary.md', xy: ' D' }] })
+    await openTheFolder(user)
+    await waitForGit()
+
+    await user.click(within(await changesList()).getByRole('checkbox', { name: /stary\.md/ }))
+    await user.click(within(gitBody()).getByRole('button', { name: 'Odeslat do gitu…' }))
+    const publish = await screen.findByRole('dialog', { name: 'Odeslat do gitu' })
+    expect(within(publish).getByText('docs/stary.md').closest('li')).toHaveTextContent('smazáno')
+    expect(within(publish).getByRole('note')).toHaveTextContent('1 soubor se odesláním na GitHubu smaže')
   })
 })

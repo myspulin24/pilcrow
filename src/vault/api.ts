@@ -111,13 +111,26 @@ export interface RebuildResult {
   fullTextSearch: boolean
 }
 
+export interface FolderDialogOptions {
+  title?: string
+  defaultPath?: string
+}
+
 export interface VaultSettings {
   vaultPath: string
   theme: ThemeSetting| 'light' | 'dark'
   editorFontSize: number
   /** Co se ukáže po otevření poznámky. */
   defaultViewMode: ViewMode
+  /** Má být levý panel po spuštění vidět? Viz `sidebarStart` v `core/layout`. */
   showSidebar: boolean
+  /**
+   * Pamatovat si, jak uživatel levý panel nechal.
+   *
+   * Když je zapnuté, každé schování nebo ukázání panelu se zapíše do
+   * `showSidebar` -- takže příští spuštění začne tak, jak to skončilo.
+   */
+  sidebarRemember: boolean
   showToolbar: boolean
   /**
    * Kontrolovat po startu novou verzi.
@@ -156,12 +169,21 @@ export interface VaultSettings {
    */
   sectionHeights: Record<string, number>
   /**
-   * Kam se stahují repozitáře vybrané v „Otevřít repozitář“.
+   * Výchozí složka pro repozitáře z „Otevřít repozitář“.
    *
-   * Prázdné, dokud si uživatel složku nevybere v dialogu -- tam se zároveň
-   * udělí přístup. Je to jediné místo, kam aplikace zapisuje mimo trezor.
+   * Při každém stažení se dialog zeptá, kam repozitář uložit, a začne
+   * v téhle složce; vybraná složka se sem pak zapíše. Zároveň se v ní hledá,
+   * co už na disku je. Prázdné, dokud se nic nestahovalo.
    */
   reposFolder: string
+  /**
+   * Kde leží jednotlivé repozitáře: `vlastník/název` malými písmeny -> cesta.
+   *
+   * Zapisuje se, když se repozitář stáhne do jiné složky než té výchozí,
+   * a když uživatel řekne „soubory mám jinde“. Taková složka pak vyhrává
+   * nad tím, co se najde ve výchozí -- pokud v ní repozitář pořád je.
+   */
+  repoFolders: Record<string, string>
   /**
    * Smí panel asistenta posílat text poznámky ven?
    *
@@ -247,8 +269,13 @@ export interface VaultApi {
   /** Native file picker. Returns the chosen path, or null when cancelled. */
   openFileDialog(): Promise<string | null>
 
-  /** Native folder picker. Returns the chosen path, or null when cancelled. */
-  openFolderDialog(): Promise<string | null>
+  /**
+   * Native folder picker. Returns the chosen path, or null when cancelled.
+   *
+   * `title` says what the folder is for, `defaultPath` is where the dialog
+   * starts. Both optional: without them it asks for a folder of notes.
+   */
+  openFolderDialog(options?: FolderDialogOptions): Promise<string | null>
 
   /** Scan an opened folder into a tree of folders and Markdown files. */
   readFolderTree(path: string): Promise<FolderTree>
@@ -316,6 +343,7 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   editorFontSize: 15,
   defaultViewMode: 'split',
   showSidebar: true,
+  sidebarRemember: false,
   showToolbar: true,
   checkUpdates: true,
   lastFolder: '',
@@ -325,6 +353,7 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   sidebarWidth: 220,
   sectionHeights: {},
   reposFolder: '',
+  repoFolders: {},
   assistantEnabled: false,
   assistantModel: '',
 }

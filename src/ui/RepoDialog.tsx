@@ -11,17 +11,8 @@ import { useEffect, useId, useRef } from 'react'
 import { formatRepoSize, t, type Repo } from '@/core'
 import { useRepos, visibleRepos } from '@/state/repos-store'
 import { Spinner } from './Feedback'
+import { Transcript } from './GitParts'
 import { Backdrop, useEscape } from './Modal'
-
-function Transcript({ text }: { text: string }) {
-  if (!text.trim()) return null
-  return (
-    <details className="git__output">
-      <summary>{t.git.output}</summary>
-      <pre>{text}</pre>
-    </details>
-  )
-}
 
 // -- kroky přípravy ---------------------------------------------------------
 
@@ -84,7 +75,7 @@ function LoginStep() {
 function RepoRow({ repo }: { repo: Repo }) {
   const { view, actions } = useRepos()
   const cloned = !!repo.localPath
-  const busy = view.busy === 'clone'
+  const busy = view.busy !== null && view.busy !== 'probe'
   const size = formatRepoSize(repo.sizeKb)
 
   return (
@@ -109,15 +100,86 @@ function RepoRow({ repo }: { repo: Repo }) {
           {[repo.language, size, cloned ? repo.localPath : null].filter(Boolean).join(' · ')}
         </p>
       </div>
-      <button
-        type="button"
-        className={`button ${cloned ? 'button--primary' : ''}`}
-        disabled={busy}
-        onClick={() => void (cloned ? actions.openRepo(repo) : actions.cloneRepo(repo))}
-      >
-        {cloned ? t.repos.openOne : t.repos.clone}
-      </button>
+      <div className="repos__row-actions">
+        <button
+          type="button"
+          className={`button ${cloned ? 'button--primary' : ''}`}
+          disabled={busy}
+          onClick={() => void (cloned ? actions.openRepo(repo) : actions.cloneRepo(repo))}
+        >
+          {cloned ? t.repos.openOne : t.repos.clone}
+        </button>
+        {/* Pro soubory, které už na disku jsou, jen ne v kopii repozitáře:
+            stará složka s dokumentací, kopie na OneDrivu, … */}
+        <button
+          type="button"
+          className="workspace__link repos__link"
+          title={t.repos.linkOneHint}
+          disabled={busy}
+          onClick={() => void actions.linkRepo(repo)}
+        >
+          {t.repos.linkOne}
+        </button>
+      </div>
     </li>
+  )
+}
+
+/**
+ * „Soubory mám jinde“ -- složka je vybraná, teď se buď potvrdí, nebo se
+ * vysvětlí, proč to nejde.
+ *
+ * Potvrzuje se tady, v okně, ne dalším dialogem přes něj: dva modály nad
+ * sebou by se zavíraly jedním Escapem naráz.
+ */
+function LinkCard() {
+  const { view, actions } = useRepos()
+  const link = view.link
+  if (!link) return null
+  const working = view.busy === 'link'
+
+  if (working) {
+    return (
+      <div className="repos__cloning" role="status">
+        <p className="repos__cloning-label">{t.repos.linking(link.repo.fullName)}</p>
+        <div className="repos__bar" role="progressbar" aria-valuemin={0} aria-valuemax={100}>
+          <div className="repos__bar-fill repos__bar-fill--pulse" />
+        </div>
+        <Transcript text={view.transcript} />
+        <div className="git__actions">
+          <button type="button" className="button" onClick={() => void actions.stopLink()}>
+            {t.git.cancel}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="git__card repos__link-card" aria-label={t.repos.linkTitle}>
+      <h4>{t.repos.linkTitle}</h4>
+      {link.kind === 'plain' ? (
+        <>
+          <p>{t.repos.linkBody(link.folder, link.repo.fullName, link.repo.defaultBranch || 'main')}</p>
+          <p className="git__muted">
+            {t.repos.linkMarkdown(link.markdownFiles)} {t.repos.linkNothingSent}
+          </p>
+        </>
+      ) : (
+        <p role="alert">{link.kind === 'other' ? t.repos.linkOther(link.remote) : t.repos.linkInside(link.root)}</p>
+      )}
+      <div className="git__actions">
+        {link.kind === 'plain' ? (
+          <button type="button" className="button button--primary" onClick={() => void actions.confirmLink()}>
+            {t.repos.linkConfirm}
+          </button>
+        ) : null}
+        <button type="button" className="button" onClick={actions.cancelLink}>
+          {t.repos.linkBack}
+        </button>
+      </div>
+      <Transcript text={view.error ? view.transcript : ''} />
+    </div>
   )
 }
 
@@ -160,6 +222,7 @@ function RepoList() {
   }, [])
 
   if (view.busy === 'clone') return <CloneProgressView />
+  if (view.link) return <LinkCard />
 
   const repos = visibleRepos(view)
 
@@ -177,6 +240,7 @@ function RepoList() {
       />
 
       {view.busy === 'probe' ? <Spinner label={t.repos.checking} /> : null}
+      {view.busy === 'inspect' ? <Spinner label={t.repos.inspecting} /> : null}
 
       {repos.length === 0 && view.busy !== 'probe' ? (
         <p className="git__muted repos__empty">{view.query ? t.repos.noMatches : t.repos.empty}</p>
@@ -191,7 +255,10 @@ function RepoList() {
   )
 }
 
-/** Kam se stahuje. Dokud není vybraná, nedá se stáhnout nic. */
+/**
+ * Výchozí složka: tam začne dialog „kam stáhnout“ a tam se hledá, co už je
+ * na disku. Stahovat jde i bez ní -- kam, se ptá pokaždé.
+ */
 function FolderFooter() {
   const { view, actions } = useRepos()
 
@@ -210,7 +277,7 @@ function FolderFooter() {
   }
 
   return (
-    <div className="repos__folder">
+    <div className="repos__folder repos__folder--set">
       <span className="git__muted">{t.repos.folderLabel}</span>
       <span className="repos__folder-path" title={view.folder}>
         {view.folder}
@@ -218,6 +285,7 @@ function FolderFooter() {
       <button type="button" className="workspace__link" onClick={() => void actions.pickFolder()}>
         {t.repos.changeFolder}
       </button>
+      <p className="git__muted repos__folder-hint">{t.repos.folderHint}</p>
     </div>
   )
 }
@@ -253,7 +321,7 @@ export function RepoDialog() {
           </p>
         ) : null}
 
-        {view.step === 'ready' && view.busy !== 'clone' ? <FolderFooter /> : null}
+        {view.step === 'ready' && view.busy !== 'clone' && !view.link ? <FolderFooter /> : null}
 
         <div className="modal__actions">
           <button type="button" className="button" onClick={actions.close}>

@@ -87,6 +87,14 @@ describe('smlouva mezi webview a Rustem', () => {
       'scan_clones',
       'gh_clone',
       'open_url',
+      'git_branches',
+      'git_branch_log',
+      'git_diff',
+      'git_switch',
+      'git_compare',
+      'git_restore',
+      'git_inspect_folder',
+      'git_link_folder',
     ]) {
       expect(registered.has(name), `Rust nezná ${name}`).toBe(true)
     }

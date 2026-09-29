@@ -103,13 +103,25 @@ Určeno pro práci s dokumentací v repozitáři. Vyžaduje nainstalovaný `git`
 pro práci s GitHubem navíc [GitHub CLI](https://cli.github.com) (`gh`).
 
 - **Otevřít repozitář** — výběr ze seznamu repozitářů dostupných přihlášenému
-  účtu, s naznačením, které už jsou na disku. Vybraný repozitář se stáhne
-  a otevře jako složka.
+  účtu, s naznačením, které už jsou na disku. Při stažení se aplikace pokaždé
+  zeptá, kam repozitář uložit; potom ho otevře jako složku.
+- **Soubory mám jinde** — složku, ve které už soubory k repozitáři máte, lze
+  napojit na GitHub jako jeho pracovní kopii. Soubory zůstanou beze změny;
+  aplikace pak ukáže, čím se liší od výchozí větve, a nabídne další kroky.
+  Složka s cizím repozitářem se nenapojí.
 - **Změny** — přehled upravených souborů `.md` v otevřené složce. Soubory
   upravené v Pilcrow jsou předvybrané; ostatní změny v repozitáři se zobrazí,
   ale nevyberou se samy.
-- **Odeslání** — vybrané soubory se odešlou v novém commitu na novou větev.
-  Do výchozí větve se nezapisuje; pull request se zakládá na GitHubu.
+- **Větve** — přehled větví lokálně i na GitHubu (kliknutím na jméno větve
+  v sekci Git): commity a změněné soubory proti výchozí větvi, rozdíl
+  jednotlivých souborů. Vybranou větev lze stáhnout a otevřít.
+- **Synchronizace jen na pokyn** — nic se nestahuje samo. Když je na GitHubu
+  něco nového, aplikace se zeptá, ze které větve stáhnout.
+- **Odeslání** — vybrané soubory se odešlou v jednom commitu na novou větev
+  (výchozí volba, pro pull request), na existující větev, nebo přímo do
+  výchozí větve — to poslední jen po výslovném potvrzení.
+- **Porovnání s výchozí větví** — rozdílné soubory proti `main` na GitHubu
+  a nabídka, co s nimi: odeslat, vrátit na verzi z `main`, stáhnout.
 - **Průběh CI** — po odeslání se zobrazí stav běhu GitHub Actions pro daný
   commit, včetně jednotlivých úloh a kroků.
 
@@ -130,8 +142,8 @@ při dotazu opouští počítač. Zapíná se jednorázovým potvrzením v panel
 ## Konfigurace
 
 Nastavení chování aplikace najdete v okně **Nastavení** (`Ctrl` `,`): motiv,
-velikost písma, výchozí zobrazení, složka denních poznámek a kontrola
-aktualizací.
+velikost písma, levý panel po spuštění (otevřený, zavřený, nebo jak jste ho
+nechali), výchozí zobrazení a kontrola aktualizací.
 
 Proměnné prostředí se načítají ze souboru `.env` v kořeni projektu. Vzorem je
 [`.env.example`](.env.example).

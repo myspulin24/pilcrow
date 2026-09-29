@@ -160,9 +160,13 @@ pub struct VaultSettings {
     /// `split` | `source` | `preview` -- co se ukáže po otevření poznámky.
     #[serde(default = "default_view_mode")]
     pub default_view_mode: String,
-    /// Má být po startu vidět levý panel se skupinami a štítky?
+    /// Má být po startu vidět levý panel s poznámkami a skupinami?
     #[serde(default = "default_true")]
     pub show_sidebar: bool,
+    /// Přepisovat `show_sidebar` pokaždé, když uživatel panel schová nebo
+    /// ukáže -- tedy začínat tak, jak se skončilo.
+    #[serde(default)]
+    pub sidebar_remember: bool,
     /// Má být nad editorem lišta formátování?
     #[serde(default = "default_true")]
     pub show_toolbar: bool,
@@ -210,6 +214,12 @@ pub struct VaultSettings {
     /// místo, kam aplikace zapisuje mimo trezor.
     #[serde(default)]
     pub repos_folder: String,
+    /// Kde leží jednotlivé repozitáře, `vlastník/název` malými písmeny -> cesta.
+    ///
+    /// Stažené jinam než do `repos_folder`, nebo napojené jako „soubory mám
+    /// jinde“. Mapa, ne jedno pole: repozitářů je víc a každý může být jinde.
+    #[serde(default)]
+    pub repo_folders: HashMap<String, String>,
     /// Smí panel asistenta posílat text poznámky ven?
     ///
     /// Výchozí `false` je záměr, ne opatrnost: bez tohohle přepínače z počítače
@@ -249,6 +259,7 @@ impl Default for VaultSettings {
             editor_font_size: default_font_size(),
             default_view_mode: default_view_mode(),
             show_sidebar: true,
+            sidebar_remember: false,
             show_toolbar: true,
             check_updates: true,
             last_folder: String::new(),
@@ -258,6 +269,7 @@ impl Default for VaultSettings {
             sidebar_width: default_sidebar_width(),
             section_heights: HashMap::new(),
             repos_folder: String::new(),
+            repo_folders: HashMap::new(),
             assistant_enabled: false,
             assistant_model: String::new(),
         }

@@ -11,6 +11,8 @@ import {
   SECTION_NOTES,
   SECTION_RUNS,
   sectionHeight,
+  sidebarStart,
+  sidebarStartSettings,
   SIDEBAR_WIDTH_DEFAULT,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
@@ -114,5 +116,26 @@ describe('sectionHeight a withSectionHeight', () => {
 
     heights = withSectionHeight(heights, SECTION_FILES, 0)
     expect(heights).toEqual({ notes: 240, git: 180, runs: 140 })
+  })
+})
+
+describe('levý panel po spuštění', () => {
+  it('čte režim ze dvou polí nastavení', () => {
+    expect(sidebarStart({ showSidebar: true })).toBe('open')
+    expect(sidebarStart({ showSidebar: false })).toBe('closed')
+    expect(sidebarStart({ showSidebar: false, sidebarRemember: true })).toBe('last')
+    expect(sidebarStart({ showSidebar: true, sidebarRemember: true })).toBe('last')
+  })
+
+  it('pevná volba si přestane pamatovat, „jak jsem ho nechal“ začne tím, co je teď', () => {
+    expect(sidebarStartSettings('open', false)).toEqual({ showSidebar: true, sidebarRemember: false })
+    expect(sidebarStartSettings('closed', true)).toEqual({ showSidebar: false, sidebarRemember: false })
+    expect(sidebarStartSettings('last', false)).toEqual({ showSidebar: false, sidebarRemember: true })
+  })
+
+  it('volba se vrátí přesně taková, jaká se uložila', () => {
+    for (const mode of ['open', 'closed', 'last'] as const) {
+      expect(sidebarStart(sidebarStartSettings(mode, true))).toBe(mode)
+    }
   })
 })

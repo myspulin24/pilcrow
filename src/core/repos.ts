@@ -124,24 +124,61 @@ function remoteKey(url: string): string | null {
   return `${remote.host}/${remote.owner.toLowerCase()}/${remote.repo.toLowerCase()}`
 }
 
+/** Míří dvě adresy na tentýž repozitář? `https`, `ssh` i `git@` tvar jsou totéž. */
+export function sameRemote(a: string, b: string): boolean {
+  const left = remoteKey(a)
+  return left !== null && left === remoteKey(b)
+}
+
+/**
+ * Klíč repozitáře v `repoFolders` v nastavení.
+ *
+ * Malými písmeny: GitHub jména nerozlišuje a `Notes_MJ` a `notes_mj` je
+ * jeden a tentýž repozitář.
+ */
+export function repoKey(fullName: string): string {
+  return fullName.toLowerCase()
+}
+
+function samePath(a: string, b: string): boolean {
+  const clean = (value: string) => value.replace(/\\/g, '/').replace(/\/+$/, '')
+  const left = clean(a)
+  const right = clean(b)
+  return /^[a-z]:\//i.test(left) ? left.toLowerCase() === right.toLowerCase() : left === right
+}
+
 /**
  * Doplnit k repozitářům, kde na disku leží.
  *
  * Porovnává se remote, ne jméno složky: `things-3` může být `Notes_MJ`.
  * Když je totéž repo naklonované dvakrát, vyhrává první nalezené -- seřazené
  * jsou podle jména, takže výsledek nezávisí na pořadí ze souborového systému.
+ *
+ * Výjimkou je `chosen`: kam uživatel repozitář sám stáhl nebo kde řekl
+ * „soubory mám jinde“. Ta složka vyhrává -- pokud tam repo pořád je a má
+ * pořád tentýž remote. Jinak se tiše použije, co se najde; zapamatovaná
+ * cesta, která přestala platit, nesmí repozitář schovat.
  */
-export function matchClones(repos: Repo[], clones: LocalClone[]): Repo[] {
+export function matchClones(repos: Repo[], clones: LocalClone[], chosen: Record<string, string> = {}): Repo[] {
   const byRemote = new Map<string, string>()
   for (const clone of [...clones].sort((a, b) => a.path.localeCompare(b.path, 'cs'))) {
     const key = remoteKey(clone.remote)
     if (key && !byRemote.has(key)) byRemote.set(key, clone.path)
   }
   return repos.map((repo) => {
+    const wanted = chosen[repoKey(repo.fullName)]
+    const confirmed = wanted
+      ? clones.find((clone) => samePath(clone.path, wanted) && sameRemote(clone.remote, repo.cloneUrl))
+      : undefined
     const key = remoteKey(repo.cloneUrl)
-    const localPath = key ? byRemote.get(key) : undefined
+    const localPath = confirmed?.path ?? (key ? byRemote.get(key) : undefined)
     return localPath ? { ...repo, localPath } : repo
   })
+}
+
+/** Zapamatovat si, kde repozitář leží. Vrací novou mapu, starou nemění. */
+export function withRepoFolder(folders: Record<string, string>, fullName: string, path: string): Record<string, string> {
+  return { ...folders, [repoKey(fullName)]: path }
 }
 
 /** Jméno složky, do které se repo stáhne. */

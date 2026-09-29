@@ -47,6 +47,7 @@ import {
   parseSyncState,
   parseWorkflows,
   runsSettled,
+  sameFolder,
   t,
   toRepoRelative,
   type ChangedFile,
@@ -57,6 +58,7 @@ import {
   type GitStep,
   type MergeMethod,
   type MergeMethods,
+  type PublishMode,
   type PullRequest,
   type SyncState,
   type Workflow,
@@ -68,7 +70,34 @@ import { createGit, gitMessage, type GitApi, type GitChunk } from '@/git'
 import { useStore } from './store'
 
 /** Co zrovna běží. Nikdy dvě věci naráz. */
-export type GitBusy = 'probe' | 'status' | 'login' | 'publish' | 'push' | 'pr' | 'merge' | 'pull' | null
+export type GitBusy =
+  | 'probe'
+  | 'status'
+  | 'login'
+  | 'publish'
+  | 'push'
+  | 'pr'
+  | 'merge'
+  | 'pull'
+  | 'switch'
+  | 'restore'
+  | null
+
+/**
+ * Proč je otevřené okno větví.
+ *
+ * `browse` -- uživatel se chce podívat, co v jiných větvích je.
+ * `pull`   -- chce stahovat, a okno se ptá odkud. Nikdy se nestahuje, aniž by
+ *             si uživatel vybral větev.
+ */
+export type BranchIntent = 'browse' | 'pull'
+
+/** S čím se otevře dialog odeslání, když ho otevírá něco jiného než tlačítko. */
+export interface PublishPreset {
+  mode: PublishMode
+  /** Větev, u `new` návrh jména. */
+  branch: string
+}
 
 /** Kde je sledování běhu. */
 export type Watching = 'idle' | 'waiting' | 'running' | 'done' | 'timeout' | 'none'
@@ -81,6 +110,11 @@ export interface Published {
   pushed: boolean
   /** Push selhal, ale commit je: dá se zkusit znovu. */
   retryable: boolean
+  /**
+   * Commit šel rovnou do výchozí větve. Pull request tu nemá smysl -- není
+   * co a kam slučovat.
+   */
+  direct: boolean
 }
 
 export interface GitView {
@@ -141,6 +175,21 @@ export interface GitView {
    * vypadá hotové zjištění stejně jako žádné.
    */
   checkedAt: number | null
+  /** Otevřené okno větví, a proč. `null` = zavřené. */
+  branches: BranchIntent | null
+  /** Proč se nepodařilo přepnout nebo stáhnout. Ukazuje se v okně větví. */
+  branchError: string | null
+  /** Otevřené porovnání s výchozí větví. */
+  compareOpen: boolean
+  /** Proč se nepodařilo vrátit soubory. Ukazuje se v okně porovnání. */
+  compareError: string | null
+  /**
+   * Zvedne se, kdykoli se složka změnila tak, že staré porovnání neplatí --
+   * okno porovnání se podle toho načte znovu.
+   */
+  compareVersion: number
+  /** S čím se má otevřít dialog odeslání. `null` = jak obvykle. */
+  publishPreset: PublishPreset | null
 }
 
 export interface GitActions {
@@ -149,9 +198,12 @@ export interface GitActions {
   toggleFile(path: string): void
   selectAll(): void
   selectNone(): void
-  openPublish(): void
+  /** Vybrat přesně tyhle cesty (od kořene repa); ostatní odškrtnout. */
+  selectOnly(paths: string[]): void
+  openPublish(preset?: PublishPreset): void
   closePublish(): void
-  publish(message: string, branch: string): Promise<void>
+  /** `mode` `existing` přidá commit na větev, která už je -- i na výchozí. */
+  publish(message: string, branch: string, mode?: PublishMode): Promise<void>
   retryPush(): Promise<void>
   cancel(): Promise<void>
   dismissPublished(): void
@@ -167,18 +219,35 @@ export interface GitActions {
   openMerge(): void
   closeMerge(): void
   mergePr(method: MergeMethod, deleteBranch: boolean): Promise<void>
-  /** Zjistit stav proti remote a stáhnout, když je to bezpečné převinutí. */
-  syncWithRemote(folder: string, options?: { autoPull?: boolean }): Promise<void>
   /**
-   * Při nejbližším načtení sekce stáhnout, když to jde.
+   * Zjistit stav proti remote. S `ask` se, když je co stáhnout, otevře okno,
+   * které se zeptá odkud -- samo se nestáhne nic.
+   */
+  syncWithRemote(folder: string, options?: { ask?: boolean }): Promise<void>
+  /**
+   * Při nejbližším načtení sekce se zeptat, jestli stáhnout, co na GitHubu
+   * přibylo.
    *
    * Záměr, ne akce: složka se teprve otevírá a stav sekce se přitom resetuje,
    * takže by se cokoli uloženého do něj ztratilo. Nastavuje to výběr
    * repozitáře před otevřením.
+   *
+   * Záměr patří jedné složce: platí, až se načte právě ona. Mezitím se může
+   * stát aktivní jiná (zavřením staré kopie) a ta ho vzít nesmí.
    */
-  requestAutoPull(): void
-  /** Stáhnout na vyžádání. */
+  requestSyncPrompt(folder: string): void
+  /** Až se načte `folder`, otevřít porovnání s výchozí větví. Stejný záměr. */
+  requestCompare(folder: string): void
+  /** Stáhnout do větve, na které se stojí. Volá se z okna, kde si to uživatel vybral. */
   pull(folder?: string): Promise<void>
+  openBranches(intent?: BranchIntent): void
+  closeBranches(): void
+  /** Přepnout na větev -- stáhnout ji, když je jen na GitHubu -- a dorovnat ji. */
+  switchBranch(branch: string): Promise<void>
+  openComparison(): void
+  closeComparison(): void
+  /** Vrátit soubory na podobu z výchozí větve na GitHubu. Jen po potvrzení. */
+  restoreFiles(files: string[]): Promise<void>
 }
 
 interface GitValue {
@@ -227,12 +296,18 @@ const initialView = (supported: boolean): GitView => ({
   recentError: null,
   deviceCode: null,
   checkedAt: null,
+  branches: null,
+  branchError: null,
+  compareOpen: false,
+  compareError: null,
+  compareVersion: 0,
+  publishPreset: null,
 })
 
 export function GitProvider({ children, git }: { children: ReactNode; git?: GitApi }) {
   const apiRef = useRef<GitApi>(git ?? createGit())
   const api = apiRef.current
-  const { state } = useStore()
+  const { state, actions: storeActions } = useStore()
   // Stav gitu se drží pro jednu složku, i když jich je otevřených víc: tu
   // aktivní. Změna aktivní složky je pro `git-store` totéž co otevření jiné
   // -- pohled se zahodí a zjistí se znovu.
@@ -273,12 +348,20 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
   const deselected = useRef<Set<string>>(new Set())
 
   /**
-   * Má se při nejbližším načtení sekce stáhnout?
+   * Má se při nejbližším načtení sekce zeptat na stažení, nebo otevřít
+   * porovnání s main?
    *
    * V refu, ne ve stavu: otevření složky stav sekce resetuje na výchozí,
    * takže cokoli uloženého do něj by se ztratilo dřív, než by se to použilo.
    */
-  const autoPullRef = useRef(false)
+  const syncPromptRef = useRef<string | null>(null)
+  const compareRef = useRef<string | null>(null)
+  /** Vzít záměr, pokud patří téhle složce. */
+  const takeIntent = (ref: { current: string | null }, target: string): boolean => {
+    if (!ref.current || !sameFolder(ref.current, target)) return false
+    ref.current = null
+    return true
+  }
 
   // -- změny -----------------------------------------------------------------
 
@@ -340,36 +423,48 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
           return
         }
         if (chunk.kind === 'failed') {
-          patch({ busy: null, error: chunk.message || t.git.pullFailed })
+          const message = chunk.message || t.git.pullFailed
+          patch({ busy: null, error: message, branchError: message })
           return
         }
-        patch({ busy: null, pulled: true })
+        patch({ busy: null, pulled: true, branches: null, branchError: null })
+        // Stažení změnilo soubory na disku; strom a otevřený soubor to mají vidět.
+        void storeActions.reloadFolder(target)
         void refresh()
       })
     } catch (error) {
-      patch({ busy: null, error: gitMessage(error, t.git.pullFailed) })
+      const message = gitMessage(error, t.git.pullFailed)
+      patch({ busy: null, error: message, branchError: message })
     }
-  }, [api, patch])
+  }, [api, patch, storeActions])
 
   /**
-   * Zeptat se remote, jak na tom jsme, a případně rovnou stáhnout.
+   * Zeptat se remote, jak na tom jsme, a případně se zeptat uživatele.
    *
-   * `autoPull` zapíná otevření repozitáře: tam uživatel chce aktuální
-   * dokumentaci, ne tu z minulého týdne. Stáhne se ale jen tehdy, když je to
-   * čisté převinutí -- `canFastForward` je jediné místo, které to rozhoduje.
+   * `ask` zapíná otevření repozitáře: tam uživatel nejspíš chce aktuální
+   * dokumentaci, ne tu z minulého týdne. Nestáhne se ale nic samo -- otevře
+   * se okno, ve kterém si vybere, odkud a jestli vůbec. A jen tehdy, když
+   * by to bylo čisté převinutí; `canFastForward` je jediné místo, které to
+   * rozhoduje.
    */
   const syncWithRemote = useCallback(
-    async (folder: string, options: { autoPull?: boolean } = {}) => {
+    async (folder: string, options: { ask?: boolean } = {}) => {
       if (!folder) return
       try {
         const sync = parseSyncState(await api.syncState(folder))
+        if (viewRef.current.folder !== folder) return
         patch({ sync })
-        if (options.autoPull && canFastForward(sync)) await pull(folder)
+        const current = viewRef.current
+        const dialogOpen =
+          current.compareOpen || current.publishOpen || current.prOpen || current.mergeOpen || current.branches !== null
+        if (options.ask && canFastForward(sync) && !dialogOpen) {
+          patch({ branches: 'pull', branchError: null })
+        }
       } catch (error) {
         patch({ sync: null, error: gitMessage(error, t.git.syncFailed) })
       }
     },
-    [api, patch, pull],
+    [api, patch],
   )
 
   // -- stav ------------------------------------------------------------------
@@ -385,8 +480,10 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
           api.pullRequest(folder, branch),
           api.mergeMethods(folder).catch(() => ''),
         ])
+        if (viewRef.current.folder !== folder) return
         patch({ pr: parsePullRequest(raw), mergeMethods: parseMergeMethods(methods) })
       } catch (error) {
+        if (viewRef.current.folder !== folder) return
         // Do panelu, ne do ticha: bez tohohle se prostě neukáže tlačítko
         // sloučit a nikdo se nedozví proč.
         patch({ pr: null, error: gitMessage(error, t.git.prLoadFailed) })
@@ -432,11 +529,23 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
         touched,
         error: probe.error || null,
       })
-      if (gitStep(probe, true) === 'ready') {
+      if (gitStep(probe, true) !== 'ready') {
+        // Záměr patřil tomuhle otevření. Kdyby tu zůstal, vyskočilo by okno
+        // při některém příštím zjišťování téže složky, kdy už o něj nikdo
+        // nestojí -- třeba až v ní uživatel git nastaví.
+        takeIntent(syncPromptRef, target)
+        takeIntent(compareRef, target)
+      } else {
         await refreshChanges()
-        const autoPull = autoPullRef.current
-        autoPullRef.current = false
-        void syncWithRemote(target, { autoPull })
+        // Mezitím se mohla stát aktivní jiná složka (napojení zavírá starou
+        // kopii a otevírá novou). Všechno další by patřilo té.
+        if (viewRef.current.folder !== target) return
+        const ask = takeIntent(syncPromptRef, target)
+        const compare = takeIntent(compareRef, target)
+        // Po napojení složky je první otázka „čím se liší od main“ -- a co
+        // se dá stáhnout, řekne porovnání samo. Dvě okna naráz by byla moc.
+        if (compare) patch({ compareOpen: true, compareError: null })
+        void syncWithRemote(target, { ask: ask && !compare })
         // I po restartu aplikace: otevřený PR pro aktuální větev se najde
         // podle ní, ne podle čísla, které si pamatuje jen běžící sezení.
         void loadPullRequest(target, probe.branch)
@@ -498,6 +607,21 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
     })
   }, [update])
 
+  const selectOnly = useCallback(
+    (paths: string[]) => {
+      update((view) => {
+        const wanted = new Set(paths)
+        const selected = view.changes.filter((file) => isCommittable(file) && wanted.has(file.path)).map((file) => file.path)
+        for (const file of view.changes) {
+          if (wanted.has(file.path)) deselected.current.delete(file.path)
+          else deselected.current.add(file.path)
+        }
+        return { ...view, selected }
+      })
+    },
+    [update],
+  )
+
   const selectNone = useCallback(() => {
     update((view) => {
       for (const path of view.selected) deselected.current.add(path)
@@ -555,8 +679,13 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
         gh !== 'ready' || !probe?.headSha ? 'idle' : workflows.length === 0 ? 'none' : 'waiting',
     }))
     await refreshChanges()
-    void loadPullRequest(current.folder, viewRef.current.published?.branch ?? '')
-  }, [api, loadPullRequest, refreshChanges, update])
+    // Odeslání mohlo přepnout větev; strom a otevřený soubor to mají vidět.
+    void storeActions.reloadFolder(current.folder)
+    // Commit rovnou do výchozí větve žádný pull request nemá a mít nebude.
+    if (!viewRef.current.published?.direct) {
+      void loadPullRequest(current.folder, viewRef.current.published?.branch ?? '')
+    }
+  }, [api, loadPullRequest, refreshChanges, storeActions, update])
 
   /** Obsluha kousků výstupu pro odeslání i opakovaný push. */
   const publishSink = useCallback(
@@ -571,6 +700,19 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
         if (chunk.kind === 'failed') {
           const step = currentPublishStep(transcript) ?? ''
           const atPush = step.startsWith('git push')
+          // U odeslání na existující větev mohlo přepnutí projít a spadnout až
+          // něco dalšího. Hlavička a strom mají ukazovat, kde se opravdu stojí;
+          // chyba přitom zůstane vidět -- proto jen probe, ne celé `refresh`.
+          const folder = viewRef.current.folder
+          if (folder) {
+            void storeActions.reloadFolder(folder)
+            void api
+              .probe(folder)
+              .then((probe) => {
+                if (viewRef.current.folder === folder) patch({ probe })
+              })
+              .catch(() => undefined)
+          }
           update((view) => ({
             ...view,
             busy: null,
@@ -587,21 +729,23 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
         void afterPush()
       }
     },
-    [afterPush, patch, update],
+    [afterPush, api, patch, storeActions, update],
   )
 
   const publish = useCallback(
-    async (message: string, branch: string) => {
+    async (message: string, branch: string, mode: PublishMode = 'new') => {
       const current = viewRef.current
       if (!current.folder || !current.probe || current.busy) return
       const files = current.selected
       if (files.length === 0) return
+      const defaultBranch = current.probe.defaultBranch || current.probe.branch
 
       patch({
         busy: 'publish',
         transcript: '',
         error: null,
         publishOpen: false,
+        publishPreset: null,
         // Základ PR je **výchozí větev repozitáře**, ne ta, na které uživatel
         // stojí. Po prvním odeslání stojí na `docs/…`; tu pak zmerguje,
         // GitHub ji smaže a PR z druhého kola by neměl kam mířit.
@@ -611,6 +755,7 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
           sha: '',
           pushed: false,
           retryable: false,
+          direct: mode === 'existing' && branch === defaultBranch,
         },
         lastMessage: message,
         prUrl: null,
@@ -619,7 +764,7 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
         watching: 'idle',
       })
       try {
-        await api.publish({ folder: current.folder, files, message, branch }, publishSink('publish'))
+        await api.publish({ folder: current.folder, files, message, branch, mode }, publishSink('publish'))
       } catch (error) {
         patch({ busy: null, published: null, error: gitMessage(error, t.git.publishFailed) })
       }
@@ -862,6 +1007,85 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
     [api, loadPullRequest, patch],
   )
 
+  /**
+   * Přepnout na jinou větev, a když je jen na GitHubu, stáhnout ji.
+   *
+   * Rozdělaná práce se nezahazuje: `git switch` ji buď vezme s sebou, nebo
+   * přepnutí odmítne. Po přepnutí stojí repozitář jinde, takže se zahodí
+   * všechno, co patřilo k té předchozí větvi -- odeslání, PR, běhy.
+   */
+  const switchBranch = useCallback(
+    async (branch: string) => {
+      const current = viewRef.current
+      const target = current.folder
+      if (!target || current.busy) return
+      patch({ busy: 'switch', transcript: '', error: null, branchError: null })
+
+      let transcript = ''
+      try {
+        await api.switchBranch(target, branch, (chunk) => {
+          if (chunk.kind === 'out') {
+            transcript += chunk.text
+            patch({ transcript })
+            return
+          }
+          if (chunk.kind === 'failed') {
+            patch({ busy: null, branchError: chunk.message || t.git.switchFailed })
+            // Přepnutí mohlo projít a spadnout až dorovnání -- ať je vidět,
+            // kde se opravdu stojí.
+            void storeActions.reloadFolder(target)
+            void refresh()
+            return
+          }
+          patch({
+            busy: null,
+            branches: null,
+            branchError: null,
+            published: null,
+            runs: [],
+            jobs: {},
+            workflows: [],
+            watching: 'idle',
+            prUrl: null,
+            pr: null,
+            mergedNumber: null,
+            pulled: false,
+          })
+          void storeActions.reloadFolder(target)
+          void refresh()
+        })
+      } catch (error) {
+        patch({ busy: null, branchError: gitMessage(error, t.git.switchFailed) })
+      }
+    },
+    [api, patch, refresh, storeActions],
+  )
+
+  /**
+   * Vrátit soubory na podobu z výchozí větve na GitHubu.
+   *
+   * Přepisuje rozdělanou práci, takže se sem jde jen z porovnání a přes
+   * potvrzení se seznamem souborů. Co v main není, se nemaže nikdy.
+   */
+  const restoreFiles = useCallback(
+    async (files: string[]) => {
+      const current = viewRef.current
+      if (!current.folder || !current.probe || current.busy || files.length === 0) return
+      const base = `origin/${current.probe.defaultBranch || current.probe.branch}`
+      patch({ busy: 'restore', compareError: null })
+      try {
+        await api.restore(current.folder, base, files)
+        for (const path of files) deselected.current.delete(path)
+        update((view) => ({ ...view, busy: null, compareVersion: view.compareVersion + 1 }))
+        await refreshChanges()
+        void storeActions.reloadFolder(current.folder)
+      } catch (error) {
+        patch({ busy: null, compareError: gitMessage(error, t.git.restoreFailed) })
+      }
+    },
+    [api, patch, refreshChanges, storeActions, update],
+  )
+
   const actions = useMemo<GitActions>(
     () => ({
       refresh,
@@ -869,8 +1093,9 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
       toggleFile,
       selectAll,
       selectNone,
-      openPublish: () => patch({ publishOpen: true }),
-      closePublish: () => patch({ publishOpen: false }),
+      selectOnly,
+      openPublish: (preset?: PublishPreset) => patch({ publishOpen: true, publishPreset: preset ?? null }),
+      closePublish: () => patch({ publishOpen: false, publishPreset: null }),
       publish,
       retryPush,
       cancel,
@@ -882,10 +1107,19 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
       openUrl,
       loadRecent,
       syncWithRemote,
-      requestAutoPull: () => {
-        autoPullRef.current = true
+      requestSyncPrompt: (folder: string) => {
+        syncPromptRef.current = folder
+      },
+      requestCompare: (folder: string) => {
+        compareRef.current = folder
       },
       pull,
+      openBranches: (intent: BranchIntent = 'browse') => patch({ branches: intent, branchError: null }),
+      closeBranches: () => patch({ branches: null, branchError: null }),
+      switchBranch,
+      openComparison: () => patch({ compareOpen: true, compareError: null }),
+      closeComparison: () => patch({ compareOpen: false, compareError: null }),
+      restoreFiles,
       openPr: () => patch({ prOpen: true, prError: null }),
       closePr: () => patch({ prOpen: false, prError: null }),
       createPr,
@@ -911,8 +1145,11 @@ export function GitProvider({ children, git }: { children: ReactNode; git?: GitA
       refresh,
       refreshChanges,
       retryPush,
+      restoreFiles,
       selectAll,
       selectNone,
+      selectOnly,
+      switchBranch,
       toggleFile,
     ],
   )

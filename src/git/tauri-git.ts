@@ -14,6 +14,7 @@ import type {
   GitApi,
   GitChunk,
   GitSink,
+  LinkInput,
   MergePrInput,
   PublishInput,
 } from './api'
@@ -131,8 +132,8 @@ export class TauriGit implements GitApi {
     return invoke<string>('gh_repos')
   }
 
-  clones(folder: string): Promise<string> {
-    return invoke<string>('scan_clones', { folder })
+  clones(folder: string, extra: string[] = []): Promise<string> {
+    return invoke<string>('scan_clones', { folder, extra })
   }
 
   clone(input: CloneInput, sink: GitSink): Promise<string> {
@@ -140,6 +141,43 @@ export class TauriGit implements GitApi {
       repo: input.repo,
       parent: input.parent,
       folder: input.folder,
+      channel: sinkChannel(sink),
+    })
+  }
+
+  branches(folder: string): Promise<string> {
+    return invoke<string>('git_branches', { folder })
+  }
+
+  branchLog(folder: string, base: string, target: string): Promise<string> {
+    return invoke<string>('git_branch_log', { folder, base, target })
+  }
+
+  diff(folder: string, from: string, to: string, path: string): Promise<string> {
+    return invoke<string>('git_diff', { folder, from, to, path })
+  }
+
+  switchBranch(folder: string, branch: string, sink: GitSink): Promise<void> {
+    return invoke<void>('git_switch', { folder, branch, channel: sinkChannel(sink) })
+  }
+
+  compare(folder: string, base: string): Promise<string> {
+    return invoke<string>('git_compare', { folder, base })
+  }
+
+  restore(folder: string, source: string, files: string[]): Promise<void> {
+    return invoke<void>('git_restore', { folder, source, files })
+  }
+
+  inspectFolder(folder: string): Promise<string> {
+    return invoke<string>('git_inspect_folder', { folder })
+  }
+
+  linkFolder(input: LinkInput, sink: GitSink): Promise<void> {
+    return invoke<void>('git_link_folder', {
+      folder: input.folder,
+      remoteUrl: input.remoteUrl,
+      defaultBranch: input.defaultBranch,
       channel: sinkChannel(sink),
     })
   }

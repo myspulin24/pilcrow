@@ -39,6 +39,14 @@ const EXTERNAL_FILES = {
   '/dev/things-3/README.md': '# Notes\n\nStarší projekt.\n',
   // Co bude ve složce po stažení `rozpocet`.
   '/dev/rozpocet/README.md': '# Rozpočet\n\nČerstvě stažené.\n',
+  '/jinde/rozpocet/README.md': '# Rozpočet\n\nStaženo jinam.\n',
+  // Soubory k repozitáři `pilcrow`, které má uživatel mimo jeho kopii.
+  '/moje/docs/guide.md': '# Guide\n\nMoje verze.\n',
+  '/moje/docs/novy.md': '# Nový\n\nJen u mě.\n',
+  // Druhá kopie `pilcrow`, stažená kdysi jinde.
+  '/jinde/pilcrow/README.md': '# Pilcrow\n\nStarší kopie.\n',
+  // Kopie úplně jiného repozitáře.
+  '/cizi/README.md': '# Cizí\n',
 }
 
 const REPOS = [
@@ -53,12 +61,21 @@ let git: MemoryGit
 
 type User = ReturnType<typeof userEvent.setup>
 
-async function renderApp(options: MemoryGitOptions = {}, settings: Partial<VaultSettings> = {}) {
+/**
+ * @param folderPicks Co uživatel vybere v dialozích „kam stáhnout“ a „kde
+ *   máš soubory“, jeden po druhém. `null` = dialog zavřel.
+ */
+async function renderApp(
+  options: MemoryGitOptions = {},
+  settings: Partial<VaultSettings> = {},
+  folderPicks: Array<string | null> = ['/dev'],
+) {
   vault = new MemoryVault({
     seed: { 'poznamka-z-trezoru.md': VAULT_NOTE },
     label: 'Testovací trezor',
     externalFiles: EXTERNAL_FILES,
     settings: { reposFolder: '/dev', ...settings },
+    folderPicks,
   })
   git = new MemoryGit({
     repos: REPOS,
@@ -156,11 +173,11 @@ describe('co už je na disku', () => {
     // `/dev/things-3` je repo `Notes_MJ`. Podle jména by se nespárovalo.
     expect(row('myspulin24/Notes_MJ')).toHaveTextContent('na disku')
     expect(row('myspulin24/Notes_MJ')).toHaveTextContent('/dev/things-3')
-    expect(within(row('myspulin24/Notes_MJ')).getByRole('button')).toHaveTextContent('Otevřít')
+    expect(within(row('myspulin24/Notes_MJ')).getByRole('button', { name: 'Otevřít' })).toBeInTheDocument()
 
     // Co na disku není, se nabídne ke stažení.
     expect(row('myspulin24/rozpocet')).not.toHaveTextContent('na disku')
-    expect(within(row('myspulin24/rozpocet')).getByRole('button')).toHaveTextContent('Stáhnout')
+    expect(within(row('myspulin24/rozpocet')).getByRole('button', { name: 'Stáhnout' })).toBeInTheDocument()
   })
 
   it('naklonované jsou nahoře', async () => {
@@ -215,7 +232,7 @@ describe('hledání', () => {
 })
 
 describe('stažení', () => {
-  it('stáhne do vybrané složky pod jménem repozitáře a otevře ji', async () => {
+  it('zeptá se, kam stáhnout, začne ve výchozí složce a stáhne pod jménem repozitáře', async () => {
     const user = userEvent.setup()
     await renderApp()
     await openDialog(user)
@@ -226,7 +243,9 @@ describe('stažení', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: 'Otevřít repozitář' })).toBeNull()
     })
-    // Do složky z nastavení, pod jménem repozitáře -- ne pod `owner/name`.
+    // Zeptalo se -- a začalo tam, kam se stahuje obvykle.
+    expect(vault.folderDialogs).toEqual([{ title: 'Kam stáhnout myspulin24/rozpocet', defaultPath: '/dev' }])
+    // Do vybrané složky, pod jménem repozitáře -- ne pod `owner/name`.
     expect(git.cloned).toEqual({
       repo: 'myspulin24/rozpocet',
       parent: '/dev',
@@ -275,16 +294,55 @@ describe('stažení', () => {
     expect(within(workspace()).queryByRole('tree')).toBeNull()
   })
 
-  it('bez vybrané složky se nejdřív zeptá, kam stahovat', async () => {
+  it('ptá se pokaždé -- a jiná složka se zapamatuje pro příště', async () => {
+    const user = userEvent.setup()
+    await renderApp({}, {}, ['/jinde'])
+    await openDialog(user)
+    await waitFor(() => expect(within(dialog()).getAllByRole('listitem')).toHaveLength(4))
+
+    await user.click(within(row('myspulin24/rozpocet')).getByRole('button', { name: 'Stáhnout' }))
+
+    await waitFor(() => expect(git.cloned?.target).toBe('/jinde/rozpocet'))
+    await waitFor(async () => {
+      const settings = await vault.loadSettings()
+      // Příští dialog „kam“ začne tady...
+      expect(settings.reposFolder).toBe('/jinde')
+      // ...a repozitář se najde, i když leží mimo výchozí složku.
+      expect(settings.repoFolders['myspulin24/rozpocet']).toBe('/jinde/rozpocet')
+    })
+
+    await openDialog(user)
+    await waitFor(() => expect(row('myspulin24/rozpocet')).toHaveTextContent('na disku'))
+    expect(row('myspulin24/rozpocet')).toHaveTextContent('/jinde/rozpocet')
+  })
+
+  it('zavřený dialog „kam“ nestáhne nic', async () => {
+    const user = userEvent.setup()
+    await renderApp({}, {}, [null])
+    await openDialog(user)
+    await waitFor(() => expect(within(dialog()).getAllByRole('listitem')).toHaveLength(4))
+
+    await user.click(within(row('myspulin24/rozpocet')).getByRole('button', { name: 'Stáhnout' }))
+
+    await waitFor(() => expect(vault.folderDialogs).toHaveLength(1))
+    expect(git.cloned).toBeNull()
+    expect(dialog()).toBeInTheDocument()
+  })
+
+  it('bez výchozí složky se stahovat dá, jen se začne odnikud', async () => {
     const user = userEvent.setup()
     await renderApp({}, { reposFolder: '' })
     await openDialog(user)
 
-    expect(await within(dialog()).findByText('Složka pro repozitáře není vybraná.')).toBeInTheDocument()
+    expect(await within(dialog()).findByText('Výchozí složka pro repozitáře není vybraná.')).toBeInTheDocument()
     expect(within(dialog()).getByRole('button', { name: 'Vybrat složku...' })).toBeInTheDocument()
     // Bez složky se nedá poznat, co už na disku je.
     await waitFor(() => expect(within(dialog()).getAllByRole('listitem')).toHaveLength(4))
     expect(row('myspulin24/pilcrow')).not.toHaveTextContent('na disku')
+
+    await user.click(within(row('myspulin24/rozpocet')).getByRole('button', { name: 'Stáhnout' }))
+    await waitFor(() => expect(git.cloned?.parent).toBe('/dev'))
+    expect(vault.folderDialogs[0]?.defaultPath).toBeUndefined()
   })
 })
 
@@ -331,21 +389,47 @@ describe('otevření už staženého repozitáře', () => {
     })
   }
 
-  it('srovná stav s GitHubem a stáhne, co přibylo', async () => {
+  it('když je na GitHubu něco nového, zeptá se odkud stáhnout -- samo nestáhne nic', async () => {
     const user = userEvent.setup()
     await renderApp({ behind: 3 })
     await openCloned(user)
 
     await waitFor(() => expect(git.syncCalls).toBeGreaterThan(0))
+    const ask = await screen.findByRole('dialog', { name: 'Stáhnout z GitHubu' })
+    // Otázka, ne čin: dokud uživatel nevybere, nestáhlo se nic.
+    expect(git.pulled).toBe(false)
+    await within(ask).findByRole('button', { name: 'Stáhnout do main' })
+    const list = within(ask).getByRole('list', { name: 'Větve' })
+    expect(within(list).getByText('3 ke stažení')).toBeInTheDocument()
+
+    await user.click(within(ask).getByRole('button', { name: 'Stáhnout do main' }))
     await waitFor(() => expect(git.pulled).toBe(true))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Stáhnout z GitHubu' })).toBeNull())
   })
 
-  it('když je složka aktuální, nestahuje nic', async () => {
+  it('když je složka aktuální, na nic se neptá a nestahuje nic', async () => {
     const user = userEvent.setup()
     await renderApp({ behind: 0 })
     await openCloned(user)
 
     await waitFor(() => expect(git.syncCalls).toBeGreaterThan(0))
+    expect(git.pulled).toBe(false)
+    expect(screen.queryByRole('dialog', { name: 'Stáhnout z GitHubu' })).toBeNull()
+  })
+
+  it('otázku jde zavřít a nestáhne se nic', async () => {
+    const user = userEvent.setup()
+    await renderApp({ behind: 2 })
+    await openCloned(user)
+
+    const ask = await screen.findByRole('dialog', { name: 'Stáhnout z GitHubu' })
+    await user.click(within(ask).getByRole('button', { name: 'Zavřít' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Stáhnout z GitHubu' })).toBeNull())
+    expect(git.pulled).toBe(false)
+    // Stáhnout jde dál ze sekce Git, zase přes otázku.
+    const body = document.getElementById('ws-git-body') as HTMLElement
+    await user.click(within(body).getByRole('button', { name: 'Stáhnout…' }))
+    expect(await screen.findByRole('dialog', { name: 'Stáhnout z GitHubu' })).toBeInTheDocument()
     expect(git.pulled).toBe(false)
   })
 
@@ -382,5 +466,124 @@ describe('otevření už staženého repozitáře', () => {
     expect(git.pulled).toBe(false)
     const body = document.getElementById('ws-git-body') as HTMLElement
     expect(within(body).queryByText(/novější commit/)).toBeNull()
+  })
+})
+
+describe('soubory mám jinde', () => {
+  const linkButton = (name: string) => within(row(name)).getByRole('button', { name: 'Soubory mám jinde…' })
+
+  it('obyčejná složka se po potvrzení napojí a hned se ukáže, čím se liší od main', async () => {
+    const user = userEvent.setup()
+    await renderApp(
+      {
+        linkChanges: [
+          { path: 'guide.md', xy: ' M' },
+          { path: 'README.md', xy: ' D' },
+          { path: 'novy.md', xy: '??' },
+        ],
+      },
+      {},
+      ['/moje/docs'],
+    )
+    await openDialog(user)
+    await waitFor(() => expect(within(dialog()).getAllByRole('listitem')).toHaveLength(4))
+
+    await user.click(linkButton('myspulin24/pilcrow'))
+
+    // Napřed se ptá, kde soubory jsou...
+    expect(vault.folderDialogs[0]?.title).toBe('Kde máš soubory k myspulin24/pilcrow?')
+    // ...a pak řekne, co se stane, a počká na potvrzení.
+    const card = await within(dialog()).findByLabelText('Napojit složku na repozitář')
+    expect(card).toHaveTextContent('/moje/docs')
+    expect(card).toHaveTextContent('Soubory v ní zůstanou, jak jsou')
+    expect(git.linked).toBeNull()
+
+    await user.click(within(card).getByRole('button', { name: 'Napojit' }))
+
+    await waitFor(() => {
+      expect(git.linked).toEqual({
+        folder: '/moje/docs',
+        remoteUrl: 'https://github.com/myspulin24/pilcrow.git',
+        defaultBranch: 'main',
+      })
+    })
+    // Výběr repozitáře zmizí, otevře se napojená složka a porovnání s main.
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Otevřít repozitář' })).toBeNull())
+    await waitFor(() => expect(openFolderNames()).toContain('docs'))
+    const compare = await screen.findByRole('dialog', { name: 'Porovnání s main' })
+    const files = await within(compare).findByRole('list', { name: 'Rozdílné soubory' })
+    expect(within(files).getByText('guide.md').closest('li')).toHaveTextContent('liší se')
+    expect(within(files).getByText('README.md').closest('li')).toHaveTextContent('chybí u tebe')
+    expect(within(files).getByText('novy.md').closest('li')).toHaveTextContent('jen u tebe')
+    expect(within(compare).getByText('Odeslat rozdíly na GitHub')).toBeInTheDocument()
+    expect(within(compare).getByText('Vrátit soubory na verzi z main')).toBeInTheDocument()
+
+    // Zapamatuje se: příště je zdrojem souborů tahle složka, ne ta stará kopie.
+    await waitFor(async () => {
+      expect((await vault.loadSettings()).repoFolders['myspulin24/pilcrow']).toBe('/moje/docs')
+    })
+    await user.click(within(compare).getByRole('button', { name: 'Nechat, jak to je' }))
+    await openDialog(user)
+    await waitFor(() => expect(row('myspulin24/pilcrow')).toHaveTextContent('/moje/docs'))
+  })
+
+  it('kopii jiného repozitáře nenapojí a řekne proč', async () => {
+    const user = userEvent.setup()
+    await renderApp(
+      { folders: { '/cizi': { root: '/cizi', remote: 'https://github.com/nekdo/jiny.git' } } },
+      {},
+      ['/cizi'],
+    )
+    await openDialog(user)
+    await waitFor(() => expect(within(dialog()).getAllByRole('listitem')).toHaveLength(4))
+
+    await user.click(linkButton('myspulin24/pilcrow'))
+
+    const card = await within(dialog()).findByLabelText('Napojit složku na repozitář')
+    expect(within(card).getByRole('alert')).toHaveTextContent('nekdo/jiny')
+    expect(within(card).queryByRole('button', { name: 'Napojit' })).toBeNull()
+
+    await user.click(within(card).getByRole('button', { name: 'Zpět' }))
+    await waitFor(() => expect(within(dialog()).getAllByRole('listitem')).toHaveLength(4))
+    expect(git.linked).toBeNull()
+  })
+
+  it('kopii téhož repozitáře jen začne používat, nic nezakládá', async () => {
+    const user = userEvent.setup()
+    await renderApp(
+      {
+        folders: { '/jinde/pilcrow': { root: '/jinde/pilcrow', remote: 'git@github.com:myspulin24/pilcrow.git' } },
+      },
+      {},
+      ['/jinde/pilcrow'],
+    )
+    await openDialog(user)
+    await waitFor(() => expect(within(dialog()).getAllByRole('listitem')).toHaveLength(4))
+
+    await user.click(linkButton('myspulin24/pilcrow'))
+
+    // Žádné potvrzení: není co měnit.
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Otevřít repozitář' })).toBeNull())
+    expect(git.linked).toBeNull()
+    await waitFor(() => expect(openFolderNames()).toContain('pilcrow'))
+    expect(await screen.findByRole('dialog', { name: 'Porovnání s main' })).toBeInTheDocument()
+    await waitFor(async () => {
+      expect((await vault.loadSettings()).repoFolders['myspulin24/pilcrow']).toBe('/jinde/pilcrow')
+    })
+  })
+
+  it('když napojení selže, řekne to a nic neotevře', async () => {
+    const user = userEvent.setup()
+    await renderApp({ failLink: 'fatal: repository not found' }, {}, ['/moje/docs'])
+    await openDialog(user)
+    await waitFor(() => expect(within(dialog()).getAllByRole('listitem')).toHaveLength(4))
+
+    await user.click(linkButton('myspulin24/pilcrow'))
+    const card = await within(dialog()).findByLabelText('Napojit složku na repozitář')
+    await user.click(within(card).getByRole('button', { name: 'Napojit' }))
+
+    await waitFor(() => expect(within(dialog()).getByRole('alert')).toHaveTextContent('repository not found'))
+    expect(openFolderNames()).not.toContain('docs')
+    expect((await vault.loadSettings()).repoFolders['myspulin24/pilcrow']).toBeUndefined()
   })
 })
