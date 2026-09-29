@@ -15,6 +15,7 @@ pub mod error;
 pub mod explorer;
 pub mod git;
 pub mod index;
+pub mod launch;
 pub mod paths;
 pub mod settings;
 pub mod types;

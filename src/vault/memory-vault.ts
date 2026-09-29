@@ -81,6 +81,12 @@ export interface MemoryVaultOptions {
    * Obyčejné „Otevřít složku“ (bez titulku) bere dál `externalRoots`.
    */
   folderPicks?: Array<string | null>
+  /**
+   * S čím se aplikace „spustila“ -- co vrátí `takeLaunchFiles`.
+   *
+   * Jako v Rustu projdou jen soubory, které existují mezi `externalFiles`.
+   */
+  launchFiles?: string[]
 }
 
 export class MemoryVault implements VaultApi {
@@ -102,6 +108,10 @@ export class MemoryVault implements VaultApi {
   private dialogFile: string | null
   private folderPicks: Array<string | null>
   private collections: Collection[] = []
+  /** Fronta souborů ze spuštění; po `takeLaunchFiles` se posílají odběratelům. */
+  private launchPending: string[]
+  private launchTaken = false
+  private launchListeners = new Set<(paths: string[]) => void>()
 
   /** S čím se výběr složky otevřel, k ověření v testech. */
   readonly folderDialogs: FolderDialogOptions[] = []
@@ -120,6 +130,7 @@ export class MemoryVault implements VaultApi {
     this.externalRoots = [...(options.externalRoots ?? [])]
     this.dialogFile = options.dialogFile ?? [...this.externalFiles.keys()][0] ?? null
     this.folderPicks = [...(options.folderPicks ?? [])]
+    this.launchPending = this.openable(options.launchFiles ?? [])
     this.settings = { ...this.settings, ...options.settings, vaultPath: this.label }
   }
 
@@ -409,6 +420,20 @@ export class MemoryVault implements VaultApi {
     }
   }
 
+  // -- soubory ze spuštění ---------------------------------------------------
+
+  async takeLaunchFiles(): Promise<string[]> {
+    this.launchTaken = true
+    const pending = this.launchPending
+    this.launchPending = []
+    return pending
+  }
+
+  onLaunchFiles(handler: (paths: string[]) => void): () => void {
+    this.launchListeners.add(handler)
+    return () => this.launchListeners.delete(handler)
+  }
+
   async loadCollections(): Promise<Collection[]> {
     // Mirror the real backend: entries whose file is gone are pruned.
     this.collections = this.collections.map((collection) => ({
@@ -454,6 +479,22 @@ export class MemoryVault implements VaultApi {
     this.externalFiles.set(path, content)
   }
 
+  /**
+   * Druhé spuštění aplikace se soubory, jako to přepošle single-instance.
+   *
+   * Stejná hranice jako v Rustu: než si frontend vyzvedne frontu, soubory
+   * čekají v ní, potom jdou rovnou odběratelům.
+   */
+  simulateLaunch(paths: string[]): void {
+    const files = this.openable(paths)
+    if (files.length === 0) return
+    if (!this.launchTaken) {
+      this.launchPending.push(...files)
+      return
+    }
+    for (const listener of this.launchListeners) listener(files)
+  }
+
   paths(): string[] {
     return [...this.files.keys()]
   }
@@ -480,6 +521,11 @@ export class MemoryVault implements VaultApi {
       })
     }
     return records
+  }
+
+  /** Co z předaných cest jde otevřít: existuje, a každá jen jednou. */
+  private openable(paths: string[]): string[] {
+    return [...new Set(paths)].filter((path) => this.externalFiles.has(path))
   }
 
   private put(path: string, content: string, record: IndexRecord): WriteResult {

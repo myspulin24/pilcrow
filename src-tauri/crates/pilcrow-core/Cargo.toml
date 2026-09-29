@@ -12,6 +12,8 @@ serde_json = "1"
 sha2 = "0.10"
 walkdir = "2"
 thiserror = "1"
+# Jen kvůli adresám `file://`, které na macOS přicházejí místo cest.
+url = "2"
 
 [dev-dependencies]
 tempfile = "3"

@@ -494,6 +494,7 @@ pub fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static
         load_collections,
         save_collections,
         delete_external_file,
+        crate::launch::take_launch_files,
         crate::about::app_info,
         crate::assistant::assistant_status,
         crate::assistant::assistant_install_command,

@@ -37,6 +37,8 @@ import {
 } from './api'
 
 const EXTERNAL_CHANGE_EVENT = 'pilcrow://external-change'
+/** Viz `OPEN_FILES_EVENT` v `src-tauri/src/launch.rs`. */
+const OPEN_FILES_EVENT = 'pilcrow://open-files'
 
 /** True when a Tauri runtime is present in this window. */
 export function isTauriAvailable(): boolean {
@@ -67,6 +69,8 @@ export class TauriVault implements VaultApi {
   private vaultPath = ''
   private unlisten: Promise<UnlistenFn> | null = null
   private listeners = new Set<(change: ExternalChange) => void>()
+  private launchUnlisten: Promise<UnlistenFn | null> | null = null
+  private launchListeners = new Set<(paths: string[]) => void>()
 
   async status(): Promise<VaultStatus> {
     const status = await call<VaultStatus>('vault_status')
@@ -282,6 +286,39 @@ export class TauriVault implements VaultApi {
 
   deleteExternalFile(path: string): Promise<void> {
     return call<void>('delete_external_file', { path })
+  }
+
+  // --- soubory ze spuštění --------------------------------------------------
+
+  /**
+   * Nejdřív poslouchat, teprve pak si říct o frontu.
+   *
+   * Po `take_launch_files` posílá Rust další soubory už jen událostí. Kdyby
+   * se posluchač zaregistroval až po té výzvě, soubor, který přijde mezi
+   * nimi, by nikdo nechytil.
+   */
+  async takeLaunchFiles(): Promise<string[]> {
+    await this.listenForLaunchFiles()
+    return call<string[]>('take_launch_files')
+  }
+
+  onLaunchFiles(handler: (paths: string[]) => void): () => void {
+    this.launchListeners.add(handler)
+    void this.listenForLaunchFiles()
+    return () => {
+      this.launchListeners.delete(handler)
+    }
+  }
+
+  private listenForLaunchFiles(): Promise<UnlistenFn | null> {
+    if (!this.launchUnlisten) {
+      // Selhání se polyká: bez událostí se otevře aspoň to, s čím se Pilcrow
+      // spustil, a `takeLaunchFiles` kvůli tomu nesmí spadnout.
+      this.launchUnlisten = listen<string[]>(OPEN_FILES_EVENT, (event) => {
+        for (const listener of this.launchListeners) listener(event.payload)
+      }).catch(() => null)
+    }
+    return this.launchUnlisten
   }
 
   loadCollections(): Promise<Collection[]> {

@@ -377,6 +377,7 @@ type Action =
       expanded: string[]
     }
   | { type: 'explorer-lone-file'; path: string }
+  | { type: 'explorer-launch-file'; path: string }
   | { type: 'explorer-touched'; path: string }
   | { type: 'explorer-close' }
   | { type: 'explorer-close-folder'; rootPath: string }
@@ -585,6 +586,20 @@ function reducer(state: AppState, action: Action): AppState {
         ? state
         : { ...state, explorer: { ...state.explorer, touched: [...state.explorer.touched, action.path] } }
     case 'explorer-lone-file':
+      return {
+        ...state,
+        filesSectionOpen: true,
+        explorer: { ...emptyExplorer, loneFile: action.path },
+      }
+    case 'explorer-launch-file':
+      // Soubor, se kterým někdo Pilcrow spustil. Bez otevřené složky se
+      // ukáže sám, stejně jako po „Otevřít soubor“. Otevřené složky ale
+      // nezavírá: soubor přišel zvenčí a o zavření složek nikdo nežádal.
+      // V editoru bude tak jako tak.
+      //
+      // Rozhoduje se tady, ne v akci: hned po obnově složek při startu ještě
+      // `stateRef` nemusí vědět, co se právě otevřelo.
+      if (state.explorer.folders.length > 0) return state
       return {
         ...state,
         filesSectionOpen: true,
@@ -1937,6 +1952,26 @@ export function StoreProvider({
     [loadTree, openFromTree, reportError, showLoneFile, toast],
   )
 
+  /**
+   * Otevřít soubor, se kterým někdo Pilcrow spustil -- při startu, nebo když
+   * ho poslalo další spuštění, zatímco tohle běží.
+   *
+   * Editor je jeden, takže z víc souborů vyhraje první. Přichází to zvenčí,
+   * klidně uprostřed psaní, proto se rozepsaný text nejdřív uloží: čekající
+   * automatické uložení by ho jinak hledalo v editoru, ve kterém už je jiný
+   * soubor.
+   */
+  const openLaunchFiles = useCallback(
+    async (paths: string[]) => {
+      const path = paths[0]
+      if (!path) return
+      if (stateRef.current.editor?.dirty) await save()
+      dispatch({ type: 'explorer-launch-file', path })
+      await openFromTree(path)
+    },
+    [openFromTree, save],
+  )
+
   // -- aktualizace ------------------------------------------------------------
 
   const failUpdate = useCallback((error: unknown, fallback: string): string => {
@@ -2175,7 +2210,15 @@ export function StoreProvider({
         // dřív, uložil by prázdný sloupec -- a cesty, které se právě
         // obnovovaly, by zmizely z nastavení.
         explorerRestored.current = true
-        if (restored) {
+        // Soubor, se kterým se Pilcrow spustil, má přednost před vším
+        // obnoveným -- kvůli němu se aplikace otevřela. Vyzvedává se až teď,
+        // aby ho obnova nepřepsala. Selhání se polyká: bez něj se prostě
+        // otevře to, co by se otevřelo tak jako tak.
+        const launched = await vaultRef.current.takeLaunchFiles().catch((): string[] => [])
+        if (cancelled) return
+        if (launched.length > 0) {
+          void openLaunchFiles(launched)
+        } else if (restored) {
           void openFromTree(restored)
         } else {
           const first = notes[0]
@@ -2328,6 +2371,12 @@ export function StoreProvider({
     // Jednou za běh aplikace, stejně jako zbytek startu.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Soubory od dalšího spuštění Pilcrow. Chodí až po `takeLaunchFiles` při
+  // startu, takže se nepotkají s obnovou toho, co bylo otevřené minule.
+  useEffect(() => {
+    return vaultRef.current.onLaunchFiles((paths) => void openLaunchFiles(paths))
+  }, [openLaunchFiles])
 
   // Files dragged from the OS onto the window.
   useEffect(() => {

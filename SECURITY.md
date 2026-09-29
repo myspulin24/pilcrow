@@ -54,4 +54,5 @@ nemusíš:
 - **Kontrola aktualizací sahá na GitHub.** Jediné spojení, které Pilcrow
   navazuje sám; vypíná se v nastavení nebo `PILCROW_AUTO_UPDATE=0`.
 - **Aplikace čte a zapisuje soubory, které jí otevřeš.** To je její práce.
-  Čte jen to, co jsi vybral v systémovém dialogu nebo pustil na okno.
+  Čte jen to, co jsi vybral v systémovém dialogu, pustil na okno, nebo s čím
+  jsi ji spustil (`Pilcrow soubor.md`, dvojklik, „Otevřít v programu“).

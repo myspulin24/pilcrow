@@ -89,6 +89,10 @@ spuštěními.
 - Soubory mimo trezor se ukládají beze změny — Pilcrow do nich nepřidává
   frontmatter ani metadata
 - Detekce souběžné změny na disku s nabídkou řešení konfliktu
+- **Otevření zvenčí** — soubor lze předat při spuštění: dvojklikem,
+  přes „Otevřít v programu“ nebo z jiného programu
+  (`Pilcrow.exe C:\cesta\soubor.md`, na macOS `open -a Pilcrow soubor.md`).
+  Když Pilcrow už běží, soubor se otevře v jeho okně a další se nespustí.
 - **Odkaz v poznámkách** — soubor z repozitáře lze zpřístupnit mezi
   poznámkami, aniž by se kamkoli kopíroval. V trezoru vznikne poznámka
   s cestou k němu; otevřením se edituje přímo původní soubor, zatímco název

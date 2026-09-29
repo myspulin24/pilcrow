@@ -99,4 +99,11 @@ describe('smlouva mezi webview a Rustem', () => {
       expect(registered.has(name), `Rust nezná ${name}`).toBe(true)
     }
   })
+
+  it('příkaz pro soubory ze spuštění je mezi nimi', () => {
+    // Volá se přes `call()` v `tauri-vault.ts`, ne přímo `invoke('...')`,
+    // takže ho první test nevidí. Bez něj by se soubor z příkazové řádky
+    // mlčky neotevřel.
+    expect(registeredCommands().has('take_launch_files')).toBe(true)
+  })
 })

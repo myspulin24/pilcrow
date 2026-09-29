@@ -320,6 +320,28 @@ export interface VaultApi {
   /** Delete a file the explorer is showing. */
   deleteExternalFile(path: string): Promise<void>
 
+  // --- soubory, se kterými někdo Pilcrow spustil ------------------------------
+  //
+  // Dvojklik, „Otevřít v programu“, nebo jiný program, který spustí
+  // `Pilcrow soubor.md`. Přístup k těm souborům povolil backend sám, stejně
+  // jako u přetažení: vybral je uživatel, jen jinde než v dialogu.
+
+  /**
+   * Soubory ze spuštění aplikace. Vydá je jen jednou.
+   *
+   * Volá se až po obnově toho, co bylo otevřené minule, aby soubor, kvůli
+   * kterému se Pilcrow spustil, nepřepsal naposledy otevřený. Co přijde
+   * potom, chodí přes `onLaunchFiles` -- mezi těmi dvěma se nic neztratí
+   * ani nepřijde dvakrát.
+   */
+  takeLaunchFiles(): Promise<string[]>
+
+  /**
+   * Soubory, které poslalo další spuštění, zatímco tohle už běží.
+   * Vrací funkci, která odběr zruší.
+   */
+  onLaunchFiles(handler: (paths: string[]) => void): () => void
+
   // --- collections ---------------------------------------------------------
 
   /**

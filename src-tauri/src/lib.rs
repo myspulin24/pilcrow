@@ -8,6 +8,8 @@
 //! 4. Seed a welcome note when the vault is brand new, so the first run is
 //!    never an empty window.
 //! 5. Start the file watcher.
+//! 6. Queue the files Pilcrow was launched with. The frontend asks for them
+//!    once it is listening -- see `launch.rs`.
 //!
 //! If step 3 fails -- an unwritable folder, a corrupt index -- the window still
 //! opens and the frontend renders its recovery screen. A notes app that refuses
@@ -17,6 +19,7 @@ mod about;
 mod assistant;
 mod commands;
 mod git;
+mod launch;
 mod state;
 mod watcher;
 
@@ -49,7 +52,22 @@ fn vault_root(app: &tauri::AppHandle) -> PathBuf {
 pub fn run() {
     load_dotenv();
 
-    let mut builder = tauri::Builder::default()
+    // Fronta souborů k otevření existuje od začátku, ne až v `setup`: macOS
+    // může soubor, kvůli kterému se aplikace spouští, doručit dřív.
+    let mut builder = tauri::Builder::default().manage(launch::LaunchState::default());
+
+    // Jedno okno, i když se Pilcrow spustí podruhé -- třeba jiným programem,
+    // který v něm chce otevřít soubor. Druhý proces skončí dřív, než cokoli
+    // otevře, a jeho argumenty dostane ten běžící. Plugin proto musí být
+    // první: jinak by se druhý proces stihl rozjet dřív, než to zjistí.
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            launch::from_second_instance(app, args, cwd);
+        }));
+    }
+
+    builder = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init());
 
@@ -108,8 +126,24 @@ pub fn run() {
                 }
             }
 
+            launch::from_startup(&handle);
+
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("chyba za běhu Pilcrow");
+        .build(tauri::generate_context!())
+        .expect("chyba za běhu Pilcrow")
+        .run(on_run_event);
+}
+
+/// Události za běhu aplikace.
+///
+/// Zatím jediná, a jen na macOS: soubor otevřený z Finderu nebo přes
+/// `open -a Pilcrow soubor.md` nepřijde v argumentech, ale takhle -- a to
+/// i tehdy, když se Pilcrow kvůli němu teprve spouští.
+#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
+fn on_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
+    #[cfg(target_os = "macos")]
+    if let tauri::RunEvent::Opened { urls } = event {
+        launch::from_urls(app, urls);
+    }
 }

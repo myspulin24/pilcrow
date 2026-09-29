@@ -10,6 +10,21 @@ uživateli vyskočí okno s prázdnou kolonkou.
 Píše se pro toho, kdo aplikaci používá, ne pro toho, kdo ji píše: co se změní
 na obrazovce, ne které soubory se upravily. Nejnovější verze je nahoře.
 
+## 0.13.0 — 2026-09-29
+
+### Přidáno
+
+- **Soubor jde do Pilcrow poslat zvenčí.** Dvojklikem na soubor `.md`, přes
+  „Otevřít v programu“, nebo z jiného programu, který Pilcrow spustí
+  s cestou k souboru — soubor se hned ukáže v editoru. Dostane přednost
+  před tím, co bylo otevřené minule, ale otevřené složky kvůli němu
+  nezmizí.
+- **Pilcrow má jen jedno okno.** Když už běží a spustí se znovu, další okno
+  se neotevře: soubor se ukáže v tom, které máš, a okno se vrátí dopředu,
+  i když bylo zmenšené. Co máš v editoru rozepsané, se předtím uloží.
+- **Soubory `.md` a `.markdown` jde otevřít v Pilcrow i ze systému.** Po
+  instalaci ho najdeš v nabídce „Otevřít v programu“.
+
 ## 0.12.0 — 2026-09-29
 
 ### Přidáno
