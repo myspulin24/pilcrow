@@ -10,6 +10,30 @@ uživateli vyskočí okno s prázdnou kolonkou.
 Píše se pro toho, kdo aplikaci používá, ne pro toho, kdo ji píše: co se změní
 na obrazovce, ne které soubory se upravily. Nejnovější verze je nahoře.
 
+## 0.14.0 — 2026-10-01
+
+### Přidáno
+
+- **Feedback přímo z aplikace.** Tlačítko **Feedback** ve stavovém řádku
+  (nebo „Poslat feedback…“ v paletě příkazů) otevře okno, kde napíšeš, co
+  nefunguje nebo co by šlo líp, a vybereš, jestli jde o bug, změnu, nebo
+  vylepšení. Kde v aplikaci zrovna jsi, se doplní samo.
+- **Označit prvek v aplikaci.** Okno se schová a klikneš na místo, ke
+  kterému se feedback vztahuje — tlačítko se přitom nezmáčkne, jen se
+  označí.
+- **Příloha** — obrázek, PDF, log, CSV, JSON nebo text do 2 MB. Snímek
+  obrazovky jde rovnou vložit ze schránky (`Win` `Shift` `S`, pak `Ctrl` `V`).
+- **Vidíš, co odejde.** Pod formulářem je přesný výpis všeho, co se pošle.
+  Název poznámky, její text ani cesty k souborům mezi tím nejsou; z editoru
+  se nevezme ani při označení prvku. „Poslat anonymně“ vynechá jméno
+  i e-mail.
+
+### Opraveno
+
+- **Neaktivní tlačítko vypadá neaktivně.** Dosud se od aktivního nelišilo
+  ničím — třeba „Odeslat do gitu…“ bez vybraného souboru lákalo ke kliknutí,
+  které nic neudělalo. Teď je zašedlé.
+
 ## 0.13.0 — 2026-09-29
 
 ### Přidáno

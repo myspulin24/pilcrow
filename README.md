@@ -266,16 +266,23 @@ Architektura stojí na dvou pravidlech:
 
 ## Soukromí a oprávnění
 
-Pilcrow nemá účty, telemetrii, analytiku ani hostované služby. Sám od sebe
-navazuje jediné síťové spojení: dotaz na GitHub, zda vyšla novější verze.
-Vypíná se proměnnou `PILCROW_AUTO_UPDATE=0`.
+Pilcrow nemá účty, telemetrii ani analytiku. Sám od sebe navazuje jediné
+síťové spojení: dotaz na GitHub, zda vyšla novější verze. Vypíná se
+proměnnou `PILCROW_AUTO_UPDATE=0`.
 
-Dvě funkce komunikují se sítí, ale pouze na výslovný pokyn:
+Tři funkce komunikují se sítí, ale pouze na výslovný pokyn:
 
 | Funkce | Co odchází | Kdy |
 | --- | --- | --- |
 | Asistent | Text otevřené poznámky (Anthropicu) | Po zapnutí funkce a odeslání dotazu |
 | Git | Commit a push na váš vlastní remote | Po stisknutí tlačítka Odeslat |
+| Feedback | Napsaná zpráva, druh, obecný popis toho, co bylo otevřené (bez názvů a cest), verze a systém; volitelně označený prvek, příloha a jméno s e-mailem | Po stisknutí Odeslat v okně Feedback |
+
+Feedback jde přes jedinou hostovanou službu aplikace: malý Worker na Cloudflare
+([`feedback/`](feedback/)), který z něj založí issue v soukromém repozitáři
+autora. Adresa je v aplikaci pevná, webview ji změnit nemůže; co přesně
+odejde, ukáže okno před odesláním. „Anonymně“ vynechá jméno i e-mail.
+IP adresa se nikam neukládá.
 
 Aplikace si vyžaduje minimální sadu oprávnění — úplný a systémem vynucovaný
 seznam je v [`src-tauri/capabilities/default.json`](src-tauri/capabilities/default.json).

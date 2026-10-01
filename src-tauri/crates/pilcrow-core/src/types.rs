@@ -220,6 +220,12 @@ pub struct VaultSettings {
     /// jinde“. Mapa, ne jedno pole: repozitářů je víc a každý může být jinde.
     #[serde(default)]
     pub repo_folders: HashMap<String, String>,
+    /// Kdo píše feedback -- zapamatované po prvním odeslání. Anonymní
+    /// odeslání ho nepřepíše ani nepošle.
+    #[serde(default)]
+    pub feedback_name: String,
+    #[serde(default)]
+    pub feedback_email: String,
     /// Smí panel asistenta posílat text poznámky ven?
     ///
     /// Výchozí `false` je záměr, ne opatrnost: bez tohohle přepínače z počítače
@@ -270,6 +276,8 @@ impl Default for VaultSettings {
             section_heights: HashMap::new(),
             repos_folder: String::new(),
             repo_folders: HashMap::new(),
+            feedback_name: String::new(),
+            feedback_email: String::new(),
             assistant_enabled: false,
             assistant_model: String::new(),
         }

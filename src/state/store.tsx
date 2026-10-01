@@ -106,7 +106,9 @@ import { applyTheme } from '@/lib/theme'
 import { AssistantProvider } from './assistant-store'
 import { GitProvider } from './git-store'
 import { ReposProvider } from './repos-store'
+import { FeedbackProvider } from './feedback-store'
 import type { GitApi } from '@/git'
+import type { FeedbackApi } from '@/feedback'
 
 export interface MathRequest {
   /** Zápis vzorce, se kterým se editor otevře. */
@@ -769,6 +771,11 @@ export interface Actions {
    * v něm nejsou neuložené změny; rozepsaný text se nepřepíše nikdy.
    */
   reloadFolder(rootPath: string): Promise<void>
+  /**
+   * Dočasně nepřijímat soubory přetažené ze systému. Pro okna, která přílohu
+   * berou jinak; po zavření se to zase zapne.
+   */
+  suppressDrops(on: boolean): void
   /** Open a file the explorer is showing. Jeho složka se tím stane aktivní. */
   openFromTree(path: string): Promise<void>
   toggleTreeFolder(rootPath: string, path: string): void
@@ -832,12 +839,14 @@ export function StoreProvider({
   updater,
   assistant,
   git,
+  feedback,
 }: {
   children: ReactNode
   vault?: VaultApi
   updater?: UpdaterApi
   assistant?: AssistantApi
   git?: GitApi
+  feedback?: FeedbackApi
 }) {
   const vaultRef = useRef<VaultApi>(vault ?? createVault())
   const updaterRef = useRef<UpdaterApi>(updater ?? createUpdater())
@@ -854,6 +863,9 @@ export function StoreProvider({
    * obnovují.
    */
   const explorerRestored = useRef(false)
+
+  /** Přetahování souborů ze systému je dočasně vypnuté. Viz `suppressDrops`. */
+  const dropsSuppressed = useRef(false)
 
   const editorElement = useRef<HTMLTextAreaElement | null>(null)
 
@@ -2381,6 +2393,9 @@ export function StoreProvider({
   // Files dragged from the OS onto the window.
   useEffect(() => {
     return vaultRef.current.onFileDrop(({ hovering, paths }) => {
+      // Okno, které si přílohu bere samo (feedback), přetažení zastaví --
+      // jinak by se přetažený soubor otevřel v průzkumníku za ním.
+      if (dropsSuppressed.current) return
       dispatch({ type: 'drop-active', active: hovering })
       if (paths.length > 0) void acceptDrop(paths)
     })
@@ -2452,6 +2467,10 @@ export function StoreProvider({
       openFolderAt,
       refreshTree,
       reloadFolder,
+      suppressDrops: (on: boolean) => {
+        dropsSuppressed.current = on
+        if (on) dispatch({ type: 'drop-active', active: false })
+      },
       openFromTree,
       toggleTreeFolder: (rootPath, path) => dispatch({ type: 'explorer-toggle-dir', rootPath, path }),
       expandAllFolders,
@@ -2538,7 +2557,9 @@ export function StoreProvider({
     <StoreContext.Provider value={value}>
       <AssistantProvider assistant={assistant}>
         <GitProvider git={git}>
-          <ReposProvider>{children}</ReposProvider>
+          <ReposProvider>
+            <FeedbackProvider feedback={feedback}>{children}</FeedbackProvider>
+          </ReposProvider>
         </GitProvider>
       </AssistantProvider>
     </StoreContext.Provider>

@@ -34,6 +34,8 @@ export interface CommandContext {
   openPublish?: () => void
   /** Otevřít výběr repozitáře z GitHubu. */
   openRepos?: () => void
+  /** Otevřít okno feedbacku. */
+  openFeedback?: () => void
 }
 
 export function buildCommands({
@@ -44,6 +46,7 @@ export function buildCommands({
   toggleAssistant,
   openPublish,
   openRepos,
+  openFeedback,
 }: CommandContext): Command[] {
   const hasNote = state.activePath !== null
   /**
@@ -354,6 +357,14 @@ export function buildCommands({
       // co po něm chce: otevřít panel.
       enabled: toggleAssistant !== undefined,
       run: () => toggleAssistant?.(),
+    },
+    {
+      id: 'app.feedback',
+      title: t.feedback.command,
+      group: t.palette.groups.app,
+      hint: t.feedback.openHint,
+      enabled: openFeedback !== undefined,
+      run: () => openFeedback?.(),
     },
   ]
 

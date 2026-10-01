@@ -5,12 +5,14 @@
 
 import { t } from '@/core'
 import { useAssistant } from '@/state/assistant-store'
+import { useFeedback } from '@/state/feedback-store'
 import { useActions, useAppState } from '@/state/store'
 
 export function StatusBar() {
   const state = useAppState()
   const actions = useActions()
   const assistant = useAssistant()
+  const feedback = useFeedback()
   const status = state.status
 
   return (
@@ -70,6 +72,15 @@ export function StatusBar() {
         aria-pressed={assistant.view.open}
       >
         {t.assistant.title}
+      </button>
+
+      <button
+        type="button"
+        className="status-bar__button"
+        onClick={feedback.actions.open}
+        title={t.feedback.openHint}
+      >
+        {t.feedback.open}
       </button>
 
       <button

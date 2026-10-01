@@ -2780,12 +2780,14 @@ dependencies = [
 
 [[package]]
 name = "pilcrow"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "dotenvy",
  "notify",
  "pilcrow-core",
+ "reqwest",
  "rusqlite",
+ "rustls",
  "serde",
  "serde_json",
  "tauri",

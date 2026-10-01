@@ -95,6 +95,8 @@ describe('smlouva mezi webview a Rustem', () => {
       'git_restore',
       'git_inspect_folder',
       'git_link_folder',
+      'feedback_status',
+      'feedback_send',
     ]) {
       expect(registered.has(name), `Rust nezná ${name}`).toBe(true)
     }

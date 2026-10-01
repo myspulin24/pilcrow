@@ -1,6 +1,6 @@
 [package]
 name = "pilcrow"
-version = "0.13.0"
+version = "0.14.0"
 description = "Pilcrow - local-first Markdown reader with a file explorer"
 authors = ["Michal Jašek"]
 edition = "2021"
@@ -28,6 +28,11 @@ serde_json = "1"
 rusqlite = { version = "0.32", features = ["bundled"] }
 notify = "6"
 dotenvy = "0.15"
+# Feedback do Workeru. Tentýž klient a tytéž TLS, co už táhne updater -- bez
+# nové knihovny a bez druhé implementace šifrování. Certifikáty bere ze
+# systému (`rustls-platform-verifier` uvnitř reqwest).
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 
 # Aktualizace z GitHub Releases. `process` je tu jen kvůli restartu aplikace
 # po nainstalování aktualizace. Desktop only -- na mobilu updater neexistuje.

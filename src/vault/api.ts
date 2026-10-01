@@ -185,6 +185,12 @@ export interface VaultSettings {
    */
   repoFolders: Record<string, string>
   /**
+   * Kdo píše feedback. Zapamatuje se po prvním odeslání, ať se nemusí psát
+   * pokaždé; anonymní odeslání ho nepřepíše ani nepošle.
+   */
+  feedbackName: string
+  feedbackEmail: string
+  /**
    * Smí panel asistenta posílat text poznámky ven?
    *
    * Výchozí `false` je záměr, ne opatrnost: bez tohohle přepínače z počítače
@@ -376,6 +382,8 @@ export const DEFAULT_SETTINGS: VaultSettings = {
   sectionHeights: {},
   reposFolder: '',
   repoFolders: {},
+  feedbackName: '',
+  feedbackEmail: '',
   assistantEnabled: false,
   assistantModel: '',
 }

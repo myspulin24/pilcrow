@@ -15,6 +15,7 @@ import type { Command, ConfirmRequest, PromptRequest } from '@/state/commands'
 import { buildCommands } from '@/state/commands'
 import { useAssistant } from '@/state/assistant-store'
 import { useGit } from '@/state/git-store'
+import { useFeedback } from '@/state/feedback-store'
 import { useRepos } from '@/state/repos-store'
 import { useActions, useAppState } from '@/state/store'
 import { useInsertWikiLink } from './NotePane'
@@ -40,6 +41,7 @@ export function CommandPalette({
   const assistant = useAssistant()
   const git = useGit()
   const repos = useRepos()
+  const feedback = useFeedback()
   const insertWikiLink = useInsertWikiLink()
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(0)
@@ -67,6 +69,7 @@ export function CommandPalette({
             toggleAssistant: assistant.actions.toggle,
             openPublish: git.view.step === 'ready' && git.view.selected.length > 0 ? git.actions.openPublish : undefined,
             openRepos: repos.actions.open,
+            openFeedback: feedback.actions.open,
           }),
     [linkMode, state, actions, assistant, prompt, confirm],
   )

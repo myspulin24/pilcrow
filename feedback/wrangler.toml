@@ -1,0 +1,20 @@
+# Worker, který přijímá feedback z Pilcrow a zakládá z něj issue v soukromém
+# repozitáři. Nasazení a tajemství: viz README.md vedle.
+
+name = "pilcrow-feedback"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+# Kam se feedback doručuje. Token k němu je tajemství (`wrangler secret put
+# GITHUB_TOKEN`), ne proměnná -- tady by ho viděl každý, kdo čte repozitář.
+[vars]
+GITHUB_REPO = "myspulin24/pilcrow-feedback"
+
+# Pár odeslání za minutu z jedné adresy. Síto na roboty, ne zámek.
+[[ratelimits]]
+name = "LIMITER"
+namespace_id = "1001"
+simple = { limit = 5, period = 60 }
+
+[observability]
+enabled = true

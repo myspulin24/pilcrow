@@ -534,7 +534,9 @@ pub fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static
         crate::git::git_restore,
         crate::git::git_inspect_folder,
         crate::git::git_link_folder,
-        crate::git::open_url
+        crate::git::open_url,
+        crate::feedback::feedback_status,
+        crate::feedback::feedback_send
     ]
 }
 

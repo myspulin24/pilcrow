@@ -40,3 +40,7 @@ npm-debug.log*
 
 # Test output
 coverage/
+
+# Worker s feedbackem: místní tajemství pro `wrangler dev` a jeho mezivýstupy.
+feedback/.dev.vars
+feedback/.wrangler/

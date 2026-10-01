@@ -9,6 +9,7 @@ import { isTypingTarget, matchesShortcut } from '@/lib/shortcuts'
 import { buildCommands } from '@/state/commands'
 import { useAssistant } from '@/state/assistant-store'
 import { useGit } from '@/state/git-store'
+import { useFeedback } from '@/state/feedback-store'
 import { useRepos } from '@/state/repos-store'
 import { useActions, useAppState, useStore } from '@/state/store'
 import { CommandPalette } from '@/ui/CommandPalette'
@@ -17,6 +18,7 @@ import { ConflictView } from '@/ui/ConflictView'
 import { ErrorState, Spinner, Toasts } from '@/ui/Feedback'
 import { ConfirmModal, PromptModal } from '@/ui/Modal'
 import { AssistantPanel } from '@/ui/AssistantPanel'
+import { FeedbackDialog } from '@/ui/FeedbackDialog'
 import { RepoDialog } from '@/ui/RepoDialog'
 import { SettingsDialog } from '@/ui/SettingsDialog'
 import { UpdateDialog } from '@/ui/UpdateDialog'
@@ -31,6 +33,7 @@ export function App() {
   const assistant = useAssistant()
   const git = useGit()
   const repos = useRepos()
+  const feedback = useFeedback()
   const openPublish = git.view.step === 'ready' && git.view.selected.length > 0 ? git.actions.openPublish : undefined
   // Modals live in the store so the sidebar, the tree and the palette can all
   // raise one without threading callbacks through every component.
@@ -44,7 +47,7 @@ export function App() {
     if (state.phase !== 'ready') return
     const handler = (event: KeyboardEvent) => {
       if (state.paletteOpen || prompt || confirm || state.conflict || menu) return
-      if (state.settingsOpen) return
+      if (state.settingsOpen || feedback.view.open) return
 
       const commands = buildCommands({
         state,
@@ -54,6 +57,7 @@ export function App() {
         toggleAssistant: assistant.actions.toggle,
         openPublish,
         openRepos: repos.actions.open,
+        openFeedback: feedback.actions.open,
       })
       for (const command of commands) {
         if (!command.shortcut) continue
@@ -67,7 +71,7 @@ export function App() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [state, actions, assistant, openPublish, repos, prompt, confirm, menu, requestPrompt, requestConfirm])
+  }, [state, actions, assistant, openPublish, repos, feedback, prompt, confirm, menu, requestPrompt, requestConfirm])
 
   // `#note/<path>` links inside the preview.
   useEffect(() => {
@@ -115,6 +119,7 @@ export function App() {
       {menu ? <ContextMenu request={menu} onClose={actions.closeMenu} /> : null}
       <RepoDialog />
       <SettingsDialog />
+      <FeedbackDialog />
       <ConflictView />
       <UpdateDialog />
       <Toasts />

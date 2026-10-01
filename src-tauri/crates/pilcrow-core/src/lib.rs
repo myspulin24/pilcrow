@@ -13,6 +13,7 @@ pub mod assistant;
 pub mod collections;
 pub mod error;
 pub mod explorer;
+pub mod feedback;
 pub mod git;
 pub mod index;
 pub mod launch;

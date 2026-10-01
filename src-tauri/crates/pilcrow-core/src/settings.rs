@@ -64,6 +64,7 @@ mod tests {
         // Pamatovat si panel je volba navíc; starší nastavení ji nezná.
         assert!(!settings.sidebar_remember);
         assert!(settings.repo_folders.is_empty());
+        assert!(settings.feedback_name.is_empty() && settings.feedback_email.is_empty());
         assert!(settings.show_toolbar);
         assert!(settings.check_updates);
         // Asistent je jediný, kdo se v chybějícím souboru nezapne sám.

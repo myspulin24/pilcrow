@@ -18,6 +18,7 @@
 mod about;
 mod assistant;
 mod commands;
+mod feedback;
 mod git;
 mod launch;
 mod state;
