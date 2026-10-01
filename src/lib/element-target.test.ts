@@ -64,6 +64,24 @@ describe('describeElement', () => {
     }
   })
 
+  it('lišta s otevřeným souborem se pozná jménem, ne jako celá pracovní plocha', () => {
+    // Přesně první feedback: klik do lišty „Čtu“ skončil jako „Pracovní
+    // plocha“ s cestou `div.workspace`, a nešlo poznat, o co jde.
+    const root = mount(`
+      <div class="workspace" aria-label="Pracovní plocha">
+        <div class="workspace__current" role="group" aria-label="Otevřený soubor" title="C:\\Users\\micha\\docs\\plan.md">
+          <span class="workspace__current-label">Čtu</span>
+          <span class="workspace__current-path">docs/plan.md</span>
+        </div>
+      </div>`)
+    const described = describeElement(root.querySelector('.workspace__current-path')!)
+    expect(described.label).toBe('část „Otevřený soubor“ · Pracovní plocha')
+    // Cesta vede od místa kliknutí, ne od zobecněného předka.
+    expect(described.path).toMatch(/div\.workspace__current > span\.workspace__current-path$/)
+    // A jméno souboru ani cesta na disku v popisu nejsou.
+    expect(JSON.stringify(described)).not.toContain('plan')
+  })
+
   it('id, která generuje React, do cesty nedá', () => {
     const root = mount(`<div role="dialog" aria-labelledby=":r5:"><h2 id=":r5:">Poslat feedback</h2><button>Odeslat</button></div>`)
     const described = describeElement(root.querySelector('button')!)

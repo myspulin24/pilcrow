@@ -368,16 +368,18 @@ textarea:focus-visible,
   flex-shrink: 0;
 }
 
+/* Celá cesta, i za cenu dvou tří řádků. Zalamuje se za lomítky (`<wbr>`
+   v komponentě), a kdyby byl jeden úsek delší než sloupec, tak i uvnitř
+   něj. Dřív tu byla trojtečka a `direction: rtl`, takže začátek cesty
+   chyběl a celá byla jen v bublině. */
 .workspace__current-path {
   flex: 1;
   min-width: 0;
   font-family: var(--mono);
   color: var(--text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  direction: rtl;
-  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
 }
 
 .workspace__drop {

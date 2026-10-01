@@ -82,6 +82,7 @@ export const t = {
     openFolder: 'Otevřít složku...',
     openedFile: 'Otevřený soubor',
     reading: 'Čtu',
+    readingLabel: 'Otevřený soubor',
     dropHint: 'Pusť sem soubory .md nebo složku a otevřou se',
     scanning: 'Prohledávám složku',
     chooseAnother: 'Vybrat jinou složku',

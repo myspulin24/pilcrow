@@ -10,6 +10,17 @@ uživateli vyskočí okno s prázdnou kolonkou.
 Píše se pro toho, kdo aplikaci používá, ne pro toho, kdo ji píše: co se změní
 na obrazovce, ne které soubory se upravily. Nejnovější verze je nahoře.
 
+## 0.14.1 — 2026-10-01
+
+### Opraveno
+
+- **Cesta otevřeného souboru je vidět celá.** Za „Čtu“ dole v prostředním
+  sloupci byla useknutá trojtečkou a chyběl jí začátek; celá byla jen
+  v bublině. Teď se zalomí na víc řádků, přednostně za lomítky.
+- **Označený prvek ve feedbacku je přesnější.** Klik do lišty bez popisku
+  se dřív ohlásil jako celá „Pracovní plocha“. Lišta s otevřeným souborem
+  má teď vlastní jméno a cesta pro vývojáře vede od místa, kam se kliklo.
+
 ## 0.14.0 — 2026-10-01
 
 ### Přidáno

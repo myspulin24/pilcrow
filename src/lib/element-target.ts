@@ -63,6 +63,7 @@ const ROLE_LABEL: Record<string, string> = {
   alertdialog: 'okno',
   section: 'oddíl',
   region: 'oblast',
+  group: 'část',
   navigation: 'panel',
   toolbar: 'lišta',
   tree: 'strom',
@@ -149,10 +150,16 @@ function pathOf(element: Element): string {
   return steps.join(' > ')
 }
 
+/**
+ * Popis pro člověka bere nejbližší smysluplný prvek; cesta pro vývojáře
+ * vede od místa, kam se opravdu kliklo. Bez toho skončil klik do lišty bez
+ * popisku jako „Pracovní plocha“ s cestou `div.workspace` -- a nešlo poznat,
+ * o kterou z jejích částí šlo.
+ */
 export function describeElement(target: Element): FeedbackElement {
   const element = meaningfulTarget(target)
   const name = nameOf(element)
   const area = areaOf(element)
   const head = name ? `${kindOf(element)} „${name}“` : kindOf(element)
-  return { label: area ? `${head} · ${area}` : head, path: pathOf(element) }
+  return { label: area ? `${head} · ${area}` : head, path: pathOf(target) }
 }

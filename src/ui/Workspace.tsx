@@ -14,6 +14,8 @@
  * handled here too, since this is where the result shows up.
  */
 
+import { Fragment } from 'react'
+
 import {
   folderLabel,
   folderOf,
@@ -253,10 +255,17 @@ export function Workspace() {
       </div>
 
       {state.editor?.external && state.activePath ? (
-        <div className="workspace__current" title={state.activePath}>
+        // Celá cesta, zalomená za lomítky. Dřív ji useklo `text-overflow`
+        // a celá byla jen v bublině, kterou skoro nikdo nenajde.
+        <div className="workspace__current" role="group" aria-label={t.workspace.readingLabel} title={state.activePath}>
           <span className="workspace__current-label">{t.workspace.reading}</span>
           <span className="workspace__current-path">
-            {readingPath}
+            {readingPath.split(/(?<=[\\/])/).map((segment, index) => (
+              <Fragment key={index}>
+                {index > 0 ? <wbr /> : null}
+                {segment}
+              </Fragment>
+            ))}
           </span>
         </div>
       ) : null}

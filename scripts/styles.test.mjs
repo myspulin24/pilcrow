@@ -48,3 +48,18 @@ describe('panel asistenta drží šířku', () => {
     expect(rule('.markdown-body pre')).toMatch(/overflow-x:\s*auto/)
   })
 })
+
+describe('lišta s otevřeným souborem ukazuje celou cestu', () => {
+  /**
+   * První feedback poslaný z aplikace: cesta za „Čtu“ byla useknutá
+   * trojtečkou (a kvůli `direction: rtl` chyběl její začátek), celá byla
+   * jen v bublině. Teď se zalamuje -- a tohle hlídá, aby se ořez nevrátil.
+   */
+  it('cesta se zalomí, místo aby se usekla', () => {
+    const path = rule('.workspace__current-path')
+    expect(path).toMatch(/overflow-wrap:\s*anywhere/)
+    expect(path).not.toMatch(/text-overflow:\s*ellipsis/)
+    expect(path).not.toMatch(/white-space:\s*nowrap/)
+    expect(path).not.toMatch(/direction:\s*rtl/)
+  })
+})
