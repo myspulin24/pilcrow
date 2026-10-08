@@ -695,7 +695,7 @@ export class MemoryGit implements GitApi {
       ahead,
       behind: branch.behind ?? 0,
       log: Array.from({ length: ahead }, (_, index) =>
-        [sha(0xc0ffee + index).slice(0, 7), branch.author ?? 'Tester', branch.date ?? '2026-09-20T10:00:00+02:00', index === 0 ? (branch.subject ?? `Poslední commit na ${branch.name}`) : `Starší commit ${index}`].join('\0'),
+        [sha(0xc0ffee + index).slice(1, 8), branch.author ?? 'Tester', branch.date ?? '2026-09-20T10:00:00+02:00', index === 0 ? (branch.subject ?? `Poslední commit na ${branch.name}`) : `Starší commit ${index}`].join('\0'),
       ).join('\n'),
       nameStatus: files.map((file) => `${file.status ?? 'M'}\0${file.path}\0`).join(''),
       numstat: files.map((file) => `${file.status === 'D' ? 0 : 3}\t${file.status === 'A' ? 0 : 1}\t${file.path}\0`).join(''),

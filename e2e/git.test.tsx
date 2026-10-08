@@ -709,6 +709,58 @@ describe('okno větví', () => {
     await waitFor(() => expect(branchButton()).toHaveTextContent('feature/navod'))
   })
 
+  it('z feature větve zpátky na main -- a hlavička sekce to ukáže', async () => {
+    // Feedback #5: „Zvolil jsem si main, ale stále vidím, že jsem na feature větvi.“
+    const user = userEvent.setup()
+    await renderApp({
+      branch: 'feature/navod',
+      branches: [{ name: 'main', local: true }, { name: 'feature/navod', local: true, ahead: 2 }],
+    })
+    await openTheFolder(user)
+    await waitForGit()
+    await waitFor(() => expect(branchButton()).toHaveTextContent('feature/navod'))
+
+    // Výběr řádku nepřepíná -- a okno to teď řekne naplno, i na zavíracím tlačítku.
+    let dialog = await openBranches(user)
+    let list = await within(dialog).findByRole('list', { name: 'Větve' })
+    expect(within(dialog).queryByRole('status')).toBeNull()
+    await user.click(within(list).getByRole('button', { name: /^main/ }))
+    expect(within(dialog).getByRole('status')).toHaveTextContent(
+      'Pořád jsi na feature/navod. Vybraná větev se zatím jen ukazuje -- přepneš se tlačítkem „Přepnout na main“',
+    )
+    await user.click(within(dialog).getByRole('button', { name: 'Zavřít bez přepnutí' }))
+    expect(screen.queryByRole('dialog', { name: 'Větve' })).toBeNull()
+    expect(git.switched).toEqual([])
+    expect(branchButton()).toHaveTextContent('feature/navod')
+
+    // Přepne až tlačítko.
+    dialog = await openBranches(user)
+    list = await within(dialog).findByRole('list', { name: 'Větve' })
+    await user.click(within(list).getByRole('button', { name: /^main/ }))
+    await user.click(within(dialog).getByRole('button', { name: 'Přepnout na main' }))
+
+    await waitFor(() => expect(git.switched).toEqual(['main']))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Větve' })).toBeNull())
+    await waitFor(() => expect(branchButton()).toHaveTextContent('main'))
+  })
+
+  it('dvojklik na řádek dělá totéž co hlavní tlačítko; na větvi, kde se stojí, nic', async () => {
+    const user = userEvent.setup()
+    await renderApp({ branches: BRANCHES })
+    await openTheFolder(user)
+    await waitForGit()
+
+    const dialog = await openBranches(user)
+    const list = await within(dialog).findByRole('list', { name: 'Větve' })
+    await user.dblClick(within(list).getByRole('button', { name: /^main/ }))
+    expect(git.switched).toEqual([])
+    expect(within(dialog).getByRole('button', { name: 'Zavřít' })).toBeInTheDocument()
+
+    await user.dblClick(within(list).getByRole('button', { name: /feature\/navod/ }))
+    await waitFor(() => expect(git.switched).toEqual(['feature/navod']))
+    await waitFor(() => expect(branchButton()).toHaveTextContent('feature/navod'))
+  })
+
   it('s rozdělanou prací varuje, a když git přepnutí odmítne, řekne proč', async () => {
     const user = userEvent.setup()
     await renderApp({

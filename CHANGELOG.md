@@ -10,6 +10,16 @@ uživateli vyskočí okno s prázdnou kolonkou.
 Píše se pro toho, kdo aplikaci používá, ne pro toho, kdo ji píše: co se změní
 na obrazovce, ne které soubory se upravily. Nejnovější verze je nahoře.
 
+## 0.14.2 — 2026-10-08
+
+### Opraveno
+
+- **V okně větví je jasné, kdy se přepnulo.** Klik na větev ji jen vybere
+  a ukáže, co přinesla; přepne se až tlačítkem dole. Kdo vybral třeba main
+  a okno zavřel, zůstal na své feature větvi, a okno to nijak neřeklo. Teď
+  pod seznamem stojí „Pořád jsi na …“, zavírací tlačítko se jmenuje
+  **Zavřít bez přepnutí** a na větev se dá přepnout i dvojklikem na řádek.
+
 ## 0.14.1 — 2026-10-01
 
 ### Opraveno

@@ -4051,6 +4051,15 @@ body.is-resizing-v {
 .branches__dirty {
   margin: 0;
 }
+/* Kde se pořád stojí, když je vybraná jiná větev. Ne šedě: tohle je to,
+   co uživatel přehlédl (feedback #5). */
+.branches__notice {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: 4px;
+}
 /* Odkaz na GitHub doleva, zavřít a hlavní akci doprava. */
 .branches__github {
   margin-right: auto;

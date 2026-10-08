@@ -2,8 +2,9 @@
  * Okno větví: prohlížeč toho, co je v repozitáři na GitHubu.
  *
  * Vlevo seznam větví, vpravo co vybraná větev přinesla proti výchozí --
- * commity a změněné soubory, u každého rozdíl na rozkliknutí. Stáhnout
- * a otevřít se dá jen tlačítkem dole, a jen tu větev, která je vybraná.
+ * commity a změněné soubory, u každého rozdíl na rozkliknutí. Klik na řádek
+ * větev jen vybere; přepnout, stáhnout a otevřít ji jde tlačítkem dole nebo
+ * dvojklikem na řádek. Dokud se nepřepnulo, okno říká, kde se pořád stojí.
  *
  * Stejné okno se ptá, *odkud* stáhnout, když uživatel klikne na „Stáhnout…“
  * nebo když se otevřený repozitář ukáže být pozadu. Liší se jen nadpisem,
@@ -208,18 +209,25 @@ export function BranchDialog() {
   const kind = branch ? switchKind(branch) : null
   const url = branch?.remote && view.remote ? branchUrl(view.remote, branch.name) : null
 
-  const primary = (() => {
-    if (!branch || !kind) return null
-    if (kind === 'current') return { label: t.branches.stayHere, run: null }
-    if (kind === 'pull') return { label: t.branches.pullHere(branch.name), run: () => void actions.pull() }
+  /** Co s větví udělá hlavní tlačítko. Dvojklik na řádek dělá totéž. */
+  const actionFor = (candidate: Branch) => {
+    const candidateKind = switchKind(candidate)
+    if (candidateKind === 'current') return { label: t.branches.stayHere, run: null }
+    if (candidateKind === 'pull') return { label: t.branches.pullHere(candidate.name), run: () => void actions.pull() }
     const label =
-      kind === 'download'
-        ? t.branches.download(branch.name)
+      candidateKind === 'download'
+        ? t.branches.download(candidate.name)
         : intent === 'pull'
-          ? t.branches.switchAndPull(branch.name)
-          : t.branches.switchTo(branch.name)
-    return { label, run: () => void actions.switchBranch(branch.name) }
-  })()
+          ? t.branches.switchAndPull(candidate.name)
+          : t.branches.switchTo(candidate.name)
+    return { label, run: () => void actions.switchBranch(candidate.name) }
+  }
+  const primary = branch ? actionFor(branch) : null
+  const idle = !busy && view.busy === null
+  // Vybraná je jiná větev, než na které se stojí. Výběr sám nic nepřepíná --
+  // a přesně to v okně nebylo vidět (feedback #5): uživatel klikl na main,
+  // okno zavřel a v hlavičce dál viděl svou feature větev.
+  const elsewhere = Boolean(list && primary?.run && (kind === 'switch' || kind === 'download'))
 
   return (
     <Backdrop onClose={() => (busy ? undefined : actions.closeBranches())}>
@@ -269,6 +277,9 @@ export function BranchDialog() {
                       className={`branches__row ${candidate.name === selected ? 'is-selected' : ''}`}
                       aria-pressed={candidate.name === selected}
                       onClick={() => setSelected(candidate.name)}
+                      onDoubleClick={() => {
+                        if (idle) actionFor(candidate).run?.()
+                      }}
                     >
                       <span className="branches__row-name">{candidate.name}</span>
                       <span className="branches__row-badges">
@@ -293,6 +304,11 @@ export function BranchDialog() {
         {intent === 'pull' && kind === 'current' && branch ? (
           <p className="git__muted">{t.branches.nothingToPull(branch.name)}</p>
         ) : null}
+        {elsewhere && list && primary && !busy ? (
+          <p className="branches__notice" role="status">
+            {t.branches.notSwitched(list.current, primary.label)}
+          </p>
+        ) : null}
         {view.branchError ? (
           <p className="modal__error" role="alert">
             {view.branchError}
@@ -315,14 +331,14 @@ export function BranchDialog() {
             </button>
           ) : (
             <button type="button" className="button" onClick={actions.closeBranches}>
-              {t.common.close}
+              {elsewhere ? t.branches.closeWithout : t.common.close}
             </button>
           )}
           {primary ? (
             <button
               type="button"
               className="button button--primary"
-              disabled={!primary.run || busy || view.busy !== null}
+              disabled={!primary.run || !idle}
               onClick={primary.run ?? undefined}
             >
               {primary.label}

@@ -769,7 +769,7 @@ export const t = {
     titleBrowse: 'Větve',
     titlePull: 'Stáhnout z GitHubu',
     introBrowse: (base: string) =>
-      `Vyber větev a uvidíš, co přinesla proti ${base}. Stáhne se a otevře, až když o to tlačítkem dole řekneš.`,
+      `Vyber větev a uvidíš, co přinesla proti ${base}. Výběr sám nic nepřepíná ani nestahuje -- to udělá až tlačítko dole nebo dvojklik na řádek.`,
     introPull: (current: string) =>
       `Vyber, ze které větve stáhnout. Stáhne se jen ta, kterou vybereš; když je to jiná než ${current}, Pilcrow se na ni přepne.`,
     loading: 'Ptám se GitHubu na větve…',
@@ -813,6 +813,11 @@ export const t = {
 
     dirty: (n: number) =>
       `Máš ${withCount(n, 'rozdělanou změnu', 'rozdělané změny', 'rozdělaných změn')}. Git si je při přepnutí vezme s sebou; kdyby se s cílovou větví praly, přepnutí odmítne a nic se nezmění.`,
+    notSwitched: (current: string, action: string) =>
+      current && current !== 'HEAD'
+        ? `Pořád jsi na ${current}. Vybraná větev se zatím jen ukazuje -- přepneš se tlačítkem „${action}“ nebo dvojklikem na řádek.`
+        : `Vybraná větev se zatím jen ukazuje -- přepneš se tlačítkem „${action}“ nebo dvojklikem na řádek.`,
+    closeWithout: 'Zavřít bez přepnutí',
     stayHere: 'Tady už jsi',
     pullHere: (branch: string) => `Stáhnout do ${branch}`,
     switchTo: (branch: string) => `Přepnout na ${branch}`,
